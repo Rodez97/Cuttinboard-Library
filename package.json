@@ -1,0 +1,68 @@
+{
+  "name": "@cuttinboard/cuttinboard-library",
+  "version": "6.3.8",
+  "description": "Shared Code Library for Cuttinboard App",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "cuttinboard",
+    "typescript",
+    "interfaces",
+    "types",
+    "hooks"
+  ],
+  "exports": {
+    ".": "./dist/index.js",
+    "./services": "./dist/services/index.js",
+    "./models": "./dist/models/index.js",
+    "./utils": "./dist/utils/index.js",
+    "./firebase": "./dist/firebase.js"
+  },
+  "typesVersions": {
+    "*": {
+      "*": [
+        "dist/index.d.ts"
+      ],
+      "services": [
+        "dist/services/index.d.ts"
+      ],
+      "models": [
+        "dist/models/index.d.ts"
+      ],
+      "utils": [
+        "dist/utils/index.d.ts"
+      ],
+      "firebase": [
+        "dist/firebase.d.ts"
+      ]
+    }
+  },
+  "author": "Elevvate Technologies, Inc. <info@cuttinboard.com> (https://cuttinboard.com)",
+  "license": "Unlicensed",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cuttinboard/cuttinboard-library.git"
+  },
+  "bugs": {
+    "url": "https://github.com/cuttinboard/cuttinboard-library/issues"
+  },
+  "homepage": "https://github.com/cuttinboard/cuttinboard-library",
+  "peerDependencies": {
+    "@types/lodash": ">=4.0",
+    "@types/react": ">=17.0.0",
+    "dayjs": ">=1.11.3",
+    "firebase": ">=9.0.0",
+    "lodash": ">=4.0.0",
+    "react": ">=17.0.0",
+    "react-dom": ">=17.0.0",
+    "react-firebase-hooks": ">=5.0.0",
+    "typescript": ">=4.0.0"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com/"
+  }
+}
