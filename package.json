@@ -1,6 +1,6 @@
 {
-  "name": "@cuttinboard/cuttinboard-library",
-  "version": "6.3.8",
+  "name": "@cuttinboard-solutions/cuttinboard-library",
+  "version": "0.0.1",
   "description": "Shared Code Library for Cuttinboard App",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -45,12 +45,12 @@
   "license": "Unlicensed",
   "repository": {
     "type": "git",
-    "url": "https://github.com/cuttinboard/cuttinboard-library.git"
+    "url": "https://github.com/Cuttinboard-Solutions/Cuttinboard-Library.git"
   },
   "bugs": {
-    "url": "https://github.com/cuttinboard/cuttinboard-library/issues"
+    "url": "https://github.com/Cuttinboard-Solutions/Cuttinboard-Library/issues"
   },
-  "homepage": "https://github.com/cuttinboard/cuttinboard-library",
+  "homepage": "hhttps://github.com/Cuttinboard-Solutions/Cuttinboard-Library",
   "peerDependencies": {
     "@types/lodash": ">=4.0",
     "@types/react": ">=17.0.0",
