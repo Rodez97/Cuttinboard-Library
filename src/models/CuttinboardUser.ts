@@ -29,4 +29,5 @@ export type CuttinboardUser = {
   birthDate?: Timestamp;
   customerId?: string;
   subscriptionId?: string;
+  paymentMethods?: string[];
 };
