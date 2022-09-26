@@ -1,5 +1,5 @@
 export * from "./Auth";
-export * from "./ChatRTDB";
+export * from "./ConversationMessages";
 export * from "./Conversations";
 export * from "./Cuttinboard";
 export * from "./CuttinboardModule";
@@ -11,3 +11,4 @@ export * from "./useEmployeesManager";
 export * from "./useListReducer";
 export * from "./useLocations";
 export * from "./useNotificationsBadges";
+export * from "./DirectMessages";

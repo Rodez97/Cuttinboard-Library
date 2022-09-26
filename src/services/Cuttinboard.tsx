@@ -19,15 +19,17 @@ import { useObjectVal } from "react-firebase-hooks/database";
 export type UserRealtimeData = {
   metadata: { refreshTime: number; [key: string]: any };
   notifications: {
-    [organizationId: string]: {
-      dm: {
-        [dmId: string]: number;
-      };
-      locations: {
-        [locationId: string]: {
-          conv: { [convId: string]: number };
-          task: { [taskId: string]: number };
-          sch: { [schId: string]: number };
+    dm: {
+      [dmId: string]: number;
+    };
+    organizations: {
+      [organizationId: string]: {
+        locations: {
+          [locationId: string]: {
+            conv: { [convId: string]: number };
+            task: { [taskId: string]: number };
+            sch: { [schId: string]: number };
+          };
         };
       };
     };

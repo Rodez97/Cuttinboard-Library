@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { ref, remove } from "firebase/database";
 import { useCuttinboard, useLocation } from "..";
 import { Database } from "../firebase";
@@ -9,18 +9,13 @@ export function useNotificationsBadges() {
 
   const getModuleBadge = useCallback(
     (type: "conv" | "task" | "sch", notiId: string) => {
-      if (!organizationKey || !locationId) {
-        throw new Error(
-          "This function can only be called under a location instance"
-        );
-      }
-      if (!notifications) {
+      if (!organizationKey || !locationId || !notifications) {
         return 0;
       }
       const notificationsObject =
-        notifications[organizationKey.orgId].locations?.[locationId]?.[type]?.[
-          notiId
-        ];
+        notifications?.organizations?.[organizationKey.orgId].locations?.[
+          locationId
+        ]?.[type]?.[notiId];
       return notificationsObject ?? 0;
     },
     [notifications, locationId, organizationKey]
@@ -32,16 +27,13 @@ export function useNotificationsBadges() {
    */
   const getBadgeByModule = useCallback(
     (type: "conv" | "task" | "sch") => {
-      if (!organizationKey || !locationId) {
-        throw new Error(
-          "This function can only be called under a location instance"
-        );
-      }
-      if (!notifications) {
+      if (!organizationKey || !locationId || !notifications) {
         return 0;
       }
       const notificationsObject =
-        notifications[organizationKey.orgId].locations?.[locationId]?.[type];
+        notifications?.organizations?.[organizationKey.orgId].locations?.[
+          locationId
+        ]?.[type];
       if (!notificationsObject) {
         return 0;
       }
@@ -61,7 +53,7 @@ export function useNotificationsBadges() {
       await remove(
         ref(
           Database,
-          `users/${user.uid}/notifications/${organizationKey.orgId}/locations/${locationId}/${type}/${notiId}`
+          `users/${user.uid}/notifications/organizations/${organizationKey.orgId}/locations/${locationId}/${type}/${notiId}`
         )
       );
     },
@@ -70,20 +62,26 @@ export function useNotificationsBadges() {
 
   const getDMBadge = useCallback(
     (dmId: string) => {
-      if (!organizationKey) {
-        throw new Error(
-          "This function can only be called under a organization instance"
-        );
-      }
       if (!notifications) {
         return 0;
       }
-      const notificationsObject =
-        notifications[organizationKey.orgId].dm?.[dmId];
+      const notificationsObject = notifications.dm?.[dmId];
       return notificationsObject ?? 0;
     },
-    [notifications, organizationKey]
+    [notifications]
   );
+
+  const getDMBadges = useMemo(() => {
+    if (!notifications) {
+      return 0;
+    }
+    const notificationsObject = notifications.dm
+      ? Object.values(notifications.dm).reduce((acc, val) => {
+          return acc + val;
+        }, 0)
+      : 0;
+    return notificationsObject ?? 0;
+  }, [notifications]);
 
   const removeDMBadge = useCallback(
     async (dmId: string) => {
@@ -91,12 +89,7 @@ export function useNotificationsBadges() {
       if (badge === 0) {
         return;
       }
-      await remove(
-        ref(
-          Database,
-          `users/${user.uid}/notifications/${organizationKey.orgId}/dm/${dmId}`
-        )
-      );
+      await remove(ref(Database, `users/${user.uid}/notifications/dm/${dmId}`));
     },
     [notifications, locationId, user.uid, organizationKey]
   );
@@ -104,18 +97,13 @@ export function useNotificationsBadges() {
   const getBadgeByLocation = useCallback(
     (locId: string, orgId: string) => {
       let badgeCount: number = 0;
-      const notificationsObject = notifications?.[orgId]?.locations?.[locId];
+      const notificationsObject =
+        notifications?.organizations?.[orgId]?.locations?.[locId];
       if (notificationsObject) {
         Object.values(notificationsObject).forEach((noti) => {
           Object.values(noti).forEach((quantity) => {
             badgeCount + quantity;
           });
-        });
-      }
-      const orgDmNotifications = notifications?.[orgId]?.dm;
-      if (orgDmNotifications) {
-        Object.values(orgDmNotifications).forEach((quantity) => {
-          badgeCount + quantity;
         });
       }
       return badgeCount;
@@ -125,7 +113,8 @@ export function useNotificationsBadges() {
 
   const haveNotificationsInOthersLocations = useCallback(
     (locId: string, orgId: string) => {
-      const notificationsObject = notifications?.[orgId]?.locations;
+      const notificationsObject =
+        notifications?.organizations?.[orgId]?.locations;
       if (!notificationsObject) {
         return false;
       }
@@ -149,5 +138,6 @@ export function useNotificationsBadges() {
     haveNotificationsInOthersLocations,
     removeDMBadge,
     getDMBadge,
+    getDMBadges,
   };
 }

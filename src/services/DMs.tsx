@@ -1,14 +1,15 @@
 import {
-  arrayRemove,
   arrayUnion,
   collection,
   doc,
-  FieldValue,
+  DocumentData,
+  getDoc,
+  orderBy,
   query,
+  QueryDocumentSnapshot,
   serverTimestamp,
   setDoc,
   updateDoc,
-  where,
 } from "firebase/firestore";
 import React, {
   createContext,
@@ -20,21 +21,24 @@ import React, {
 import { useCollectionData } from "react-firebase-hooks/firestore";
 import { Chat, ChatFirestoreConverter } from "../models/chat/Chat";
 import { Auth, Firestore } from "../firebase";
-import { useLocation } from "./Location";
 import {
   set,
   serverTimestamp as dbServerTimestamp,
   ref,
 } from "firebase/database";
 import { Database } from "./../firebase";
+import { Employee } from "models";
 
 interface DMsContextProps {
   chats: Chat[];
   selectedChat?: Chat;
   chatId: string;
   setChatId: (chtId: string) => void;
-  startNewDM: (recipientId: string) => Promise<string>;
-  toggleChatMute: (mute: boolean) => Promise<void>;
+  toggleChatMute: () => Promise<void>;
+  startNewDMByEmail: (
+    recipient: QueryDocumentSnapshot<DocumentData>
+  ) => Promise<string>;
+  startNewLocationDM: (recipient: Employee) => Promise<string>;
 }
 
 const DMsContext = createContext<DMsContextProps>({} as DMsContextProps);
@@ -43,26 +47,21 @@ interface DMsProviderProps {
   children: ReactNode;
   LoadingElement: JSX.Element;
   ErrorElement: (error: Error) => JSX.Element;
+  locationId?: string;
 }
 
 export function DMsProvider({
   children,
   LoadingElement,
   ErrorElement,
+  locationId,
 }: DMsProviderProps) {
   const [chatId, setChatId] = useState("");
   const [user] = useState(Auth.currentUser);
-  const { location, locationId } = useLocation();
   const [chats, loading, error] = useCollectionData<Chat>(
     query(
-      collection(
-        Firestore,
-        "Organizations",
-        location.organizationId,
-        "directMessages"
-      ),
-      where(`members.${user.uid}`, "==", true),
-      where("locations", "array-contains", locationId)
+      collection(Firestore, "DirectMessages"),
+      orderBy(`members.${user.uid}`)
     ).withConverter(ChatFirestoreConverter)
   );
 
@@ -71,61 +70,88 @@ export function DMsProvider({
     [chatId, chats]
   );
 
-  const startNewDM = async (recipientId: string) => {
+  const startNewDMByEmail = async (
+    recipient: QueryDocumentSnapshot<DocumentData>
+  ) => {
     const DmId =
-      user.uid.localeCompare(recipientId) === 1
-        ? `${recipientId}&${user.uid}`
-        : `${user.uid}&${recipientId}`;
+      user.uid.localeCompare(recipient.id) === 1
+        ? `${recipient.id}&${user.uid}`
+        : `${user.uid}&${recipient.id}`;
 
     if (chats.some((chat) => chat.id === DmId)) {
       return DmId;
     }
-    const newDM: Partial<Chat<FieldValue, FieldValue>> = {
+
+    const { name, lastName } = recipient.data();
+
+    const newDM: any = {
       createdAt: serverTimestamp(),
-      members: { [user.uid]: true, [recipientId]: true },
-      locations: arrayUnion(locationId),
+      members: {
+        [user.uid]: user.displayName,
+        [recipient.id]: `${name} ${lastName}`,
+      },
     };
     try {
-      await setDoc(
-        doc(
-          Firestore,
-          "Organizations",
-          location.organizationId,
-          "directMessages",
-          DmId
-        ),
-        newDM
-      );
-      await set(
-        ref(
-          Database,
-          `chatMessages/${location.organizationId}/${DmId}/firstMessage`
-        ),
-        {
-          createdAt: dbServerTimestamp(),
-          message: "START",
-          systemType: "start",
-          type: "system",
-        }
-      );
+      await setDoc(doc(Firestore, "DirectMessages", DmId), newDM);
+      await set(ref(Database, `directMessages/${DmId}/firstMessage`), {
+        createdAt: dbServerTimestamp(),
+        message: "START",
+        systemType: "start",
+        type: "system",
+      });
       return DmId;
     } catch (error) {
       throw error;
     }
   };
 
-  const toggleChatMute = async (mute: boolean) => {
+  const startNewLocationDM = async ({ id, name, lastName }: Employee) => {
+    const DmId =
+      user.uid.localeCompare(id) === 1
+        ? `${id}&${user.uid}`
+        : `${user.uid}&${id}`;
+
+    if (chats.some((chat) => chat.id === DmId)) {
+      return DmId;
+    }
+
+    // Check if chat exists
+    const dmSnap = await getDoc(doc(Firestore, "DirectMessages", DmId));
+
+    if (dmSnap.exists() && dmSnap.data()) {
+      try {
+        await updateDoc(doc(Firestore, "DirectMessages", DmId), {
+          locations: arrayUnion(locationId),
+        });
+        return DmId;
+      } catch (error) {
+        throw error;
+      }
+    }
+
+    const newDM: any = {
+      createdAt: serverTimestamp(),
+      members: { [user.uid]: user.displayName, [id]: `${name} ${lastName}` },
+      locations: arrayUnion(locationId),
+    };
+
     try {
-      await updateDoc(
-        doc(
-          Firestore,
-          "Organizations",
-          location.organizationId,
-          "directMessages",
-          chatId
-        ),
-        { muted: mute ? arrayUnion(user.uid) : arrayRemove(user.uid) }
-      );
+      await setDoc(doc(Firestore, "DirectMessages", DmId), newDM);
+      await set(ref(Database, `directMessages/${DmId}/firstMessage`), {
+        createdAt: dbServerTimestamp(),
+        message: "START",
+        systemType: "start",
+        type: "system",
+      });
+      return DmId;
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  const toggleChatMute = async () => {
+    try {
+      await selectedChat.toggleMuteChat(user.uid);
     } catch (error) {
       throw error;
     }
@@ -145,8 +171,9 @@ export function DMsProvider({
         chatId,
         setChatId,
         selectedChat,
-        startNewDM,
+        startNewDMByEmail,
         toggleChatMute,
+        startNewLocationDM,
       }}
     >
       {children}

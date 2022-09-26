@@ -13,6 +13,7 @@ export type Attachment = {
    * Si es solo un enlace:
    * - Enlace directo al recurso.
    */
-  source: string;
-  filename: string;
+  storageSourcePath: string;
+  fileName: string;
+  uri: string;
 };

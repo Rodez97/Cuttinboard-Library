@@ -1,5 +1,5 @@
 import { Attachment } from "./Attachment";
-import { MessageType } from "./MessageType";
+import { MessageContentType } from "./MessageContentType";
 import { Sender } from "./Sender";
 
 /**
@@ -19,36 +19,62 @@ export type Message<T extends number | object = number> = {
 } & (
   | {
       type: "system";
-      systemType: "start" | "others";
+      systemType: "start";
     }
-  | {
-      /**
-       * Tipo de mensaje
-       */
-      type: MessageType;
-      /**
-       * Enlace al recurso adjuntado al mensaje
-       */
-      srcUrl?: string;
+  | ({
       /**
        * Mesaje al cuál este mensaje contesta, en caso de ser una mensaje de respuesta
        */
-      replyTarget?: Message & { type: MessageType };
+      replyTarget?: Message & {
+        type: "attachment" | "youtube" | "mediaUri" | "text";
+      };
       /**
        * Usuario que ha enviado el mensaje
        */
       sender: Sender;
-      /**
-       * El adjunto del mensaje he sido subido a nuestra nube?
-       */
-      uploaded?: boolean;
-
-      attachment?: Attachment;
-
       reactions?: Record<string, string>;
-
-      notificationData?: { tokens?: string[]; locationName: string };
-
+      locationName: string;
+      /**
+       * Solo aplicable para chats 1-1
+       */
       seenBy?: Record<string, boolean>;
-    }
+    } & (
+      | {
+          /**
+           * Tipo de mensaje
+           */
+          type: "attachment";
+
+          attachment: Attachment;
+
+          contentType: MessageContentType;
+        }
+      | {
+          /**
+           * Tipo de mensaje
+           */
+          type: "youtube";
+          /**
+           * Enlace al recurso adjuntado al mensaje
+           */
+          sourceUrl: string;
+        }
+      | {
+          /**
+           * Tipo de mensaje
+           */
+          type: "mediaUri";
+          /**
+           * Enlace al recurso adjuntado al mensaje
+           */
+          sourceUrl?: string;
+          contentType: MessageContentType;
+        }
+      | {
+          /**
+           * Tipo de mensaje
+           */
+          type: "text";
+        }
+    ))
 );

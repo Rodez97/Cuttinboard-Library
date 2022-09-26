@@ -1,5 +1,5 @@
 import { Attachment } from "./Attachment";
-import { MessageType } from "./MessageType";
+import { MessageContentType } from "./MessageContentType";
 
 export type Reply = {
   /**
@@ -13,7 +13,7 @@ export type Reply = {
   /**
    * Tipo de mensaje
    */
-  type?: MessageType;
+  type?: MessageContentType;
   /**
    * Enlace al recurso adjuntado al mensaje
    */
