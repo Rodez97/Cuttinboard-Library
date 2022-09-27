@@ -65,6 +65,8 @@ export function ConversationMessagesProvider({
     noMoreMessages,
     fetchOlderMessages,
     allMessages,
+    addReaction,
+    deleteMessage,
   } = useBaseMessaging(
     `conversationMessages/${location.organizationId}/${locationId}/${chatId}`
   );
@@ -159,53 +161,6 @@ export function ConversationMessagesProvider({
       }
     },
     [chatId, location.organizationId]
-  );
-
-  const deleteMessage = useCallback(
-    async (messageId: string) => {
-      try {
-        await remove(RTDBRef(Database, `${chatPath}/${messageId}`));
-      } catch (error) {
-        throw error;
-      }
-    },
-    [chatPath]
-  );
-
-  const addReaction = useCallback(
-    async (messageId: string, emoji?: string) => {
-      try {
-        await set(
-          RTDBRef(Database, `${chatPath}/${messageId}/reactions/${user.uid}`),
-          emoji ? emoji : null
-        );
-        const index = findIndex(allMessages, (m) => m.id === messageId);
-        if (index > 49) {
-          const altMessage = allMessages[index];
-          if (altMessage.type === "system") {
-            return;
-          }
-          if (emoji) {
-            altMessage.reactions = {
-              ...altMessage.reactions,
-              [user.uid]: emoji,
-            };
-          } else {
-            delete altMessage.reactions[user.uid];
-            if (isEmpty(altMessage.reactions)) {
-              delete altMessage.reactions;
-            }
-          }
-          dispatch({
-            type: "change",
-            snapshot: altMessage,
-          });
-        }
-      } catch (error) {
-        throw error;
-      }
-    },
-    [allMessages, dispatch]
   );
 
   return (

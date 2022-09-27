@@ -37,6 +37,7 @@ import {
 } from "../models/schedule/ScheduleDoc";
 import { Schedule_DayStats } from "../models/schedule/Schedule_DayStats";
 import { FirebaseError } from "firebase/app";
+import { useEmployeesList } from "./useEmployeesList";
 dayjs.extend(isoWeek);
 dayjs.extend(advancedFormat);
 dayjs.extend(customParseFormat);
@@ -139,6 +140,7 @@ export function ScheduleProvider({
   const { locationDocRef, locationId, location } = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTag, setSelectedTag] = useState<string>(null);
+  const { getEmployees } = useEmployeesList();
   const [scheduleDocument, scheduleDocumentLoading, sdError] =
     useDocumentData<ScheduleDoc>(
       doc(Firestore, locationDocRef.path, "scheduleDocs", weekId).withConverter(
@@ -152,17 +154,6 @@ export function ScheduleProvider({
         where("altId", "in", [weekId, "repeat"])
       ).withConverter(ShiftConverter)
     );
-  const [employees, loadingEmployees, employeesError] = useCollectionData(
-    query(
-      collection(
-        Firestore,
-        "Organizations",
-        location.organizationId,
-        "employees"
-      ),
-      orderByFirestore(`locations.${locationId}`)
-    ).withConverter(EmployeeConverter)
-  );
 
   const weekDays = useMemo(() => {
     const year = Number.parseInt(weekId.split("-")[2]);
@@ -270,12 +261,12 @@ export function ScheduleProvider({
 
   const scheduleEmployees = useMemo(() => {
     let fFilter = searchQuery
-      ? employees?.filter((emp) =>
+      ? getEmployees?.filter((emp) =>
           `${emp.name} ${emp?.lastName ?? ""}`
             .toLowerCase()
             .includes(searchQuery.toLowerCase())
         )
-      : employees;
+      : getEmployees;
     fFilter = selectedTag
       ? fFilter?.filter(
           (e) =>
@@ -284,7 +275,7 @@ export function ScheduleProvider({
         )
       : fFilter;
     return orderBy(fFilter, "name");
-  }, [searchQuery, employees, selectedTag]);
+  }, [searchQuery, getEmployees, selectedTag]);
 
   const editProjectedSales = useCallback(
     async (projectedSalesByDay: Record<number, number>) => {
@@ -363,11 +354,11 @@ export function ScheduleProvider({
     }
   }, []);
 
-  if (scheduleDocumentLoading || shiftsCollectionLoading || loadingEmployees) {
+  if (scheduleDocumentLoading || shiftsCollectionLoading) {
     return LoadingElement;
   }
-  if (sdError || scError || employeesError) {
-    return ErrorElement(sdError ?? scError ?? employeesError);
+  if (sdError || scError) {
+    return ErrorElement(sdError ?? scError);
   }
 
   return (
@@ -392,7 +383,7 @@ export function ScheduleProvider({
         createShift,
         editShift,
         scheduleSummaryByDay,
-        employees,
+        employees: getEmployees,
       }}
     >
       {children}

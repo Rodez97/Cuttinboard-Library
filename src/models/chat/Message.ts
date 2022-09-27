@@ -32,7 +32,7 @@ export type Message<T extends number | object = number> = {
        * Usuario que ha enviado el mensaje
        */
       sender: Sender;
-      reactions?: Record<string, string>;
+      reactions?: Record<string, { emoji: string; name: string }>;
       locationName: string;
       /**
        * Solo aplicable para chats 1-1

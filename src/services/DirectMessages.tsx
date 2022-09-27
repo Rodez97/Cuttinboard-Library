@@ -1,17 +1,10 @@
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
-import { findIndex, isEmpty } from "lodash";
 import React, { ReactNode, useCallback, useContext } from "react";
 import { Message } from "../models/chat/Message";
 import { Sender } from "../models/chat/Sender";
 import { useCuttinboard } from "./Cuttinboard";
 import { Database, Firestore, Storage } from "../firebase";
-import {
-  push,
-  ref as RTDBRef,
-  remove,
-  serverTimestamp,
-  set,
-} from "firebase/database";
+import { push, ref as RTDBRef, serverTimestamp, set } from "firebase/database";
 import {
   doc,
   updateDoc,
@@ -54,7 +47,6 @@ const DirectMessagesContext = React.createContext<DirectMessagesContextProps>(
 export function DirectMessagesProvider({
   children,
   chatId,
-  members,
 }: {
   children: ReactNode;
   chatId: string;
@@ -64,10 +56,11 @@ export function DirectMessagesProvider({
   const {
     chatPath,
     messages,
-    dispatch,
     noMoreMessages,
     fetchOlderMessages,
     allMessages,
+    addReaction,
+    deleteMessage,
   } = useBaseMessaging(`directMessages/${chatId}`);
 
   const sendMessage = useCallback(
@@ -182,58 +175,6 @@ export function DirectMessagesProvider({
       }
     },
     [chatId]
-  );
-
-  const deleteMessage = useCallback(
-    async (messageId: string) => {
-      try {
-        await remove(
-          RTDBRef(Database, `directMessages/${chatId}/${messageId}`)
-        );
-      } catch (error) {
-        throw error;
-      }
-    },
-    [chatId]
-  );
-
-  const addReaction = useCallback(
-    async (messageId: string, emoji?: string) => {
-      try {
-        await set(
-          RTDBRef(
-            Database,
-            `directMessages/${chatId}/${messageId}/reactions/${user.uid}`
-          ),
-          emoji ? emoji : null
-        );
-        const index = findIndex(allMessages, (m) => m.id === messageId);
-        if (index > 49) {
-          const altMessage = allMessages[index];
-          if (altMessage.type === "system") {
-            return;
-          }
-          if (emoji) {
-            altMessage.reactions = {
-              ...altMessage.reactions,
-              [user.uid]: emoji,
-            };
-          } else {
-            delete altMessage.reactions[user.uid];
-            if (isEmpty(altMessage.reactions)) {
-              delete altMessage.reactions;
-            }
-          }
-          dispatch({
-            type: "change",
-            snapshot: altMessage,
-          });
-        }
-      } catch (error) {
-        throw error;
-      }
-    },
-    [allMessages, dispatch, chatId]
   );
 
   return (

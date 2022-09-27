@@ -11,11 +11,13 @@ import {
   orderByChild,
   query,
   ref as RTDBRef,
+  remove,
+  set,
 } from "firebase/database";
 import useListReducer from "./useListReducer";
-import { orderBy } from "lodash";
+import { findIndex, isEmpty, orderBy } from "lodash";
 import { Message } from "models";
-import { Database } from "./../firebase";
+import { Auth, Database } from "./../firebase";
 
 function useBaseMessaging(chatPath: string) {
   const [messages, dispatch] = useListReducer();
@@ -183,6 +185,59 @@ function useBaseMessaging(chatPath: string) {
     [noMoreMessages, allMessages, dispatch]
   );
 
+  const addReaction = useCallback(
+    async (messageId: string, emoji?: string) => {
+      try {
+        await set(
+          RTDBRef(
+            Database,
+            `${chatPath}/${messageId}/reactions/${Auth.currentUser.uid}`
+          ),
+          emoji ? { emoji, name: Auth.currentUser.displayName } : null
+        );
+        const index = findIndex(allMessages, (m) => m.id === messageId);
+        if (index > 49) {
+          const altMessage = allMessages[index];
+          if (altMessage.type === "system") {
+            return;
+          }
+          if (emoji) {
+            altMessage.reactions = {
+              ...altMessage.reactions,
+              [Auth.currentUser.uid]: {
+                emoji,
+                name: Auth.currentUser.displayName,
+              },
+            };
+          } else {
+            delete altMessage.reactions[Auth.currentUser.uid];
+            if (isEmpty(altMessage.reactions)) {
+              delete altMessage.reactions;
+            }
+          }
+          dispatch({
+            type: "change",
+            snapshot: altMessage,
+          });
+        }
+      } catch (error) {
+        throw error;
+      }
+    },
+    [allMessages, dispatch]
+  );
+
+  const deleteMessage = useCallback(
+    async (messageId: string) => {
+      try {
+        await remove(RTDBRef(Database, `${chatPath}/${messageId}`));
+      } catch (error) {
+        throw error;
+      }
+    },
+    [chatPath]
+  );
+
   return {
     messages,
     dispatch,
@@ -190,6 +245,8 @@ function useBaseMessaging(chatPath: string) {
     noMoreMessages,
     chatPath,
     fetchOlderMessages,
+    addReaction,
+    deleteMessage,
   };
 }
 
