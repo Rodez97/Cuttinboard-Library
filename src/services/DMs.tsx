@@ -2,11 +2,10 @@ import {
   arrayUnion,
   collection,
   doc,
-  DocumentData,
+  FieldValue,
   getDoc,
   orderBy,
   query,
-  QueryDocumentSnapshot,
   serverTimestamp,
   setDoc,
   updateDoc,
@@ -19,7 +18,7 @@ import React, {
   useState,
 } from "react";
 import { useCollectionData } from "react-firebase-hooks/firestore";
-import { Chat, ChatFirestoreConverter } from "../models/chat/Chat";
+import { Chat, ChatFirestoreConverter, IChat } from "../models/chat/Chat";
 import { Auth, Firestore } from "../firebase";
 import {
   set,
@@ -27,17 +26,14 @@ import {
   ref,
 } from "firebase/database";
 import { Database } from "./../firebase";
-import { Employee } from "models";
+import { CuttinboardUser, Employee } from "models";
 
 interface DMsContextProps {
   chats: Chat[];
   selectedChat?: Chat;
   chatId: string;
   setChatId: (chtId: string) => void;
-  toggleChatMute: () => Promise<void>;
-  startNewDMByEmail: (
-    recipient: QueryDocumentSnapshot<DocumentData>
-  ) => Promise<string>;
+  startNewDMByEmail: (recipient: CuttinboardUser) => Promise<string>;
   startNewLocationDM: (recipient: Employee) => Promise<string>;
 }
 
@@ -70,21 +66,16 @@ export function DMsProvider({
     [chatId, chats]
   );
 
-  const startNewDMByEmail = async (
-    recipient: QueryDocumentSnapshot<DocumentData>
-  ) => {
-    const DmId =
-      user.uid.localeCompare(recipient.id) === 1
-        ? `${recipient.id}&${user.uid}`
-        : `${user.uid}&${recipient.id}`;
+  const startNewDMByEmail = async (recipient: CuttinboardUser) => {
+    const DmId = [user.uid, recipient.id].sort().join("&");
 
     if (chats.some((chat) => chat.id === DmId)) {
       return DmId;
     }
 
-    const { name, lastName } = recipient.data();
+    const { name, lastName } = recipient;
 
-    const newDM: any = {
+    const newDM: IChat<FieldValue> = {
       createdAt: serverTimestamp(),
       members: {
         [user.uid]: user.displayName,
@@ -106,10 +97,7 @@ export function DMsProvider({
   };
 
   const startNewLocationDM = async ({ id, name, lastName }: Employee) => {
-    const DmId =
-      user.uid.localeCompare(id) === 1
-        ? `${id}&${user.uid}`
-        : `${user.uid}&${id}`;
+    const DmId = [user.uid, id].sort().join("&");
 
     if (chats.some((chat) => chat.id === DmId)) {
       return DmId;
@@ -129,10 +117,10 @@ export function DMsProvider({
       }
     }
 
-    const newDM: any = {
+    const newDM: IChat<FieldValue> = {
       createdAt: serverTimestamp(),
       members: { [user.uid]: user.displayName, [id]: `${name} ${lastName}` },
-      locations: arrayUnion(locationId),
+      locations: [locationId],
     };
 
     try {
@@ -144,14 +132,6 @@ export function DMsProvider({
         type: "system",
       });
       return DmId;
-    } catch (error) {
-      throw error;
-    }
-  };
-
-  const toggleChatMute = async () => {
-    try {
-      await selectedChat.toggleMuteChat(user.uid);
     } catch (error) {
       throw error;
     }
@@ -172,7 +152,6 @@ export function DMsProvider({
         setChatId,
         selectedChat,
         startNewDMByEmail,
-        toggleChatMute,
         startNewLocationDM,
       }}
     >

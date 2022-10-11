@@ -1,10 +1,10 @@
 import {
   addDoc,
-  arrayRemove,
-  arrayUnion,
   collection,
   deleteDoc,
+  deleteField,
   doc,
+  orderBy,
   query,
   serverTimestamp,
   setDoc,
@@ -20,23 +20,21 @@ import React, {
   useState,
 } from "react";
 import { useCollectionData } from "react-firebase-hooks/firestore";
-import { Chat } from "../models/chat/Chat";
 import { Employee } from "../models/Employee";
 import { RoleAccessLevels } from "../utils/RoleAccessLevels";
 import { PrivacyLevel } from "../utils/PrivacyLevel";
 import { Auth, Database, Firestore } from "../firebase";
 import { useLocation } from "./Location";
-import { indexOf } from "lodash";
 import {
   Conversation,
   ConversationFirestoreConverter,
+  IConversation,
 } from "../models/chat/Conversation";
 import { useEmployeesList } from "./useEmployeesList";
 import {
   ref,
   serverTimestamp as dbServerTimestamp,
   set,
-  update,
 } from "firebase/database";
 
 interface ConversationsContextProps {
@@ -48,14 +46,9 @@ interface ConversationsContextProps {
   setChatId: (chtId: string) => void;
   canManageApp: boolean;
   canUseApp: boolean;
-  createConversation: (newConv: Conversation) => Promise<string>;
+  createConversation: (newConv: IConversation) => Promise<string>;
   editConversation: (editConv: Conversation) => Promise<void>;
   deleteConversation: () => Promise<void>;
-  addMembers: (addedEmployees: Employee[]) => Promise<void>;
-  removeMember: (employeeId: string) => Promise<void>;
-  setAppHost: (newHostUser: Employee) => Promise<void>;
-  removeHost: (hostUser: Employee) => Promise<void>;
-  toggleChatMute: (mute: boolean) => Promise<void>;
 }
 
 const ConversationsContext = createContext<ConversationsContextProps>(
@@ -80,8 +73,7 @@ export function ConversationsProvider({
   const [chatId, setChatId] = useState("");
   const [user] = useState(Auth.currentUser);
   const { getEmployees } = useEmployeesList();
-  const { location, locationId, locationAccessKey, employeeProfile } =
-    useLocation();
+  const { location, locationAccessKey } = useLocation();
   const [chats, loading, error] = useCollectionData<Conversation>(
     (locationAccessKey.role <= RoleAccessLevels.GENERAL_MANAGER
       ? query(
@@ -91,7 +83,7 @@ export function ConversationsProvider({
             location.organizationId,
             "conversations"
           ),
-          where("locationId", "==", locationId)
+          where("locationId", "==", location.id)
         )
       : query(
           collection(
@@ -100,7 +92,7 @@ export function ConversationsProvider({
             location.organizationId,
             "conversations"
           ),
-          where("locationId", "==", locationId),
+          where("locationId", "==", location.id),
           where("members", "array-contains", user.uid)
         )
     ).withConverter(ConversationFirestoreConverter)
@@ -128,42 +120,30 @@ export function ConversationsProvider({
       return true;
     }
     if (selectedChat.privacyLevel === PrivacyLevel.PUBLIC) {
-      if (employeeProfile.role === "employee") {
-        return true;
-      }
-      return Boolean(employeeProfile.locations?.[locationId] === true);
+      return location.members.indexOf(user.uid) !== -1;
     }
     if (selectedChat.privacyLevel === PrivacyLevel.PRIVATE) {
-      return (
-        Array.isArray(selectedChat.members) &&
-        indexOf(selectedChat.members, user.uid) > -1
-      );
+      return Boolean(selectedChat.members.indexOf(user.uid) !== -1);
     }
     if (selectedChat.privacyLevel === PrivacyLevel.POSITIONS) {
-      if (employeeProfile.role === "employee") {
-        return selectedChat.positions?.some((pos1) =>
-          locationAccessKey.pos?.includes(pos1)
-        );
-      }
+      return selectedChat.positions?.some((pos1) =>
+        locationAccessKey.pos?.includes(pos1)
+      );
     }
     return false;
-  }, [user.uid, selectedChat, employeeProfile]);
+  }, [user.uid, selectedChat, location]);
 
   const createConversation = useCallback(
-    async (newConvData: Conversation) => {
-      let membersIds: string[] = [];
+    async (newConvData: IConversation) => {
+      let members: string[];
       switch (newConvData.privacyLevel) {
         case PrivacyLevel.PUBLIC:
-          membersIds = getEmployees.map((emp) => emp.id);
+          members = getEmployees.map(({ id }) => id);
           break;
         case PrivacyLevel.POSITIONS:
-          membersIds = getEmployees
-            .filter((emp) =>
-              emp.locations?.[locationId]?.pos?.some((pos) =>
-                newConvData.positions?.includes(pos)
-              )
-            )
-            .map((emp) => emp.id);
+          members = getEmployees
+            .filter((emp) => emp.hasAnyPosition(newConvData.positions))
+            .map(({ id }) => id);
           break;
         case PrivacyLevel.PRIVATE:
           break;
@@ -183,14 +163,14 @@ export function ConversationsProvider({
           {
             ...newConvData,
             createdAt: serverTimestamp(),
-            locationId,
-            members: membersIds,
+            locationId: location.id,
+            members,
           }
         );
         await set(
           ref(
             Database,
-            `conversationMessages/${location.organizationId}/${locationId}/${newConvRef.id}/firstMessage`
+            `conversationMessages/${location.organizationId}/${location.id}/${newConvRef.id}/firstMessage`
           ),
           {
             createdAt: dbServerTimestamp(),
@@ -204,24 +184,14 @@ export function ConversationsProvider({
         throw error;
       }
     },
-    [location, locationId]
+    [location, location.id]
   );
 
   const editConversation = useCallback(
     async (convData: Conversation) => {
-      const { id } = convData;
+      const { docRef } = convData;
       try {
-        await setDoc(
-          doc(
-            Firestore,
-            "Organizations",
-            location.organizationId,
-            "conversations",
-            id
-          ),
-          { ...convData },
-          { merge: true }
-        );
+        await setDoc(docRef, { ...convData }, { merge: true });
       } catch (error) {
         throw error;
       }
@@ -238,141 +208,11 @@ export function ConversationsProvider({
     }
     setChatId("");
     try {
-      await deleteDoc(
-        doc(
-          Firestore,
-          "Organizations",
-          location.organizationId,
-          "conversations",
-          selectedChat.id
-        )
-      );
+      await deleteDoc(selectedChat.docRef);
     } catch (error) {
       throw error;
     }
   }, [selectedChat, location, locationAccessKey]);
-
-  const addMembers = useCallback(
-    async (addedEmployees: Employee[]) => {
-      if (!selectedChat || selectedChat.privacyLevel !== PrivacyLevel.PRIVATE) {
-        throw new Error("Cannot add members to public or positions chat");
-      }
-      try {
-        await updateDoc(
-          doc(
-            Firestore,
-            "Organizations",
-            location.organizationId,
-            "conversations",
-            selectedChat.id
-          ),
-          { members: arrayUnion(...addedEmployees.map((emp) => emp.id)) }
-        );
-      } catch (error) {
-        throw error;
-      }
-    },
-    [selectedChat, location, locationId]
-  );
-
-  const removeMember = useCallback(
-    async (employeeId: string) => {
-      if (!selectedChat || selectedChat.privacyLevel !== PrivacyLevel.PRIVATE) {
-        throw new Error("Cannot remove members from public or positions chat");
-      }
-      try {
-        await updateDoc(
-          doc(
-            Firestore,
-            "Organizations",
-            location.organizationId,
-            "conversations",
-            selectedChat.id
-          ),
-          { members: arrayRemove(employeeId) }
-        );
-      } catch (error) {
-        throw error;
-      }
-    },
-    [selectedChat, location]
-  );
-  const setAppHost = useCallback(
-    async (newHostUser: Employee) => {
-      if (!selectedChat) {
-        throw new Error("No chat selected");
-      }
-      try {
-        await updateDoc(
-          doc(
-            Firestore,
-            "Organizations",
-            location.organizationId,
-            "conversations",
-            selectedChat.id
-          ),
-          { members: arrayUnion(newHostUser.id), hostId: newHostUser.id }
-        );
-      } catch (error) {
-        throw error;
-      }
-    },
-    [selectedChat, location]
-  );
-
-  const removeHost = useCallback(
-    async (hostUser: Employee) => {
-      if (!selectedChat) {
-        throw new Error("No chat selected");
-      }
-      const notMember =
-        selectedChat.privacyLevel === PrivacyLevel.POSITIONS &&
-        !selectedChat.positions?.some(
-          (e) =>
-            hostUser?.role === "employee" &&
-            hostUser?.locations?.[locationId].pos?.includes(e)
-        );
-
-      try {
-        await updateDoc(
-          doc(
-            Firestore,
-            "Organizations",
-            location.organizationId,
-            "conversations",
-            selectedChat.id
-          ),
-          { hostId: "", members: notMember && arrayRemove(hostUser.id) }
-        );
-      } catch (error) {
-        throw error;
-      }
-    },
-    [selectedChat, location]
-  );
-
-  const toggleChatMute = useCallback(
-    async (mute: boolean) => {
-      if (!selectedChat) {
-        throw new Error("No chat selected");
-      }
-      try {
-        await updateDoc(
-          doc(
-            Firestore,
-            "Organizations",
-            location.organizationId,
-            "conversations",
-            selectedChat.id
-          ),
-          { muted: mute ? arrayUnion(user.uid) : arrayRemove(user.uid) }
-        );
-      } catch (error) {
-        throw error;
-      }
-    },
-    [selectedChat, location, user]
-  );
 
   if (loading) {
     return LoadingElement;
@@ -394,11 +234,6 @@ export function ConversationsProvider({
         createConversation,
         editConversation,
         deleteConversation,
-        addMembers,
-        removeMember,
-        setAppHost,
-        removeHost,
-        toggleChatMute,
       }}
     >
       {children}

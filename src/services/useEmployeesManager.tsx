@@ -1,10 +1,4 @@
-import {
-  deleteDoc,
-  deleteField,
-  doc,
-  setDoc,
-  updateDoc,
-} from "firebase/firestore";
+import { deleteField, doc, setDoc } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { Employee } from "../models/Employee";
 import { RoleAccessLevels } from "../utils/RoleAccessLevels";
@@ -19,7 +13,7 @@ import { useLocation } from "./Location";
  */
 export function useEmployeesManager() {
   const { user } = useCuttinboard();
-  const { location, locationId } = useLocation();
+  const { location } = useLocation();
 
   const addEmployee = async (employee: {
     name: string;
@@ -62,25 +56,7 @@ export function useEmployeesManager() {
 
   const removeEmployee = async (employee: Employee) => {
     try {
-      const empDocRef = doc(
-        Firestore,
-        "Organizations",
-        location.organizationId,
-        "employees",
-        employee.id
-      );
-
-      if (
-        employee.role === "employee" &&
-        Object.keys(employee.locations).length === 1 &&
-        employee.locations[locationId].locId === locationId
-      ) {
-        await deleteDoc(empDocRef);
-      } else {
-        await updateDoc(empDocRef, {
-          locations: { [locationId]: deleteField() },
-        });
-      }
+      await employee.delete();
     } catch (error) {
       throw error;
     }
@@ -100,7 +76,7 @@ export function useEmployeesManager() {
         empDocRef,
         {
           locations: {
-            [locationId]: true,
+            [location.id]: true,
           },
         },
         { merge: true }
@@ -122,7 +98,7 @@ export function useEmployeesManager() {
 
       await setDoc(
         empDocRef,
-        { locations: { [locationId]: deleteField() } },
+        { locations: { [location.id]: deleteField() } },
         { merge: true }
       );
     } catch (error) {
@@ -146,7 +122,7 @@ export function useEmployeesManager() {
 
       await setDoc(
         empDocRef,
-        { locations: { [locationId]: { role, pos } } },
+        { locations: { [location.id]: { role, pos } } },
         { merge: true }
       );
     } catch (error) {

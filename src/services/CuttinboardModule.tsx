@@ -68,15 +68,15 @@ export function CuttinboardModuleProvider({
 }: CuttinboardModuleProviderProps) {
   const [selectedAppId, setSelectedAppId] = useState("");
   const [user] = useState(Auth.currentUser);
-  const { locationAccessKey, employeeProfile, locationId } = useLocation();
+  const { locationAccessKey, location } = useLocation();
 
   const [elements, loadingElements, elementsError] =
     useCollectionData<GenericModule>(
       (locationAccessKey.role <= RoleAccessLevels.GENERAL_MANAGER
-        ? query(baseRef, where(`locationId`, "==", locationId))
+        ? query(baseRef, where(`locationId`, "==", location.id))
         : query(
             baseRef,
-            where(`locationId`, "==", locationId),
+            where(`locationId`, "==", location.id),
             where(`accessTags`, "array-contains-any", [
               user.uid,
               `hostId_${user.uid}`,
@@ -155,23 +155,18 @@ export function CuttinboardModuleProvider({
       return true;
     }
     if (selectedApp.privacyLevel === PrivacyLevel.PUBLIC) {
-      if (employeeProfile.role === "employee") {
-        return true;
-      }
-      return Boolean(employeeProfile.locations?.[locationId] === true);
+      return location.members.indexOf(user.uid) !== -1;
     }
     if (selectedApp.privacyLevel === PrivacyLevel.PRIVATE) {
       return selectedApp.accessTags?.includes(user.uid);
     }
     if (selectedApp.privacyLevel === PrivacyLevel.POSITIONS) {
-      if (employeeProfile.role === "employee") {
-        return selectedApp.accessTags?.some((pos1) =>
-          locationAccessKey.pos?.includes(pos1)
-        );
-      }
+      return selectedApp.accessTags?.some((pos1) =>
+        locationAccessKey.pos?.includes(pos1)
+      );
     }
     return false;
-  }, [user.uid, selectedApp, locationAccessKey, employeeProfile]);
+  }, [user.uid, selectedApp, locationAccessKey, location]);
 
   const setAppHost = async (newHostUser: Employee) => {
     if (!canManage) {

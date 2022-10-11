@@ -5,12 +5,11 @@ import {
   SnapshotOptions,
   updateDoc,
   DocumentReference,
-  FieldValue,
   Timestamp,
   arrayUnion,
   arrayRemove,
+  FieldValue,
 } from "firebase/firestore";
-import { MemberName } from "typescript";
 import { PrimaryFirestore } from "../PrimaryFirestore";
 
 export const ChatFirestoreConverter = {
@@ -19,81 +18,58 @@ export const ChatFirestoreConverter = {
     return objectToSave;
   },
   fromFirestore(
-    snapshot: QueryDocumentSnapshot,
+    value: QueryDocumentSnapshot<IChat>,
     options: SnapshotOptions
   ): Chat {
-    const data = snapshot.data(options)!;
-    return new Chat(snapshot.id, snapshot.ref, data);
+    const { id, ref } = value;
+    const rawData = value.data(options)!;
+    return new Chat(rawData, { id, docRef: ref });
   },
 };
 
-/**
- * Chats
- */
-// export type Chat<
-//   TIME extends Timestamp | FieldValue | Date = Date,
-//   LOCATIONS extends string[] | FieldValue = string[]
-// > = PrimaryFirestore & {
-//   /**
-//    * Lista de usuarios que han decidido silenciar las notificaciones de esta app
-//    * - **Solo la app de conversaciones hace uso de esta funcionalidad**
-//    */
-//   muted?: string[];
-//   /**
-//    * Fecha de creación
-//    */
-//   createdAt: TIME;
-//   /**
-//    * Id de la locación a la cual pertenece
-//    */
-//   members: { [member: string]: { name: string; avatar?: string } };
-//   recentMessage?: TIME;
-//   locations: LOCATIONS;
-// };
-
-export class Chat implements PrimaryFirestore {
-  id: string;
-  public docRef: DocumentReference<DocumentData>;
-  public muted?: string[];
-  createdAt: Timestamp;
-  public members: {
+export interface IChat<CREATION extends Timestamp | FieldValue = Timestamp> {
+  muted?: string[];
+  createdAt: CREATION;
+  members: {
     [memberId: string]: string;
   };
-  private _recentMessage?: Timestamp;
-  public get recentMessage(): Date {
-    return (this._recentMessage as Timestamp).toDate();
-  }
+  recentMessage?: Timestamp;
   locations?: string[];
+}
+
+export class Chat implements IChat, PrimaryFirestore {
+  public readonly id: string;
+  public readonly docRef: DocumentReference<DocumentData>;
+  public muted: string[] = [];
+  public readonly createdAt: Timestamp;
+  public readonly members: {
+    [memberId: string]: string;
+  };
+  public recentMessage?: Timestamp;
+  public locations?: string[] = [];
 
   constructor(
-    id: string,
-    docRef: DocumentReference<DocumentData>,
-    rest: { [key: string]: any }
+    { muted, members, createdAt, recentMessage, locations }: IChat,
+    { id, docRef }: PrimaryFirestore
   ) {
     this.id = id;
     this.docRef = docRef;
-    this.muted = rest.muted;
-    this.createdAt = rest.createdAt;
-    this.members = rest.members;
-    this._recentMessage = rest.recentMessage;
-    this.locations = rest.locations;
+    this.muted = muted ?? [];
+    this.createdAt = createdAt;
+    this.members = members;
+    this.recentMessage = recentMessage;
+    this.locations = locations ?? [];
   }
 
-  /**
-   * Mute Chat
-   */
-  public async toggleMuteChat(id: string) {
-    if (this.muted?.indexOf(id) !== -1) {
-      await updateDoc(this.docRef, { muted: arrayRemove(id) });
-    } else {
-      await updateDoc(this.docRef, { muted: arrayUnion(id) });
-    }
-  }
   /**
    * Get Order Time
    */
   public get getOrderTime() {
-    return (this._recentMessage ?? this.createdAt).toDate();
+    return (this.recentMessage ?? this.createdAt)?.toDate();
+  }
+
+  public get isMuted() {
+    return this.muted.indexOf(Auth.currentUser.uid) !== -1;
   }
 
   public get recipient() {
@@ -101,5 +77,24 @@ export class Chat implements PrimaryFirestore {
       ([id]) => id !== Auth.currentUser.uid
     );
     return { id, name };
+  }
+
+  /**
+   * Mute Chat
+   */
+  public async toggleMuteChat() {
+    try {
+      if (this.isMuted) {
+        await updateDoc(this.docRef, {
+          muted: arrayRemove(Auth.currentUser.uid),
+        });
+      } else {
+        await updateDoc(this.docRef, {
+          muted: arrayUnion(Auth.currentUser.uid),
+        });
+      }
+    } catch (error) {
+      throw error;
+    }
   }
 }

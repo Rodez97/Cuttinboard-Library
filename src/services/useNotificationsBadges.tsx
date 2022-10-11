@@ -5,20 +5,20 @@ import { Database } from "../firebase";
 
 export function useNotificationsBadges() {
   const { user, notifications, organizationKey } = useCuttinboard();
-  const { locationId } = useLocation();
+  const { location } = useLocation();
 
   const getModuleBadge = useCallback(
     (type: "conv" | "task" | "sch", notiId: string) => {
-      if (!organizationKey || !locationId || !notifications) {
+      if (!organizationKey || !location || !notifications) {
         return 0;
       }
       const notificationsObject =
         notifications?.organizations?.[organizationKey.orgId].locations?.[
-          locationId
+          location.id
         ]?.[type]?.[notiId];
       return notificationsObject ?? 0;
     },
-    [notifications, locationId, organizationKey]
+    [notifications, location, organizationKey]
   );
 
   /**
@@ -27,12 +27,12 @@ export function useNotificationsBadges() {
    */
   const getBadgeByModule = useCallback(
     (type: "conv" | "task" | "sch") => {
-      if (!organizationKey || !locationId || !notifications) {
+      if (!organizationKey || !location || !notifications) {
         return 0;
       }
       const notificationsObject =
         notifications?.organizations?.[organizationKey.orgId].locations?.[
-          locationId
+          location.id
         ]?.[type];
       if (!notificationsObject) {
         return 0;
@@ -41,7 +41,7 @@ export function useNotificationsBadges() {
         return acc + quantity;
       }, 0);
     },
-    [notifications, locationId, organizationKey]
+    [notifications, location, organizationKey]
   );
 
   const removeBadge = useCallback(
@@ -53,12 +53,25 @@ export function useNotificationsBadges() {
       await remove(
         ref(
           Database,
-          `users/${user.uid}/notifications/organizations/${organizationKey.orgId}/locations/${locationId}/${type}/${notiId}`
+          `users/${user.uid}/notifications/organizations/${organizationKey.orgId}/locations/${location.id}/${type}/${notiId}`
         )
       );
     },
-    [notifications, locationId, user.uid, organizationKey]
+    [notifications, location, user.uid, organizationKey]
   );
+
+  const removeScheduleBadges = useCallback(async () => {
+    const badge = getBadgeByModule("sch");
+    if (badge === 0) {
+      return;
+    }
+    await remove(
+      ref(
+        Database,
+        `users/${user.uid}/notifications/organizations/${organizationKey.orgId}/locations/${location.id}/sch`
+      )
+    );
+  }, [notifications, location, user.uid, organizationKey]);
 
   const getDMBadge = useCallback(
     (dmId: string) => {
@@ -91,7 +104,7 @@ export function useNotificationsBadges() {
       }
       await remove(ref(Database, `users/${user.uid}/notifications/dm/${dmId}`));
     },
-    [notifications, locationId, user.uid, organizationKey]
+    [notifications, location, user.uid, organizationKey]
   );
 
   const getBadgeByLocation = useCallback(
@@ -102,7 +115,7 @@ export function useNotificationsBadges() {
       if (notificationsObject) {
         Object.values(notificationsObject).forEach((noti) => {
           Object.values(noti).forEach((quantity) => {
-            badgeCount + quantity;
+            badgeCount += quantity;
           });
         });
       }
@@ -139,5 +152,6 @@ export function useNotificationsBadges() {
     removeDMBadge,
     getDMBadge,
     getDMBadges,
+    removeScheduleBadges,
   };
 }

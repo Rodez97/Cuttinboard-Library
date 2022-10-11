@@ -57,7 +57,7 @@ export function ConversationMessagesProvider({
   members: string[];
 }) {
   const { user } = useCuttinboard();
-  const { location, locationId } = useLocation();
+  const { location } = useLocation();
   const {
     chatPath,
     messages,
@@ -68,7 +68,7 @@ export function ConversationMessagesProvider({
     addReaction,
     deleteMessage,
   } = useBaseMessaging(
-    `conversationMessages/${location.organizationId}/${locationId}/${chatId}`
+    `conversationMessages/${location.organizationId}/${location.id}/${chatId}`
   );
 
   const sendMessage = useCallback(
@@ -112,7 +112,7 @@ export function ConversationMessagesProvider({
 
       const fileRef = ref(
         Storage,
-        `organizations/${location.organizationId}/locations/${locationId}/conversationMessages/${chatId}/${fileName}`
+        `organizations/${location.organizationId}/locations/${location.id}/conversationMessages/${chatId}/${fileName}`
       );
 
       const msg: Partial<Message<object> & { type: "attachment" }> = {

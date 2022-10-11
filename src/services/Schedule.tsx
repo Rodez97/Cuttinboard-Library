@@ -1,13 +1,4 @@
-import {
-  collection,
-  doc,
-  DocumentReference,
-  Query,
-  query,
-  where,
-  setDoc,
-  orderBy as orderByFirestore,
-} from "@firebase/firestore";
+import { collection, doc, query, where, setDoc } from "@firebase/firestore";
 import React, {
   createContext,
   ReactNode,
@@ -26,17 +17,17 @@ import isoWeek from "dayjs/plugin/isoWeek";
 import advancedFormat from "dayjs/plugin/advancedFormat";
 import customParseFormat from "dayjs/plugin/customParseFormat";
 import duration from "dayjs/plugin/duration";
-import { groupBy, orderBy, uniqBy } from "lodash";
-import { Employee, EmployeeConverter } from "../models/Employee";
-import { writeBatch } from "firebase/firestore";
+import { groupBy, uniq, uniqBy } from "lodash";
+import { FieldValue, serverTimestamp, writeBatch } from "firebase/firestore";
 import { useLocation } from "./Location";
-import { Shift, ShiftConverter } from "../models/schedule/Shift";
+import { Shift } from "../models/schedule/Shift";
 import {
   ScheduleDoc,
   ScheduleDocConverter,
 } from "../models/schedule/ScheduleDoc";
 import { Schedule_DayStats } from "../models/schedule/Schedule_DayStats";
 import { FirebaseError } from "firebase/app";
+import { IShift } from "./../models/schedule/Shift";
 import { useEmployeesList } from "./useEmployeesList";
 dayjs.extend(isoWeek);
 dayjs.extend(advancedFormat);
@@ -101,24 +92,29 @@ interface ScheduleContextProps {
     totalPeople: number;
     totalWage: number;
   };
-  togglePublish: () => Promise<void>;
+  publish: (
+    notificationRecipients: "all" | "all_scheduled" | "changed" | "none"
+  ) => Promise<void>;
   searchQuery: string;
   setSearchQuery: React.Dispatch<React.SetStateAction<string>>;
   selectedTag: string;
   setSelectedTag: React.Dispatch<React.SetStateAction<string>>;
-  scheduleEmployees: Employee[];
   editProjectedSales: (
     projectedSalesByDay: Record<number, number>
   ) => Promise<void>;
   createShift: (
-    shift: Partial<Shift>,
+    shift: Partial<IShift<FieldValue>>,
     baseColumns: Date[],
     applyTo: number[],
     newId: string
   ) => Promise<void>;
-  editShift: (shift: Partial<Shift>) => Promise<void>;
   scheduleSummaryByDay: Record<number, Schedule_DayStats>;
-  employees: Employee[];
+  updatesCount: {
+    newOrDraft: number;
+    deleted: number;
+    pendingUpdates: number;
+    total: number;
+  };
 }
 
 interface ScheduleProviderProps {
@@ -137,22 +133,25 @@ export function ScheduleProvider({
   ErrorElement,
 }: ScheduleProviderProps) {
   const [weekId, setWeekId] = useState(dayjs().format(WEEKFORMAT));
-  const { locationDocRef, locationId, location } = useLocation();
+  const { location } = useLocation();
+  const { getEmployees } = useEmployeesList();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTag, setSelectedTag] = useState<string>(null);
-  const { getEmployees } = useEmployeesList();
   const [scheduleDocument, scheduleDocumentLoading, sdError] =
     useDocumentData<ScheduleDoc>(
-      doc(Firestore, locationDocRef.path, "scheduleDocs", weekId).withConverter(
-        ScheduleDocConverter
-      )
+      doc(
+        Firestore,
+        location.docRef.path,
+        "scheduleDocs",
+        weekId
+      ).withConverter(ScheduleDocConverter)
     );
   const [shiftsCollection, shiftsCollectionLoading, scError] =
     useCollectionData<Shift>(
       query(
-        collection(Firestore, locationDocRef.path, "shifts"),
+        collection(Firestore, location.docRef.path, "shifts"),
         where("altId", "in", [weekId, "repeat"])
-      ).withConverter(ShiftConverter)
+      ).withConverter(Shift.Converter)
     );
 
   const weekDays = useMemo(() => {
@@ -182,14 +181,10 @@ export function ScheduleProvider({
         wage: number;
       }>(
         (acc, shift) => {
-          const start = getShiftDate(shift.start);
-          const end = getShiftDate(shift.end);
-          const duration = end.diff(start, "minutes");
-          const hours = duration / 60;
           const { time, wage } = acc;
           return {
-            time: time.add(duration, "minutes"),
-            wage: wage + (shift.hourlyWage ?? 0) * hours,
+            time: time.add(shift.shiftDuration.totalMinutes, "minutes"),
+            wage: wage + shift.getWage,
           };
         },
         { time: dayjs.duration(0), wage: 0 }
@@ -210,8 +205,9 @@ export function ScheduleProvider({
       return {};
     }
 
-    const shiftsByDay = groupBy(shiftsCollection, (shift) =>
-      getShiftDate(shift.start).isoWeekday()
+    const shiftsByDay = groupBy(
+      shiftsCollection,
+      (shift) => shift.shiftIsoWeekday
     );
 
     return Object.entries(shiftsByDay)?.reduce<
@@ -231,51 +227,59 @@ export function ScheduleProvider({
     }, {});
   }, [shiftsCollection]);
 
-  const togglePublish = useCallback(async () => {
-    try {
-      const stats = scheduleSummary();
-      await setDoc<Partial<ScheduleDoc>>(
-        doc(Firestore, locationDocRef.path, "scheduleDocs", weekId),
-        {
-          isPublished: !isPublished,
-          weekId,
-          stats,
-          locationId,
-          organizationId: location?.organizationId,
-          statsByDay: scheduleSummaryByDay,
-          year: Number.parseInt(weekId.split("-")[2]),
-          weekNumber: Number.parseInt(weekId.split("-")[1]),
-          month: weekToDate(
-            Number.parseInt(weekId.split("-")[2]),
-            Number.parseInt(weekId.split("-")[1])
-          ).getMonth(),
-        },
-        {
-          merge: true,
-        }
-      );
-    } catch (error) {
-      throw error;
-    }
-  }, [weekId, scheduleSummary, isPublished, location, scheduleSummaryByDay]);
-
-  const scheduleEmployees = useMemo(() => {
-    let fFilter = searchQuery
-      ? getEmployees?.filter((emp) =>
-          `${emp.name} ${emp?.lastName ?? ""}`
-            .toLowerCase()
-            .includes(searchQuery.toLowerCase())
-        )
-      : getEmployees;
-    fFilter = selectedTag
-      ? fFilter?.filter(
-          (e) =>
-            e.role === "employee" &&
-            e.locations?.[locationId]?.pos?.includes(selectedTag)
-        )
-      : fFilter;
-    return orderBy(fFilter, "name");
-  }, [searchQuery, getEmployees, selectedTag]);
+  const publish = useCallback(
+    async (
+      notificationRecipients: "all" | "all_scheduled" | "changed" | "none"
+    ) => {
+      let notiRecipients: string[] = [];
+      if (notificationRecipients === "all") {
+        notiRecipients = getEmployees.map((e) => e.id);
+      }
+      if (notificationRecipients === "all_scheduled") {
+        notiRecipients = shiftsCollection.map((shift) => shift.employeeId);
+      }
+      if (notificationRecipients === "changed") {
+        notiRecipients = shiftsCollection
+          .filter(
+            (shift) =>
+              shift.hasPendingUpdates ||
+              shift.deleting ||
+              shift.status === "draft"
+          )
+          .map((shift) => shift.employeeId);
+      }
+      try {
+        const batch = writeBatch(Firestore);
+        shiftsCollection.forEach((shift) => shift.batchPublish(batch));
+        const stats = scheduleSummary();
+        batch.set(
+          doc(Firestore, location.docRef.path, "scheduleDocs", weekId),
+          {
+            weekId,
+            stats,
+            locationId: location.id,
+            organizationId: location?.organizationId,
+            statsByDay: scheduleSummaryByDay,
+            year: Number.parseInt(weekId.split("-")[2]),
+            weekNumber: Number.parseInt(weekId.split("-")[1]),
+            month: weekToDate(
+              Number.parseInt(weekId.split("-")[2]),
+              Number.parseInt(weekId.split("-")[1])
+            ).getMonth(),
+            notificationRecipients: uniq(notiRecipients),
+            updatedAt: serverTimestamp(),
+          },
+          {
+            merge: true,
+          }
+        );
+        await batch.commit();
+      } catch (error) {
+        throw error;
+      }
+    },
+    [weekId, scheduleSummary, isPublished, location, scheduleSummaryByDay]
+  );
 
   const editProjectedSales = useCallback(
     async (projectedSalesByDay: Record<number, number>) => {
@@ -285,7 +289,7 @@ export function ScheduleProvider({
       });
       try {
         await setDoc(
-          doc(Firestore, locationDocRef.path, "scheduleDocs", weekId),
+          doc(Firestore, location.docRef.path, "scheduleDocs", weekId),
           {
             statsByDay: updates,
           },
@@ -302,18 +306,18 @@ export function ScheduleProvider({
 
   const createShift = useCallback(
     async (
-      shift: Partial<Shift>,
+      shift: Partial<IShift<FieldValue>>,
       baseColumns: Date[],
       applyTo: number[],
       newId: string
     ) => {
       try {
-        const { id, docRef, start, end, ...rest } = shift;
+        const { start, end, ...rest } = shift;
         const baseStart = getShiftDate(start);
         const baseEnd = getShiftDate(end);
         const batch = writeBatch(Firestore);
         for (const day of applyTo) {
-          const column = baseColumns.find((c) => c.getDay() === day);
+          const column = baseColumns.find((c) => dayjs(c).isoWeekday() === day);
           const newStart = dayjs(column)
             .hour(baseStart.hour())
             .minute(baseStart.minute())
@@ -324,7 +328,7 @@ export function ScheduleProvider({
             .toDate();
           const shiftRef = doc(
             Firestore,
-            locationDocRef.path,
+            location.docRef.path,
             "shifts",
             `${day}-${newId}`
           );
@@ -332,6 +336,9 @@ export function ScheduleProvider({
             ...rest,
             start: getShiftString(newStart),
             end: getShiftString(newEnd),
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+            status: "draft",
           });
         }
         await batch.commit();
@@ -342,17 +349,32 @@ export function ScheduleProvider({
     []
   );
 
-  const editShift = useCallback(async (shift: Partial<Shift>) => {
-    try {
-      await setDoc(
-        doc(Firestore, locationDocRef.path, "shifts", shift.id),
-        shift,
-        { merge: true }
-      );
-    } catch (error) {
-      throw error;
+  const updatesCount = useMemo(() => {
+    let newOrDraft = 0;
+    let deleted = 0;
+    let pendingUpdates = 0;
+
+    for (const shift of shiftsCollection ?? []) {
+      if (shift.status === "draft" && !shift.hasPendingUpdates) {
+        newOrDraft++;
+        continue;
+      }
+      if (shift.deleting) {
+        deleted++;
+        continue;
+      }
+      if (shift.hasPendingUpdates) {
+        pendingUpdates++;
+        continue;
+      }
     }
-  }, []);
+    return {
+      newOrDraft,
+      deleted,
+      pendingUpdates,
+      total: newOrDraft + deleted + pendingUpdates,
+    };
+  }, [shiftsCollection]);
 
   if (scheduleDocumentLoading || shiftsCollectionLoading) {
     return LoadingElement;
@@ -373,17 +395,15 @@ export function ScheduleProvider({
         weekDays,
         isPublished,
         scheduleSummary: scheduleSummary(),
-        togglePublish,
+        publish,
         searchQuery,
         setSearchQuery,
         selectedTag,
         setSelectedTag,
-        scheduleEmployees,
         editProjectedSales,
         createShift,
-        editShift,
         scheduleSummaryByDay,
-        employees: getEmployees,
+        updatesCount,
       }}
     >
       {children}

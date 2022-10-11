@@ -6,6 +6,9 @@ import {
   Query,
   query,
   orderBy as orderByFirestore,
+  DocumentData,
+  QueryDocumentSnapshot,
+  SnapshotOptions,
 } from "firebase/firestore";
 import { ref, StorageReference } from "firebase/storage";
 import React, {
@@ -18,70 +21,21 @@ import React, {
 import { useDocumentData } from "react-firebase-hooks/firestore";
 import { LocationKey } from "../models/auth/LocationKey";
 import { OrganizationKey } from "../models/auth/OrganizationKey";
-import { Employee, EmployeeConverter } from "../models/Employee";
-import { Location, LocationConverter } from "../models/Location";
+import { Employee, IEmployee } from "../models/Employee";
+import { Location } from "../models/Location";
 import { RoleAccessLevels } from "../utils/RoleAccessLevels";
 import { Auth, Firestore, Storage } from "../firebase";
 import { CuttinboardError } from "../models/CuttinboardError";
+import { FirebaseSignature } from "../models";
 
 interface LocationContextProps {
-  /**
-   * Locación actualmente seleccionada
-   */
-  location: Partial<Location>;
-  /**
-   * Referencia al documento principal que posee la información de la locación seleccionada
-   */
-  locationDocRef: DocumentReference;
-  /**
-   * Referencia al espacio de almacenamiento principal designado para esta locación
-   */
-  locationStorageRef: StorageReference;
-  /**
-   * Referencia al documento contenedor de la plantilla de miembros/empleados de la locación
-   */
-  employeesCollRef: Query<Employee>;
-  /**
-   * Si el usuario actual es el dueño de la locación
-   */
+  location: Location;
   isOwner: boolean;
-  /**
-   * Si el usuario actual es Gerente General de la locación
-   */
   isGeneralManager: boolean;
-  /**
-   * Si el usuario actual es Gerente de la locación
-   */
   isManager: boolean;
   isAdmin: boolean;
-  /**
-   * Lista de roles que el usuario actual puede asignar a otro usuario de menor rango
-   */
   getAviablePositions: RoleAccessLevels[];
-  /**
-   * Uso y límites de la cuenta según el plan de pago de la locación
-   */
-  usage: {
-    /**
-     * Cantidad actual de empleados
-     */
-    employeesCount: number;
-    /**
-     * Máximo de empleados permitidos
-     */
-    employeesLimit: number;
-    /**
-     * Capacidad de almacenamiento consumida por el usuario
-     */
-    storageUsed: number;
-    /**
-     * Capacidad máxima de almacenamiento permitida
-     */
-    storageLimit: number;
-  };
   locationAccessKey: LocationKey;
-  locationId: string;
-  employeeProfile: Employee;
 }
 
 const LocationContext = createContext<LocationContextProps>(
@@ -111,39 +65,10 @@ export const LocationProvider = ({
   locationId,
   ErrorElement,
 }: LocationProviderProps) => {
-  const locationDocRef = useRef(
-    doc(Firestore, "Locations", locationId).withConverter(LocationConverter)
-  );
-  const employeesCollRef = useRef(
-    query(
-      collection(
-        Firestore,
-        "Organizations",
-        organizationKey.orgId,
-        "employees"
-      ),
-      orderByFirestore(`locations.${locationId}`)
-    ).withConverter(EmployeeConverter)
-  );
-  const locationStorageRef = useRef(
-    ref(
-      Storage,
-      `organizations/${organizationKey.orgId}/locations/${locationId}`
-    )
-  );
   const [location, locationLoading, locationError] = useDocumentData<Location>(
-    locationDocRef.current
+    locationId &&
+      doc(Firestore, "Locations", locationId).withConverter(Location.Converter)
   );
-  const [employeeProfile, loadingEmployeeProfile, employeeProfileError] =
-    useDocumentData<Employee>(
-      doc(
-        Firestore,
-        "Organizations",
-        organizationKey.orgId,
-        "employees",
-        Auth.currentUser.uid
-      ).withConverter(EmployeeConverter)
-    );
 
   const isOwner = useMemo(
     () => organizationKey?.role === RoleAccessLevels.OWNER,
@@ -183,22 +108,12 @@ export const LocationProvider = ({
     ) as RoleAccessLevels[];
   }, [locationAccessKey]);
 
-  const usage = useMemo(
-    () => ({
-      employeesCount: Number(location?.members?.length ?? 0),
-      employeesLimit: Number(location?.limits.employees ?? 0),
-      storageUsed: Number(location?.storageUsed ?? 0),
-      storageLimit: Number(location?.limits.storage ?? 0),
-    }),
-    [location]
-  );
-
-  if (locationLoading || loadingEmployeeProfile) {
+  if (locationLoading) {
     return LoadingElement;
   }
 
-  if (locationError || employeeProfileError) {
-    return ErrorElement(locationError ?? employeeProfileError);
+  if (locationError) {
+    return ErrorElement(locationError);
   }
 
   if (!location) {
@@ -207,28 +122,16 @@ export const LocationProvider = ({
     );
   }
 
-  if (!employeeProfile) {
-    return ErrorElement(
-      new CuttinboardError("UNDEFINED_EMPLOYEE", "Employee is not defined")
-    );
-  }
-
   return (
     <LocationContext.Provider
       value={{
         location,
-        locationDocRef: locationDocRef.current,
-        locationStorageRef: locationStorageRef.current,
-        employeesCollRef: employeesCollRef.current,
         isOwner,
         isGeneralManager,
         isManager,
         getAviablePositions,
-        usage,
         isAdmin,
         locationAccessKey,
-        locationId,
-        employeeProfile,
       }}
     >
       {children}

@@ -38,7 +38,7 @@ export const useCuttinboardAuth = () => {
         { email: string; password: string; name: string; lastName: string },
         string
       >(Functions, "auth-registerUser");
-      const { data } = await registerCuttinboardUser({
+      await registerCuttinboardUser({
         email,
         name,
         lastName,
@@ -62,14 +62,15 @@ export const useCuttinboardAuth = () => {
     avatar?: string;
   }) => {
     try {
-      const { name, avatar } = newProfileData;
+      const { name, lastName, avatar } = newProfileData;
+      const fullName = `${name} ${lastName}`;
       if (
-        name !== Auth.currentUser.displayName ||
+        fullName !== Auth.currentUser.displayName ||
         avatar !== Auth.currentUser.photoURL
       ) {
         const updates: { displayName?: string; photoURL?: string } = {};
-        if (name !== Auth.currentUser.displayName) {
-          updates.displayName = name;
+        if (fullName !== Auth.currentUser.displayName) {
+          updates.displayName = fullName;
         }
         if (avatar !== Auth.currentUser.photoURL) {
           updates.photoURL = avatar;
