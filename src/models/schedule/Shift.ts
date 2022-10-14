@@ -20,6 +20,7 @@ import customParseFormat from "dayjs/plugin/customParseFormat";
 import duration from "dayjs/plugin/duration";
 import { SHIFTFORMAT } from "../../services";
 import { isEmpty } from "lodash";
+import { FirebaseSignature } from "../FirebaseSignature";
 dayjs.extend(isoWeek);
 dayjs.extend(advancedFormat);
 dayjs.extend(customParseFormat);
@@ -28,9 +29,7 @@ dayjs.extend(duration);
 /**
  * Turno de trabajo
  */
-export interface IShift<CREATION extends Timestamp | FieldValue = Timestamp> {
-  createdAt: CREATION;
-  updatedAt: CREATION;
+export interface IShift {
   /**
    * Inicio del turno
    */
@@ -51,32 +50,28 @@ export interface IShift<CREATION extends Timestamp | FieldValue = Timestamp> {
    * Notas del turno
    */
   notes?: string;
-  employeeId: string;
   hourlyWage?: number;
-  altId: "repeat" | string;
-  repeatDay?: 1 | 2 | 3 | 4 | 5 | 6 | 7;
   status: "draft" | "published";
   pendingUpdate?: Partial<IShift>;
   deleting?: boolean;
+  updatedAt: Timestamp;
 }
 
-export class Shift implements IShift<Timestamp>, PrimaryFirestore {
+export class Shift implements IShift, PrimaryFirestore, FirebaseSignature {
   public readonly id: string;
   public readonly docRef: DocumentReference<DocumentData>;
   public readonly createdAt: Timestamp;
-  public readonly updatedAt: Timestamp;
-  public readonly employeeId: string;
-  public start: string;
-  public end: string;
-  public position?: string;
-  public tasks?: Record<string, Todo_Task>;
-  public notes?: string;
-  public hourlyWage?: number;
-  public altId: string;
-  public repeatDay?: 1 | 2 | 3 | 4 | 5 | 6 | 7;
-  public status: "draft" | "published";
-  public pendingUpdate?: Partial<IShift<Timestamp>>;
+  public readonly createdBy: string;
+  public readonly start: string;
+  public readonly end: string;
+  public readonly position?: string;
+  public readonly tasks?: Record<string, Todo_Task>;
+  public readonly notes?: string;
+  public readonly hourlyWage?: number;
+  public readonly status: "draft" | "published";
+  public readonly pendingUpdate?: Partial<IShift>;
   public readonly deleting?: boolean;
+  public readonly updatedAt: Timestamp;
 
   constructor(
     {
@@ -85,16 +80,14 @@ export class Shift implements IShift<Timestamp>, PrimaryFirestore {
       position,
       tasks,
       notes,
-      employeeId,
       hourlyWage,
-      altId,
-      repeatDay,
-      createdAt,
-      updatedAt,
       deleting,
       pendingUpdate,
       status,
-    }: IShift,
+      createdAt,
+      createdBy,
+      updatedAt,
+    }: IShift & FirebaseSignature,
     { id, docRef }: PrimaryFirestore
   ) {
     this.id = id;
@@ -104,31 +97,14 @@ export class Shift implements IShift<Timestamp>, PrimaryFirestore {
     this.position = position;
     this.tasks = tasks;
     this.notes = notes;
-    this.employeeId = employeeId;
     this.hourlyWage = hourlyWage;
-    this.altId = altId;
-    this.repeatDay = repeatDay;
     this.createdAt = createdAt;
-    this.updatedAt = updatedAt;
+    this.createdBy = createdBy;
     this.deleting = deleting;
     this.pendingUpdate = pendingUpdate;
     this.status = status;
+    this.updatedAt = updatedAt;
   }
-
-  public static Converter = {
-    toFirestore(object: Shift): DocumentData {
-      const { docRef, id, ...objectToSave } = object;
-      return objectToSave;
-    },
-    fromFirestore(
-      value: QueryDocumentSnapshot<IShift>,
-      options: SnapshotOptions
-    ): Shift {
-      const { id, ref } = value;
-      const rawData = value.data(options)!;
-      return new Shift(rawData, { id, docRef: ref });
-    },
-  };
 
   public get getStartDayjsDate(): Dayjs {
     return dayjs(this.start, SHIFTFORMAT);
@@ -167,7 +143,11 @@ export class Shift implements IShift<Timestamp>, PrimaryFirestore {
    */
   public async editShift(pendingUpdate: Partial<IShift>) {
     try {
-      await updateDoc(this.docRef, { pendingUpdate });
+      await setDoc(
+        this.docRef,
+        { shifts: { [this.id]: { pendingUpdate } } },
+        { mergeFields: [`shifts.${this.id}.pendingUpdate`] }
+      );
     } catch (error) {
       throw error;
     }
@@ -175,7 +155,11 @@ export class Shift implements IShift<Timestamp>, PrimaryFirestore {
 
   public async cancelUpdate() {
     try {
-      await updateDoc(this.docRef, { pendingUpdate: deleteField() });
+      await setDoc(
+        this.docRef,
+        { shifts: { [this.id]: { pendingUpdate: deleteField() } } },
+        { mergeFields: [`shifts.${this.id}.pendingUpdate`] }
+      );
     } catch (error) {
       throw error;
     }
@@ -191,7 +175,9 @@ export class Shift implements IShift<Timestamp>, PrimaryFirestore {
     try {
       await setDoc(
         this.docRef,
-        { tasks: { [taskId]: { status: completed } } },
+        {
+          shifts: { [this.id]: { tasks: { [taskId]: { status: completed } } } },
+        },
         { merge: true }
       );
     } catch (error) {
@@ -200,53 +186,26 @@ export class Shift implements IShift<Timestamp>, PrimaryFirestore {
   }
 
   public async delete() {
-    await updateDoc(this.docRef, { deleting: true });
-  }
-
-  public async restore() {
-    await updateDoc(this.docRef, { deleting: false });
-  }
-
-  /**
-   * Publish
-   */
-  public batchPublish(batch: WriteBatch) {
-    if (this.deleting) {
-      batch.delete(this.docRef);
-    } else {
-      batch.set(
+    try {
+      await setDoc(
         this.docRef,
-        {
-          updatedAt: serverTimestamp(),
-          status: "published",
-          ...this.pendingUpdate,
-          pendingUpdate: deleteField(),
-        },
+        { shifts: { [this.id]: { deleting: true } } },
         { merge: true }
       );
+    } catch (error) {
+      throw error;
     }
   }
 
-  public async publish() {
-    await setDoc(
-      this.docRef,
-      {
-        updatedAt: serverTimestamp(),
-        status: "published",
-        ...this.pendingUpdate,
-        pendingUpdate: deleteField(),
-      },
-      { merge: true }
-    );
-  }
-
-  public batchUnpublish(batch: WriteBatch) {
-    batch.update(this.docRef, { status: "draft" });
-  }
-
-  public async unpublish() {
-    await updateDoc(this.docRef, {
-      status: "draft",
-    });
+  public async restore() {
+    try {
+      await setDoc(
+        this.docRef,
+        { shifts: { [this.id]: { deleting: false } } },
+        { merge: true }
+      );
+    } catch (error) {
+      throw error;
+    }
   }
 }

@@ -1,4 +1,3 @@
-import { httpsCallable } from "@firebase/functions";
 import { ref as dbRef } from "firebase/database";
 import React, {
   createContext,
@@ -15,6 +14,7 @@ import { isEqual } from "lodash";
 import { Auth, Database, Functions } from "../firebase";
 import { User } from "firebase/auth";
 import { useObjectVal } from "react-firebase-hooks/database";
+import { useHttpsCallable } from "react-firebase-hooks/functions";
 
 export type UserRealtimeData = {
   metadata: { refreshTime: number; [key: string]: any };
@@ -37,32 +37,11 @@ export type UserRealtimeData = {
 };
 
 interface ICuttinboardContext {
-  /**
-   * Usuario actual
-   */
   user: User;
-  /**
-   * Carga o recarga las credenciales del usuaro
-   * - Esto incluye la llave de la locación si corresponse
-   * @param {User} user Usuario con el cuál ejecutar la operación
-   */
   loadCredential: (lUser?: User) => Promise<void>;
-  /**
-   * LLave Principal de la Locación actualmente seleccionada
-   */
   organizationKey: OrganizationKey | null;
-  /**
-   * Error relacionado a la carga del usuario actual en caso de ocurrir
-   */
-  userError: Error;
-  /**
-   * Estado de carga del usuario actual
-   */
-  loadingUser: boolean;
-  /**
-   * Selecciona una locación y la convierte el la locación seleccionada en la cuenta.
-   * @param {Location} location Locación que se desea seleccionar
-   */
+  error: Error;
+  loading: boolean;
   selectLocation: (locationToSelect: Location) => Promise<void>;
   notifications?: UserRealtimeData["notifications"];
 }
@@ -75,17 +54,10 @@ const CuttinboardContext = createContext<ICuttinboardContext>(
  * Props del Provider principal de la App
  */
 interface CuttinboardProviderProps {
-  /**
-   * El Contenido principal de la app cuando el usuario esté autentificado.
-   */
-  children: ReactNode;
-  /**
-   * Fallback al elemento de login/sign up en caso de perder la autentificación
-   */
-  authScreen: JSX.Element;
-  LoadingElement: JSX.Element;
+  children:
+    | ReactNode
+    | ((user: User, error: Error, loading: boolean) => JSX.Element);
   onError: (error: Error) => void;
-  ErrorElement: (error: Error) => JSX.Element;
 }
 
 /**
@@ -96,10 +68,7 @@ interface CuttinboardProviderProps {
  */
 export const CuttinboardProvider = ({
   children,
-  authScreen,
-  LoadingElement,
   onError,
-  ErrorElement,
 }: CuttinboardProviderProps) => {
   // LLave principal de la locación
   const [organizationKey, setOrganizationKey] = useState<OrganizationKey>(null);
@@ -139,6 +108,14 @@ export const CuttinboardProvider = ({
     useObjectVal<Partial<UserRealtimeData>>(
       user && dbRef(Database, `users/${user.uid}`)
     );
+  const [
+    selectOrganizationKey,
+    selectingOrganization,
+    errorSelectingOrganization,
+  ] = useHttpsCallable<string, { organizationKey: OrganizationKey }>(
+    Functions,
+    "auth-selectKey"
+  );
 
   useEffect(() => {
     loadCredential(user);
@@ -154,33 +131,20 @@ export const CuttinboardProvider = ({
         return;
       }
       try {
-        const selectOrganizationKey = httpsCallable<
-          string,
-          { organizationKey: OrganizationKey }
-        >(Functions, "auth-selectKey");
         const { data } = await selectOrganizationKey(organizationId);
         if (!data?.organizationKey) {
-          throw new Error("Can't select the location.");
+          const error = new Error("Can't select the location.");
+          onError(error);
+          throw error;
         }
         setOrganizationKey(data.organizationKey);
       } catch (error) {
+        onError(error);
         throw error;
       }
     },
     [organizationKey, user]
   );
-
-  if (loadingUser || loadingUserRealtimeData) {
-    return LoadingElement;
-  }
-
-  if (userError || errorRealtimeData) {
-    return ErrorElement(userError ?? errorRealtimeData);
-  }
-
-  if (!user) {
-    return authScreen;
-  }
 
   return (
     <CuttinboardContext.Provider
@@ -188,15 +152,27 @@ export const CuttinboardProvider = ({
         user,
         organizationKey,
         loadCredential,
-        loadingUser,
-        userError,
+        loading: Boolean(loadingUser || loadingUserRealtimeData),
+        error: userError ?? errorRealtimeData,
         selectLocation,
         notifications: userRealtimeData?.notifications,
       }}
     >
-      {children}
+      {typeof children === "function"
+        ? children(
+            user,
+            userError ?? errorRealtimeData,
+            Boolean(loadingUser || loadingUserRealtimeData)
+          )
+        : children}
     </CuttinboardContext.Provider>
   );
 };
 
-export const useCuttinboard = () => useContext(CuttinboardContext);
+export const useCuttinboard = () => {
+  const context = useContext(CuttinboardContext);
+  if (context === undefined) {
+    throw new Error("useCuttinboard must be used within a CuttinboardProvider");
+  }
+  return context;
+};

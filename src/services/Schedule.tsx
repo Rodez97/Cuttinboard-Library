@@ -11,16 +11,21 @@ import {
   useCollectionData,
   useDocumentData,
 } from "react-firebase-hooks/firestore";
-import { Firestore } from "../firebase";
+import { Auth, Firestore } from "../firebase";
 import dayjs from "dayjs";
 import isoWeek from "dayjs/plugin/isoWeek";
 import advancedFormat from "dayjs/plugin/advancedFormat";
 import customParseFormat from "dayjs/plugin/customParseFormat";
 import duration from "dayjs/plugin/duration";
-import { groupBy, uniq, uniqBy } from "lodash";
-import { FieldValue, serverTimestamp, writeBatch } from "firebase/firestore";
+import { chunk, isEmpty, uniq } from "lodash";
+import {
+  getDocs,
+  PartialWithFieldValue,
+  serverTimestamp,
+  WithFieldValue,
+  writeBatch,
+} from "firebase/firestore";
 import { useLocation } from "./Location";
-import { Shift } from "../models/schedule/Shift";
 import {
   ScheduleDoc,
   ScheduleDocConverter,
@@ -29,6 +34,11 @@ import { Schedule_DayStats } from "../models/schedule/Schedule_DayStats";
 import { FirebaseError } from "firebase/app";
 import { IShift } from "./../models/schedule/Shift";
 import { useEmployeesList } from "./useEmployeesList";
+import {
+  EmployeeShifts,
+  IEmployeeShifts,
+} from "./../models/schedule/EmployeeShifts";
+import { FirebaseSignature } from "models";
 dayjs.extend(isoWeek);
 dayjs.extend(advancedFormat);
 dayjs.extend(customParseFormat);
@@ -82,10 +92,9 @@ interface ScheduleContextProps {
   setWeekId: React.Dispatch<React.SetStateAction<string>>;
   scheduleDocument: ScheduleDoc;
   scheduleDocumentLoading: boolean;
-  shiftsCollection: Shift[];
+  employeeShiftsCollection: EmployeeShifts[];
   shiftsCollectionLoading: boolean;
   weekDays: Date[];
-  isPublished: boolean;
   scheduleSummary: {
     totalHours: number;
     totalShifts: number;
@@ -103,10 +112,11 @@ interface ScheduleContextProps {
     projectedSalesByDay: Record<number, number>
   ) => Promise<void>;
   createShift: (
-    shift: Partial<IShift<FieldValue>>,
-    baseColumns: Date[],
-    applyTo: number[],
-    newId: string
+    shift: IShift,
+    dates: Date[],
+    applyToWeekDays: number[],
+    id: string,
+    employeeId: string
   ) => Promise<void>;
   scheduleSummaryByDay: Record<number, Schedule_DayStats>;
   updatesCount: {
@@ -115,23 +125,28 @@ interface ScheduleContextProps {
     pendingUpdates: number;
     total: number;
   };
+  cloneWeek: (targetWeekId: string, employees: string[]) => Promise<void>;
+  loading: boolean;
+  error: Error;
 }
 
 interface ScheduleProviderProps {
-  children: ReactNode;
-  LoadingElement: JSX.Element;
-  ErrorElement: (error: FirebaseError) => JSX.Element;
+  children:
+    | ReactNode
+    | ((props: {
+        scheduleDoc: ScheduleDoc;
+        employeeShiftsCollection: EmployeeShifts[];
+        error: Error;
+        loading: boolean;
+      }) => JSX.Element);
+  onError: (error: Error) => void;
 }
 
 const ShiftContext = createContext<ScheduleContextProps>(
   {} as ScheduleContextProps
 );
 
-export function ScheduleProvider({
-  children,
-  LoadingElement,
-  ErrorElement,
-}: ScheduleProviderProps) {
+export function ScheduleProvider({ children, onError }: ScheduleProviderProps) {
   const [weekId, setWeekId] = useState(dayjs().format(WEEKFORMAT));
   const { location } = useLocation();
   const { getEmployees } = useEmployeesList();
@@ -146,12 +161,12 @@ export function ScheduleProvider({
         weekId
       ).withConverter(ScheduleDocConverter)
     );
-  const [shiftsCollection, shiftsCollectionLoading, scError] =
-    useCollectionData<Shift>(
+  const [employeeShiftsCollection, shiftsCollectionLoading, scError] =
+    useCollectionData<EmployeeShifts>(
       query(
         collection(Firestore, location.docRef.path, "shifts"),
-        where("altId", "in", [weekId, "repeat"])
-      ).withConverter(Shift.Converter)
+        where("weekId", "==", weekId)
+      ).withConverter(EmployeeShifts.Converter)
     );
 
   const weekDays = useMemo(() => {
@@ -166,91 +181,90 @@ export function ScheduleProvider({
     return weekDays;
   }, [weekId]);
 
-  const isPublished = useMemo(
-    () => Boolean(scheduleDocument?.isPublished),
-    [scheduleDocument]
-  );
-
   const scheduleSummary = useCallback(
-    (shifts: Shift[] = shiftsCollection) => {
-      if (!shifts) {
+    (empShifts: EmployeeShifts[] = employeeShiftsCollection) => {
+      if (!empShifts || !Boolean(empShifts.length)) {
         return { totalHours: 0, totalShifts: 0, totalPeople: 0, totalWage: 0 };
       }
-      const { time, wage } = shifts?.reduce<{
+      const { time, wage, totalShifts } = empShifts.reduce<{
         time: duration.Duration;
         wage: number;
+        totalShifts: number;
       }>(
-        (acc, shift) => {
-          const { time, wage } = acc;
+        (acc, empShiftDoc) => {
+          const { time, wage, totalShifts } = acc;
           return {
-            time: time.add(shift.shiftDuration.totalMinutes, "minutes"),
-            wage: wage + shift.getWage,
+            time: time.add(empShiftDoc.userSummary.totalHours, "hours"),
+            wage: wage + empShiftDoc.userSummary.totalWage,
+            totalShifts: totalShifts + empShiftDoc.userSummary.totalShifts,
           };
         },
-        { time: dayjs.duration(0), wage: 0 }
+        { time: dayjs.duration(0), wage: 0, totalShifts: 0 }
       );
       const totalHours = time.asHours();
-      const totalShifts = shifts?.length;
-      const totalPeople = uniqBy(shifts, (cs) => cs.employeeId).length ?? 0;
+      const totalPeople = empShifts.length;
       return { totalHours, totalShifts, totalPeople, totalWage: wage };
     },
-    [shiftsCollection]
+    [employeeShiftsCollection]
   );
 
   const scheduleSummaryByDay = useMemo((): Record<
     number,
     Schedule_DayStats
   > => {
-    if (!shiftsCollection) {
+    if (
+      !employeeShiftsCollection ||
+      !Boolean(employeeShiftsCollection.length)
+    ) {
       return {};
     }
-
-    const shiftsByDay = groupBy(
-      shiftsCollection,
-      (shift) => shift.shiftIsoWeekday
+    return employeeShiftsCollection.reduce<Record<number, Schedule_DayStats>>(
+      (acc, shiftDoc) => {
+        const totalSummaryByDay: Record<number, Schedule_DayStats> = acc;
+        Object.entries(shiftDoc.summaryByDay).forEach(([day, summ]) => {
+          const prevShiftData = acc[Number.parseInt(day)];
+          totalSummaryByDay[Number.parseInt(day)] = {
+            hours: (prevShiftData?.hours ?? 0) + summ.hours,
+            shifts: (prevShiftData?.shifts ?? 0) + summ.shifts,
+            people: (prevShiftData?.people ?? 0) + summ.people,
+            wages: (prevShiftData?.wages ?? 0) + summ.wages,
+          };
+        });
+        return totalSummaryByDay;
+      },
+      {}
     );
-
-    return Object.entries(shiftsByDay)?.reduce<
-      Record<number, Schedule_DayStats>
-    >((acc, [weekDay, shifts]) => {
-      const { totalHours, totalShifts, totalPeople, totalWage } =
-        scheduleSummary(shifts);
-      return {
-        ...acc,
-        [weekDay]: {
-          hours: totalHours,
-          shifts: totalShifts,
-          people: totalPeople,
-          wages: totalWage,
-        },
-      };
-    }, {});
-  }, [shiftsCollection]);
+  }, [employeeShiftsCollection]);
 
   const publish = useCallback(
     async (
       notificationRecipients: "all" | "all_scheduled" | "changed" | "none"
     ) => {
+      if (
+        !employeeShiftsCollection ||
+        !Boolean(employeeShiftsCollection.length)
+      ) {
+        return;
+      }
       let notiRecipients: string[] = [];
       if (notificationRecipients === "all") {
         notiRecipients = getEmployees.map((e) => e.id);
       }
       if (notificationRecipients === "all_scheduled") {
-        notiRecipients = shiftsCollection.map((shift) => shift.employeeId);
+        notiRecipients = employeeShiftsCollection.map(
+          (shift) => shift.employeeId
+        );
       }
       if (notificationRecipients === "changed") {
-        notiRecipients = shiftsCollection
-          .filter(
-            (shift) =>
-              shift.hasPendingUpdates ||
-              shift.deleting ||
-              shift.status === "draft"
-          )
+        notiRecipients = employeeShiftsCollection
+          .filter((empShiftDoc) => empShiftDoc.haveChanges)
           .map((shift) => shift.employeeId);
       }
       try {
         const batch = writeBatch(Firestore);
-        shiftsCollection.forEach((shift) => shift.batchPublish(batch));
+        employeeShiftsCollection.forEach((shiftsDoc) =>
+          shiftsDoc.batchPublish(batch)
+        );
         const stats = scheduleSummary();
         batch.set(
           doc(Firestore, location.docRef.path, "scheduleDocs", weekId),
@@ -275,10 +289,11 @@ export function ScheduleProvider({
         );
         await batch.commit();
       } catch (error) {
+        onError(error);
         throw error;
       }
     },
-    [weekId, scheduleSummary, isPublished, location, scheduleSummaryByDay]
+    [weekId, scheduleSummary, location, scheduleSummaryByDay]
   );
 
   const editProjectedSales = useCallback(
@@ -298,6 +313,7 @@ export function ScheduleProvider({
           }
         );
       } catch (error) {
+        onError(error);
         throw error;
       }
     },
@@ -306,18 +322,35 @@ export function ScheduleProvider({
 
   const createShift = useCallback(
     async (
-      shift: Partial<IShift<FieldValue>>,
-      baseColumns: Date[],
-      applyTo: number[],
-      newId: string
+      shift: IShift,
+      dates: Date[],
+      applyToWeekDays: number[],
+      id: string,
+      employeeId: string
     ) => {
+      // Get the EmployeeShiftsDoc by id
+      const employeeShiftDoc = employeeShiftsCollection?.find(
+        (empShiftDoc) => empShiftDoc.id === `${weekId}_${employeeId}`
+      );
+      if (!isEmpty(employeeShiftDoc)) {
+        await employeeShiftDoc.createShift(shift, dates, applyToWeekDays, id);
+        return;
+      }
+
       try {
+        const initializeEmpShiftDoc: PartialWithFieldValue<
+          IEmployeeShifts & FirebaseSignature
+        > = {
+          shifts: {},
+          employeeId,
+          weekId,
+          updatedAt: serverTimestamp(),
+        };
         const { start, end, ...rest } = shift;
         const baseStart = getShiftDate(start);
         const baseEnd = getShiftDate(end);
-        const batch = writeBatch(Firestore);
-        for (const day of applyTo) {
-          const column = baseColumns.find((c) => dayjs(c).isoWeekday() === day);
+        for (const day of applyToWeekDays) {
+          const column = dates.find((c) => dayjs(c).isoWeekday() === day);
           const newStart = dayjs(column)
             .hour(baseStart.hour())
             .minute(baseStart.minute())
@@ -326,27 +359,115 @@ export function ScheduleProvider({
             .hour(baseEnd.hour())
             .minute(baseEnd.minute())
             .toDate();
-          const shiftRef = doc(
-            Firestore,
-            location.docRef.path,
-            "shifts",
-            `${day}-${newId}`
-          );
-          batch.set(shiftRef, {
+          const newShift: WithFieldValue<IShift & FirebaseSignature> = {
             ...rest,
             start: getShiftString(newStart),
             end: getShiftString(newEnd),
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
+            createdBy: Auth.currentUser.uid,
             status: "draft",
-          });
+          };
+          initializeEmpShiftDoc.shifts = {
+            ...initializeEmpShiftDoc.shifts,
+            [`${day}-${id}`]: newShift,
+          };
         }
-        await batch.commit();
+        const shiftRef = doc(
+          Firestore,
+          location.docRef.path,
+          "shifts",
+          `${weekId}_${employeeId}`
+        );
+        await setDoc(shiftRef, initializeEmpShiftDoc);
       } catch (error) {
+        onError(error);
         throw error;
       }
     },
-    []
+    [employeeShiftsCollection]
+  );
+
+  const cloneWeek = useCallback(
+    async (targetWeekId: string, employees: string[]) => {
+      // Obtener todos los documentos de los usuarios de la semana que se quiere
+      const allQueries = chunk(employees, 10).map((emps) =>
+        getDocs(
+          query(
+            collection(Firestore, location.docRef.path, "shifts"),
+            where("weekId", "==", targetWeekId),
+            where("employeeId", "in", emps)
+          ).withConverter(EmployeeShifts.Converter)
+        )
+      );
+      const exeQueries = await Promise.all(allQueries);
+      const queriesDocs = exeQueries.flatMap((q) => q.docs);
+      // ----------------------------------------------------------------
+      const batch = writeBatch(Firestore);
+
+      for (const targetWeekSnap of queriesDocs) {
+        const targetWeekDoc = targetWeekSnap.data();
+        const shifts: Record<
+          string,
+          WithFieldValue<IShift & FirebaseSignature>
+        > = {};
+
+        if (isEmpty(targetWeekDoc.shifts)) {
+          continue;
+        }
+
+        const existentDoc = employeeShiftsCollection.find(
+          (d) => d.employeeId === targetWeekDoc.employeeId
+        );
+
+        Object.entries(targetWeekDoc.shifts).forEach(([shiftId, shift]) => {
+          if (
+            shift.status === "published" &&
+            isEmpty(existentDoc?.shifts?.[shiftId])
+          ) {
+            shifts[shiftId] = {
+              ...shift,
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp(),
+              createdBy: Auth.currentUser.uid,
+              status: "draft",
+            };
+          }
+        });
+
+        if (isEmpty(shifts)) {
+          continue;
+        }
+
+        if (existentDoc) {
+          batch.set(
+            existentDoc.docRef,
+            { shifts, updatedAt: serverTimestamp() },
+            { merge: true }
+          );
+        } else {
+          const shiftRef = doc(
+            Firestore,
+            location.docRef.path,
+            "shifts",
+            `${weekId}_${targetWeekDoc.employeeId}`
+          );
+          batch.set(
+            shiftRef,
+            {
+              shifts,
+              updatedAt: serverTimestamp(),
+              employeeId: targetWeekDoc.employeeId,
+              weekId,
+            },
+            { merge: true }
+          );
+        }
+      }
+
+      await batch.commit();
+    },
+    [employeeShiftsCollection]
   );
 
   const updatesCount = useMemo(() => {
@@ -354,18 +475,24 @@ export function ScheduleProvider({
     let deleted = 0;
     let pendingUpdates = 0;
 
-    for (const shift of shiftsCollection ?? []) {
-      if (shift.status === "draft" && !shift.hasPendingUpdates) {
-        newOrDraft++;
+    for (const { shiftsArray } of employeeShiftsCollection ?? []) {
+      if (!Boolean(shiftsArray?.length)) {
         continue;
       }
-      if (shift.deleting) {
-        deleted++;
-        continue;
-      }
-      if (shift.hasPendingUpdates) {
-        pendingUpdates++;
-        continue;
+
+      for (const shift of shiftsArray) {
+        if (shift.status === "draft" && !shift.hasPendingUpdates) {
+          newOrDraft++;
+          continue;
+        }
+        if (shift.deleting) {
+          deleted++;
+          continue;
+        }
+        if (shift.hasPendingUpdates) {
+          pendingUpdates++;
+          continue;
+        }
       }
     }
     return {
@@ -374,14 +501,7 @@ export function ScheduleProvider({
       pendingUpdates,
       total: newOrDraft + deleted + pendingUpdates,
     };
-  }, [shiftsCollection]);
-
-  if (scheduleDocumentLoading || shiftsCollectionLoading) {
-    return LoadingElement;
-  }
-  if (sdError || scError) {
-    return ErrorElement(sdError ?? scError);
-  }
+  }, [employeeShiftsCollection]);
 
   return (
     <ShiftContext.Provider
@@ -390,10 +510,9 @@ export function ScheduleProvider({
         setWeekId,
         scheduleDocument,
         scheduleDocumentLoading,
-        shiftsCollection,
+        employeeShiftsCollection,
         shiftsCollectionLoading,
         weekDays,
-        isPublished,
         scheduleSummary: scheduleSummary(),
         publish,
         searchQuery,
@@ -404,9 +523,21 @@ export function ScheduleProvider({
         createShift,
         scheduleSummaryByDay,
         updatesCount,
+        loading: Boolean(scheduleDocumentLoading || shiftsCollectionLoading),
+        error: sdError ?? scError,
+        cloneWeek,
       }}
     >
-      {children}
+      {typeof children === "function"
+        ? children({
+            scheduleDoc: scheduleDocument,
+            employeeShiftsCollection: employeeShiftsCollection,
+            loading: Boolean(
+              scheduleDocumentLoading || shiftsCollectionLoading
+            ),
+            error: sdError ?? scError,
+          })
+        : children}
     </ShiftContext.Provider>
   );
 }

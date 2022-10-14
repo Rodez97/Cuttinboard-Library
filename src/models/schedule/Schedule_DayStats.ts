@@ -1,6 +1,6 @@
 export type Schedule_DayStats = {
   hours: number;
-  projectedSales: number;
+  projectedSales?: number;
   actualSales?: number;
   wages: number;
   people: number;

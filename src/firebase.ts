@@ -26,6 +26,7 @@ export const App = initializeApp(FIREBASE_CONFIG);
  */
 export const Firestore = initializeFirestore(App, {
   ignoreUndefinedProperties: true,
+  experimentalForceLongPolling: true,
 });
 /**
  * Instancia de Auth

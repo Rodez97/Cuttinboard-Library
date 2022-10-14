@@ -1,18 +1,9 @@
 import {
   addDoc,
-  arrayRemove,
-  arrayUnion,
-  collection,
   CollectionReference,
-  deleteDoc,
-  deleteField,
-  DocumentData,
-  DocumentReference,
-  FieldValue,
   FirestoreError,
-  Query,
   query,
-  updateDoc,
+  serverTimestamp,
   where,
 } from "firebase/firestore";
 import React, {
@@ -23,36 +14,33 @@ import React, {
   useState,
 } from "react";
 import { useCollectionData } from "react-firebase-hooks/firestore";
-import { Employee, PrivacyLevel, RoleAccessLevels } from "..";
-import {
-  GenericModule,
-  GenericModuleConverter,
-} from "../models/modules/GenericModule";
-import { Auth, Firestore } from "../firebase";
+import { PrivacyLevel, RoleAccessLevels } from "..";
+import { GenericModule, IGenericModule } from "../models/modules/GenericModule";
 import { useLocation } from "./Location";
+import { useCuttinboard } from "./Cuttinboard";
 
 export interface CuttinboardModuleProviderProps {
   baseRef: CollectionReference;
-  children: ReactNode;
-  LoadingElement: JSX.Element;
-  ErrorElement: (error: FirestoreError) => JSX.Element;
+  children:
+    | ReactNode
+    | ((
+        loading: boolean,
+        error: Error,
+        elements: GenericModule[],
+        selectedApp: GenericModule | undefined
+      ) => JSX.Element);
+  onError: (error: Error | FirestoreError) => void;
 }
 
 export interface CuttinboardModuleProviderContext {
   selectedApp?: GenericModule;
   setSelected: (id: string) => void;
-  moduleContentRef?: CollectionReference;
-  selectedRef?: DocumentReference<GenericModule>;
-  newElement: (element: GenericModule) => Promise<string>;
-  editElement: (data: Partial<GenericModule>) => Promise<void>;
-  deleteElement: (element?: GenericModule) => Promise<void>;
+  newElement: (element: Omit<IGenericModule, "locationId">) => Promise<string>;
   elements: GenericModule[];
   canManage: boolean;
   canUse: boolean;
-  setAppHost: (newHostUser: Employee) => Promise<void>;
-  removeHost: () => Promise<void>;
-  addMembers: (addedEmployees: Employee[]) => Promise<void>;
-  removeMember: (employeeId: string) => Promise<void>;
+  loading: boolean;
+  error: Error;
 }
 
 export const CuttinboardModuleContext =
@@ -62,12 +50,11 @@ export const CuttinboardModuleContext =
 
 export function CuttinboardModuleProvider({
   children,
-  LoadingElement,
-  ErrorElement,
   baseRef,
+  onError,
 }: CuttinboardModuleProviderProps) {
   const [selectedAppId, setSelectedAppId] = useState("");
-  const [user] = useState(Auth.currentUser);
+  const { user } = useCuttinboard();
   const { locationAccessKey, location } = useLocation();
 
   const [elements, loadingElements, elementsError] =
@@ -84,7 +71,7 @@ export function CuttinboardModuleProvider({
               ...(locationAccessKey.pos ?? []),
             ])
           )
-      ).withConverter(GenericModuleConverter)
+      ).withConverter(GenericModule.Converter)
     );
 
   /**
@@ -95,14 +82,6 @@ export function CuttinboardModuleProvider({
     [selectedAppId, elements]
   );
 
-  const moduleContentRef = useMemo(
-    () =>
-      selectedApp
-        ? collection(Firestore, baseRef.path, selectedApp.id, "content")
-        : undefined,
-    [selectedApp, baseRef]
-  );
-
   const setSelected = useCallback(
     (appId: string) => {
       if (baseRef) setSelectedAppId(appId);
@@ -110,39 +89,28 @@ export function CuttinboardModuleProvider({
     [selectedApp]
   );
 
-  const newElement = async (newApp: GenericModule) => {
-    const elementToAdd = newApp;
+  const newElement = async (newApp: Omit<IGenericModule, "locationId">) => {
+    const elementToAdd = {
+      ...newApp,
+      createdAt: serverTimestamp(),
+      createdBy: user.uid,
+      locationId: location.id,
+    };
     if (newApp.privacyLevel === PrivacyLevel.PUBLIC) {
-      elementToAdd.accessTags = ["public"];
+      elementToAdd.accessTags = ["pl_public"];
     }
     try {
       const newModuleRef = await addDoc(baseRef, elementToAdd);
       return newModuleRef.id;
     } catch (error) {
-      throw error;
-    }
-  };
-
-  const editElement = async (newData: Partial<GenericModule>) => {
-    try {
-      await updateDoc<DocumentData>(selectedApp.docRef, newData);
-    } catch (error) {
-      throw error;
-    }
-  };
-
-  const deleteElement = async (targetAppChild: GenericModule = selectedApp) => {
-    try {
-      setSelected(null);
-      await deleteDoc(targetAppChild.docRef);
-    } catch (error) {
+      onError(error);
       throw error;
     }
   };
 
   const canManage = useMemo(
     () =>
-      (selectedApp && user.uid === selectedApp?.hostId) ||
+      selectedApp?.amIhost ||
       locationAccessKey.role <= RoleAccessLevels.GENERAL_MANAGER,
     [user.uid, selectedApp, locationAccessKey]
   );
@@ -151,7 +119,7 @@ export function CuttinboardModuleProvider({
     if (!selectedApp) {
       return false;
     }
-    if (selectedApp?.hostId === user.uid) {
+    if (selectedApp.amIhost) {
       return true;
     }
     if (selectedApp.privacyLevel === PrivacyLevel.PUBLIC) {
@@ -168,103 +136,32 @@ export function CuttinboardModuleProvider({
     return false;
   }, [user.uid, selectedApp, locationAccessKey, location]);
 
-  const setAppHost = async (newHostUser: Employee) => {
-    if (!canManage) {
-      return;
-    }
-    try {
-      const hostUpdate: { accessTags?: FieldValue; hostId: string } = {
-        hostId: newHostUser.id,
-      };
-      if (selectedApp.privacyLevel === PrivacyLevel.POSITIONS) {
-        hostUpdate.accessTags = arrayUnion(`hostId_${newHostUser.id}`);
-      }
-      if (selectedApp.privacyLevel === PrivacyLevel.PRIVATE) {
-        hostUpdate.accessTags = arrayUnion(newHostUser.id);
-      }
-      await updateDoc(selectedApp.docRef, hostUpdate);
-    } catch (error) {
-      throw error;
-    }
-  };
-
-  const removeHost = async () => {
-    if (!canManage) {
-      return;
-    }
-    try {
-      const hostUpdate: { accessTags?: FieldValue; hostId: FieldValue } = {
-        hostId: deleteField(),
-      };
-      if (selectedApp.privacyLevel === PrivacyLevel.POSITIONS) {
-        hostUpdate.accessTags = arrayRemove(`hostId_${selectedApp.hostId}`);
-      }
-      if (selectedApp.privacyLevel === PrivacyLevel.PRIVATE) {
-        hostUpdate.accessTags = arrayRemove(selectedApp.hostId);
-      }
-      await updateDoc(selectedApp.docRef, hostUpdate);
-    } catch (error) {
-      throw error;
-    }
-  };
-
-  const addMembers = async (addedEmployees: Employee[]) => {
-    if (!canManage || selectedApp.privacyLevel !== PrivacyLevel.PRIVATE) {
-      return;
-    }
-    try {
-      await updateDoc(selectedApp.docRef, {
-        accessTags: arrayUnion(...addedEmployees.map((emp) => emp.id)),
-      });
-    } catch (error) {
-      throw error;
-    }
-  };
-
-  const removeMember = async (employeeId: string) => {
-    if (!canManage || selectedApp.privacyLevel !== PrivacyLevel.PRIVATE) {
-      return;
-    }
-    try {
-      await updateDoc(selectedApp.docRef, {
-        accessTags: arrayRemove(employeeId),
-      });
-    } catch (error) {
-      throw error;
-    }
-  };
-
-  if (loadingElements) {
-    return LoadingElement;
-  }
-
-  if (elementsError) {
-    return ErrorElement(elementsError);
-  }
-
   return (
     <CuttinboardModuleContext.Provider
       value={{
         selectedApp,
         setSelected,
-        moduleContentRef,
         elements,
-        newElement,
-        editElement,
-        deleteElement,
         canManage,
         canUse,
-        setAppHost,
-        removeHost,
-        addMembers,
-        removeMember,
+        loading: loadingElements,
+        error: elementsError,
+        newElement,
       }}
     >
-      {children}
+      {typeof children === "function"
+        ? children(loadingElements, elementsError, elements, selectedApp)
+        : children}
     </CuttinboardModuleContext.Provider>
   );
 }
 
-export function useCuttinboardModule() {
-  return useContext<CuttinboardModuleProviderContext>(CuttinboardModuleContext);
-}
+export const useCuttinboardModule = () => {
+  const context = useContext(CuttinboardModuleContext);
+  if (context === undefined) {
+    throw new Error(
+      "useCuttinboardModule must be used within a CuttinboardModuleProvider"
+    );
+  }
+  return context;
+};
