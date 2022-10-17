@@ -1,17 +1,10 @@
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
-import { findIndex, isEmpty } from "lodash";
 import React, { ReactNode, useCallback, useContext } from "react";
-import { Message } from "../models/chat/Message";
+import { IMessage, Message } from "../models/chat/Message";
 import { Sender } from "../models/chat/Sender";
 import { useCuttinboard } from "./Cuttinboard";
 import { Database, Storage } from "../firebase";
-import {
-  push,
-  ref as RTDBRef,
-  remove,
-  serverTimestamp,
-  set,
-} from "firebase/database";
+import { push, ref as RTDBRef, serverTimestamp } from "firebase/database";
 import { useLocation } from "./Location";
 import { composeMessage } from "./composeMessage";
 import { Attachment } from "models";
@@ -23,23 +16,17 @@ interface ConversationMessagesContextProps {
   noMoreMessages: boolean;
   sendMessage: (
     messageTxt: string,
-    replyTargetMessage?: Message & {
-      type: "attachment" | "youtube" | "mediaUri" | "text";
-    }
+    replyTargetMessage?: Message
   ) => Promise<void>;
   attachFiles: (
     file: File | Blob | Uint8Array | ArrayBuffer,
     fileName: string,
     mimeType: string,
     message: string | null,
-    replyTargetMessage?: Message & {
-      type: "attachment" | "youtube" | "mediaUri" | "text";
-    }
+    replyTargetMessage?: Message
   ) => Promise<void>;
-  deleteMessage: (messageId: string) => Promise<void>;
   loading: boolean;
   error: Error;
-  addReaction: (messageId: string, emoji?: string) => Promise<void>;
 }
 
 const ConversationMessagesContext =
@@ -50,34 +37,24 @@ const ConversationMessagesContext =
 export function ConversationMessagesProvider({
   children,
   chatId,
-  members,
 }: {
   children: ReactNode;
   chatId: string;
-  members: string[];
 }) {
   const { user } = useCuttinboard();
   const { location } = useLocation();
   const {
     chatPath,
     messages,
-    dispatch,
     noMoreMessages,
     fetchOlderMessages,
     allMessages,
-    addReaction,
-    deleteMessage,
   } = useBaseMessaging(
     `conversationMessages/${location.organizationId}/${location.id}/${chatId}`
   );
 
   const sendMessage = useCallback(
-    async (
-      messageTxt: string,
-      replyTargetMessage?: Message & {
-        type: "attachment" | "youtube" | "mediaUri" | "text";
-      }
-    ) => {
+    async (messageTxt: string, replyTargetMessage?: Message) => {
       const sender: Sender = {
         id: user.uid,
         name: user.displayName,
@@ -101,9 +78,7 @@ export function ConversationMessagesProvider({
       fileName: string,
       mimeType: string,
       message: string | null,
-      replyTargetMessage?: Message & {
-        type: "attachment" | "youtube" | "mediaUri" | "text";
-      }
+      replyTargetMessage?: Message
     ) => {
       const sender: Sender = {
         id: user.uid,
@@ -115,7 +90,7 @@ export function ConversationMessagesProvider({
         `organizations/${location.organizationId}/locations/${location.id}/conversationMessages/${chatId}/${fileName}`
       );
 
-      const msg: Partial<Message<object> & { type: "attachment" }> = {
+      const msg: Partial<IMessage<object> & { type: "attachment" }> = {
         type: "attachment",
         sender,
         createdAt: serverTimestamp(),
@@ -123,8 +98,7 @@ export function ConversationMessagesProvider({
       };
 
       if (replyTargetMessage) {
-        const { replyTarget, ...others } = replyTargetMessage;
-        msg.replyTarget = others;
+        msg.replyTarget = replyTargetMessage.toReplyData;
       }
 
       if (mimeType.includes("image")) {
@@ -171,10 +145,8 @@ export function ConversationMessagesProvider({
         noMoreMessages,
         sendMessage,
         attachFiles,
-        deleteMessage,
         loading: messages.loading,
         error: messages.error,
-        addReaction,
       }}
     >
       {children}

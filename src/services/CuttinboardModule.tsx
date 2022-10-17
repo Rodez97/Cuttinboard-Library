@@ -67,7 +67,7 @@ export function CuttinboardModuleProvider({
             where(`accessTags`, "array-contains-any", [
               user.uid,
               `hostId_${user.uid}`,
-              "public",
+              "pl_public",
               ...(locationAccessKey.pos ?? []),
             ])
           )

@@ -8,48 +8,47 @@ import {
   Timestamp,
   arrayUnion,
   arrayRemove,
-  FieldValue,
 } from "firebase/firestore";
 import { PrimaryFirestore } from "../PrimaryFirestore";
 
-export const ChatFirestoreConverter = {
-  toFirestore(object: Chat): DocumentData {
-    const { docRef, id, ...objectToSave } = object;
-    return objectToSave;
-  },
-  fromFirestore(
-    value: QueryDocumentSnapshot<IChat>,
-    options: SnapshotOptions
-  ): Chat {
-    const { id, ref } = value;
-    const rawData = value.data(options)!;
-    return new Chat(rawData, { id, docRef: ref });
-  },
-};
-
-export interface IChat<CREATION extends Timestamp | FieldValue = Timestamp> {
+export interface IChat {
   muted?: string[];
-  createdAt: CREATION;
+  createdAt: Timestamp;
   members: {
     [memberId: string]: string;
   };
+  membersList: string[];
   recentMessage?: Timestamp;
-  locations?: string[];
 }
 
 export class Chat implements IChat, PrimaryFirestore {
   public readonly id: string;
   public readonly docRef: DocumentReference<DocumentData>;
-  public muted: string[] = [];
+  public readonly muted: string[] = [];
   public readonly createdAt: Timestamp;
   public readonly members: {
     [memberId: string]: string;
   };
-  public recentMessage?: Timestamp;
-  public locations?: string[] = [];
+  public readonly recentMessage?: Timestamp;
+  public readonly membersList: string[];
+
+  public static Converter = {
+    toFirestore(object: Chat): DocumentData {
+      const { docRef, id, ...objectToSave } = object;
+      return objectToSave;
+    },
+    fromFirestore(
+      value: QueryDocumentSnapshot<IChat>,
+      options: SnapshotOptions
+    ): Chat {
+      const { id, ref } = value;
+      const rawData = value.data(options)!;
+      return new Chat(rawData, { id, docRef: ref });
+    },
+  };
 
   constructor(
-    { muted, members, createdAt, recentMessage, locations }: IChat,
+    { muted, members, createdAt, recentMessage, membersList }: IChat,
     { id, docRef }: PrimaryFirestore
   ) {
     this.id = id;
@@ -58,7 +57,7 @@ export class Chat implements IChat, PrimaryFirestore {
     this.createdAt = createdAt;
     this.members = members;
     this.recentMessage = recentMessage;
-    this.locations = locations ?? [];
+    this.membersList = membersList;
   }
 
   /**

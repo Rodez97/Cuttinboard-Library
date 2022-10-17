@@ -5,22 +5,7 @@ import {
   SnapshotOptions,
   Timestamp,
 } from "firebase/firestore";
-import { PrimaryFirestore } from "./PrimaryFirestore";
-
-export const CuttinboardUserConverter = {
-  toFirestore(object: CuttinboardUser): DocumentData {
-    const { docRef, id, ...objectToSave } = object;
-    return objectToSave;
-  },
-  fromFirestore(
-    value: QueryDocumentSnapshot<ICuttinboardUser>,
-    options: SnapshotOptions
-  ): CuttinboardUser {
-    const { id, ref } = value;
-    const rawData = value.data(options)!;
-    return new CuttinboardUser(rawData, { id, docRef: ref });
-  },
-};
+import { PrimaryFirestore } from "../PrimaryFirestore";
 
 export interface ICuttinboardUser {
   avatar?: string;
@@ -39,17 +24,32 @@ export interface ICuttinboardUser {
 export class CuttinboardUser implements ICuttinboardUser, PrimaryFirestore {
   public readonly id: string;
   public readonly docRef: DocumentReference<DocumentData>;
-  public avatar?: string;
-  public name: string;
-  public lastName: string;
+  public readonly avatar?: string;
+  public readonly name: string;
+  public readonly lastName: string;
   public readonly email: string;
-  public phoneNumber?: string;
-  public userDocuments?: Record<string, string>;
-  public birthDate?: Timestamp;
+  public readonly phoneNumber?: string;
+  public readonly userDocuments?: Record<string, string>;
+  public readonly birthDate?: Timestamp;
   public readonly customerId?: string;
   public readonly subscriptionId?: string;
-  public paymentMethods?: string[];
-  public organizations?: string[];
+  public readonly paymentMethods?: string[];
+  public readonly organizations?: string[];
+
+  public static Converter = {
+    toFirestore(object: CuttinboardUser): DocumentData {
+      const { docRef, id, ...objectToSave } = object;
+      return objectToSave;
+    },
+    fromFirestore(
+      value: QueryDocumentSnapshot<ICuttinboardUser>,
+      options: SnapshotOptions
+    ): CuttinboardUser {
+      const { id, ref } = value;
+      const rawData = value.data(options)!;
+      return new CuttinboardUser(rawData, { id, docRef: ref });
+    },
+  };
 
   constructor(
     {

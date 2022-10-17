@@ -1,4 +1,4 @@
-export default {
+export const Colors = {
   // paper & background
   paper: "#ffffff",
   Primary: {

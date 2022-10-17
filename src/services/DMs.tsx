@@ -1,14 +1,13 @@
 import {
-  arrayUnion,
   collection,
   doc,
   FieldValue,
-  getDoc,
-  orderBy,
+  FirestoreError,
   query,
   serverTimestamp,
   setDoc,
-  updateDoc,
+  where,
+  WithFieldValue,
 } from "firebase/firestore";
 import React, {
   createContext,
@@ -18,7 +17,7 @@ import React, {
   useState,
 } from "react";
 import { useCollectionData } from "react-firebase-hooks/firestore";
-import { Chat, ChatFirestoreConverter, IChat } from "../models/chat/Chat";
+import { Chat, IChat } from "../models/chat/Chat";
 import { Auth, Firestore } from "../firebase";
 import {
   set,
@@ -35,30 +34,32 @@ interface DMsContextProps {
   setChatId: (chtId: string) => void;
   startNewDMByEmail: (recipient: CuttinboardUser) => Promise<string>;
   startNewLocationDM: (recipient: Employee) => Promise<string>;
+  loading: boolean;
+  error: Error;
 }
 
 const DMsContext = createContext<DMsContextProps>({} as DMsContextProps);
 
 interface DMsProviderProps {
-  children: ReactNode;
-  LoadingElement: JSX.Element;
-  ErrorElement: (error: Error) => JSX.Element;
-  locationId?: string;
+  children:
+    | ReactNode
+    | ((props: {
+        loading: boolean;
+        error: Error;
+        chats: Chat[];
+        selectedChat: Chat | undefined;
+      }) => JSX.Element);
+  onError: (error: Error | FirestoreError) => void;
 }
 
-export function DMsProvider({
-  children,
-  LoadingElement,
-  ErrorElement,
-  locationId,
-}: DMsProviderProps) {
+export function DMsProvider({ children, onError }: DMsProviderProps) {
   const [chatId, setChatId] = useState("");
   const [user] = useState(Auth.currentUser);
   const [chats, loading, error] = useCollectionData<Chat>(
     query(
       collection(Firestore, "DirectMessages"),
-      orderBy(`members.${user.uid}`)
-    ).withConverter(ChatFirestoreConverter)
+      where("membersList", "array-contains", Auth.currentUser.uid)
+    ).withConverter(Chat.Converter)
   );
 
   const selectedChat = useMemo(
@@ -75,13 +76,15 @@ export function DMsProvider({
 
     const { name, lastName } = recipient;
 
-    const newDM: IChat<FieldValue> = {
+    const newDM: WithFieldValue<IChat> = {
       createdAt: serverTimestamp(),
       members: {
         [user.uid]: user.displayName,
         [recipient.id]: `${name} ${lastName}`,
       },
+      membersList: [user.uid, recipient.id],
     };
+
     try {
       await setDoc(doc(Firestore, "DirectMessages", DmId), newDM);
       await set(ref(Database, `directMessages/${DmId}/firstMessage`), {
@@ -103,24 +106,10 @@ export function DMsProvider({
       return DmId;
     }
 
-    // Check if chat exists
-    const dmSnap = await getDoc(doc(Firestore, "DirectMessages", DmId));
-
-    if (dmSnap.exists() && dmSnap.data()) {
-      try {
-        await updateDoc(doc(Firestore, "DirectMessages", DmId), {
-          locations: arrayUnion(locationId),
-        });
-        return DmId;
-      } catch (error) {
-        throw error;
-      }
-    }
-
-    const newDM: IChat<FieldValue> = {
+    const newDM: WithFieldValue<IChat> = {
       createdAt: serverTimestamp(),
       members: { [user.uid]: user.displayName, [id]: `${name} ${lastName}` },
-      locations: [locationId],
+      membersList: [user.uid, id],
     };
 
     try {
@@ -137,13 +126,6 @@ export function DMsProvider({
     }
   };
 
-  if (loading) {
-    return LoadingElement;
-  }
-  if (error) {
-    return ErrorElement(error);
-  }
-
   return (
     <DMsContext.Provider
       value={{
@@ -153,9 +135,13 @@ export function DMsProvider({
         selectedChat,
         startNewDMByEmail,
         startNewLocationDM,
+        loading,
+        error,
       }}
     >
-      {children}
+      {typeof children === "function"
+        ? children({ loading, error, chats, selectedChat })
+        : children}
     </DMsContext.Provider>
   );
 }

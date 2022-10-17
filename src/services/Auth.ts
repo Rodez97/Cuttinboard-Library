@@ -10,57 +10,63 @@ import {
 } from "firebase/auth";
 import { doc, getDoc, Timestamp, updateDoc } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
+import { useSignInWithEmailAndPassword } from "react-firebase-hooks/auth";
+import { useHttpsCallable } from "react-firebase-hooks/functions";
 import { Auth, Firestore, Functions } from "../firebase";
 import { CuttinboardError } from "./../models/CuttinboardError";
+
+type RegisterProps = {
+  name: string;
+  lastName: string;
+  email: string;
+  password: string;
+};
+
+export const useRegisterUser = () => {
+  const [registerCuttinboardUser, isSubmitting, signUpError] = useHttpsCallable<
+    RegisterProps,
+    string
+  >(Functions, "auth-registerUser");
+  const [signIn, loginLoading, loginError] =
+    useSignInWithEmailAndPassword(Auth);
+
+  /**
+   * - Registrar al usuario en Firebase Auth
+   * - Crear su documento de información en Firestore
+   * @param {RegisterProps} registerData Correo electrónico
+   */
+  const registerUser = async (registerData: RegisterProps) => {
+    try {
+      const { data } = await registerCuttinboardUser(registerData);
+      await signIn(registerData.email, registerData.password);
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  return {
+    registerUser,
+    submitting: Boolean(isSubmitting || loginLoading),
+    error: signUpError ?? loginError,
+  };
+};
+
+type ProfileUpdate = {
+  name: string;
+  lastName: string;
+  birthDate: Timestamp;
+  avatar: string;
+};
 
 /**
  * Hook que nos permite gestionar y ejecutar operaciones de autentificación del usuario
  */
 export const useCuttinboardAuth = () => {
   /**
-   * - Registrar al usuario en Firebase Auth
-   * - Enviar el email de verificación
-   * - Crear su documento de información en Firestore
-   * @param email Correo electrónico
-   * @param password Contraseña
-   * @param name Nombre
-   * @param lastName Apellido
-   * @returns Devuelve al nuevo usuario creado si la operación es satisfactoria
-   */
-  const registerUser = async (
-    email: string,
-    password: string,
-    name: string,
-    lastName: string
-  ) => {
-    try {
-      const registerCuttinboardUser = httpsCallable<
-        { email: string; password: string; name: string; lastName: string },
-        string
-      >(Functions, "auth-registerUser");
-      await registerCuttinboardUser({
-        email,
-        name,
-        lastName,
-        password,
-      });
-
-      await signInWithEmailAndPassword(Auth, email, password);
-    } catch (error) {
-      throw error;
-    }
-  };
-
-  /**
    * Actualizar la información del usuario
-   * @param newProfileData Nuevos datos a actualizar en el usuario
+   * @param {ProfileUpdate} newProfileData Nuevos datos a actualizar en el usuario
    */
-  const updateUserProfile = async (newProfileData: {
-    name?: string;
-    lastName?: string;
-    birthDate?: Timestamp;
-    avatar?: string;
-  }) => {
+  const updateUserProfile = async (newProfileData: Partial<ProfileUpdate>) => {
     try {
       const { name, lastName, avatar } = newProfileData;
       const fullName = `${name} ${lastName}`;
@@ -81,19 +87,6 @@ export const useCuttinboardAuth = () => {
         doc(Firestore, "Users", Auth.currentUser.uid),
         newProfileData
       );
-    } catch (error) {
-      throw error;
-    }
-  };
-
-  const changePassword = async (password: string, newPassword: string) => {
-    const credential = EmailAuthProvider.credential(
-      Auth.currentUser.email,
-      password
-    );
-    try {
-      await reauthenticateWithCredential(Auth.currentUser, credential);
-      await updatePassword(Auth.currentUser, newPassword);
     } catch (error) {
       throw error;
     }
@@ -123,9 +116,7 @@ export const useCuttinboardAuth = () => {
   };
 
   return {
-    registerUser,
     updateUserProfile,
-    changePassword,
     deleteAccount,
   };
 };

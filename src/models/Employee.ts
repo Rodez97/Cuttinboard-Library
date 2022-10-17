@@ -13,7 +13,7 @@ import {
 } from "firebase/firestore";
 import { intersection, isEmpty, orderBy } from "lodash";
 import { RoleAccessLevels } from "../utils/RoleAccessLevels";
-import { ICuttinboardUser } from "./CuttinboardUser";
+import { ICuttinboardUser } from "./auth/CuttinboardUser";
 import { EmployeeLocation } from "./EmployeeLocation";
 import { FirebaseSignature } from "./FirebaseSignature";
 import { PrimaryFirestore } from "./PrimaryFirestore";

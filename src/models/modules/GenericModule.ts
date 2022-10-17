@@ -18,10 +18,6 @@ import { FirebaseSignature } from "../FirebaseSignature";
 import { PrimaryFirestore } from "../PrimaryFirestore";
 import { Employee } from "../Employee";
 
-/**
- * Base genérica de la cuál parten la mayoría de apps o módulos de la aplicación.
- */
-
 export interface IGenericModule {
   name: string;
   description?: string;
@@ -87,6 +83,10 @@ export class GenericModule
 
   public get contentRef() {
     return collection(Firestore, this.docRef.path, "content");
+  }
+
+  public get getOrderTime() {
+    return this.createdAt.toDate();
   }
 
   public get amIhost() {

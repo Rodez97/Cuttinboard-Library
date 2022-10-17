@@ -26,29 +26,11 @@ dayjs.extend(advancedFormat);
 dayjs.extend(customParseFormat);
 dayjs.extend(duration);
 
-/**
- * Turno de trabajo
- */
 export interface IShift {
-  /**
-   * Inicio del turno
-   */
   start: string;
-  /**
-   * Fin del turno
-   */
   end: string;
-  /**
-   * Posición que desempeñarás durante el turno
-   */
   position?: string;
-  /**
-   * Tareas asignadas para ese turno
-   */
   tasks?: Record<string, Todo_Task>;
-  /**
-   * Notas del turno
-   */
   notes?: string;
   hourlyWage?: number;
   status: "draft" | "published";

@@ -1,20 +1,18 @@
-import { Message } from "../models/chat/Message";
+import { IMessage, Message } from "../models/chat/Message";
 import { Sender } from "../models/chat/Sender";
 import { serverTimestamp } from "firebase/database";
 
 export const composeMessage = (
   sender: Sender,
   messageTxt: string,
-  replyTargetMessage?: Message & {
-    type: "attachment" | "youtube" | "mediaUri" | "text";
-  }
+  replyTargetMessage?: Message
 ): Partial<
-  Message<object> & {
+  IMessage<object> & {
     type: "attachment" | "youtube" | "mediaUri" | "text";
   }
 > => {
   let msg: Partial<
-    Message<object> & {
+    IMessage<object> & {
       type: "attachment" | "youtube" | "mediaUri" | "text";
     }
   > = {
@@ -23,10 +21,9 @@ export const composeMessage = (
   };
 
   if (replyTargetMessage) {
-    const { replyTarget, ...others } = replyTargetMessage;
     msg = {
       ...msg,
-      replyTarget: others,
+      replyTarget: replyTargetMessage.toReplyData,
     };
   }
 

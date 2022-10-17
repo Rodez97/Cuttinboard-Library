@@ -8,7 +8,10 @@ import React, {
   useState,
 } from "react";
 import { useAuthState } from "react-firebase-hooks/auth";
-import { OrganizationKey } from "../models/auth/OrganizationKey";
+import {
+  IOrganizationKey,
+  OrganizationKey,
+} from "../models/auth/OrganizationKey";
 import { Location } from "../models/Location";
 import { isEqual } from "lodash";
 import { Auth, Database, Functions } from "../firebase";
@@ -91,7 +94,9 @@ export const CuttinboardProvider = ({
         if (!newOrgKey) {
           setOrganizationKey(null);
         } else if (!isEqual(newOrgKey, organizationKey)) {
-          setOrganizationKey(newOrgKey as OrganizationKey);
+          setOrganizationKey(
+            new OrganizationKey(newOrgKey as IOrganizationKey)
+          );
         }
       } catch (error) {
         setOrganizationKey(null);
@@ -112,7 +117,7 @@ export const CuttinboardProvider = ({
     selectOrganizationKey,
     selectingOrganization,
     errorSelectingOrganization,
-  ] = useHttpsCallable<string, { organizationKey: OrganizationKey }>(
+  ] = useHttpsCallable<string, { organizationKey: IOrganizationKey }>(
     Functions,
     "auth-selectKey"
   );
@@ -137,7 +142,7 @@ export const CuttinboardProvider = ({
           onError(error);
           throw error;
         }
-        setOrganizationKey(data.organizationKey);
+        setOrganizationKey(new OrganizationKey(data.organizationKey));
       } catch (error) {
         onError(error);
         throw error;

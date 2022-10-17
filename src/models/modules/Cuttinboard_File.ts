@@ -14,26 +14,10 @@ import { getDownloadURL, ref } from "firebase/storage";
 import { FirebaseSignature } from "../FirebaseSignature";
 import { PrimaryFirestore } from "../PrimaryFirestore";
 
-/**
- * Archivo
- * @description Lo utilizamos para reflejar los objetos de storage en la app de drawers
- */
 export interface ICuttinboard_File {
-  /**
-   * Nombre del archivo
-   */
   name: string;
-  /**
-   * Referencia/Ruta del archivo en storage
-   */
   storagePath: string;
-  /**
-   * MimeType del archivo
-   */
   fileType: string;
-  /**
-   * Tamaño en bytes del archivo
-   */
   size: number;
 }
 

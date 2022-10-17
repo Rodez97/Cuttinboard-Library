@@ -1,6 +1,7 @@
+import { DatabaseReference } from "firebase/database";
 import { filter, findIndex, unionBy } from "lodash";
 import { useReducer } from "react";
-import { Message } from "../models/chat/Message";
+import { IMessage, Message } from "../models/chat/Message";
 
 type ReducerState = {
   error?: Error;
@@ -10,11 +11,11 @@ type ReducerState = {
 
 type AddAction = {
   type: "add";
-  snapshot: Message | null;
+  snapshot: { message: IMessage; id: string; ref: DatabaseReference } | null;
 };
 type ChangeAction = {
   type: "change";
-  snapshot: Message | null;
+  snapshot: { message: IMessage; id: string } | null;
 };
 type AppendOlderAction = {
   type: "appendOlder";
@@ -24,10 +25,13 @@ type EmptyAction = { type: "empty" };
 type ErrorAction = { type: "error"; error: Error };
 type RemoveAction = {
   type: "remove";
-  snapshot: Message | null;
+  snapshot: string | null;
 };
 type ResetAction = { type: "reset" };
-type ValueAction = { type: "value"; snapshots: Message[] | null };
+type ValueAction = {
+  type: "value";
+  snapshots: { message: IMessage; id: string; ref: DatabaseReference }[] | null;
+};
 type ReducerAction =
   | AddAction
   | ChangeAction
@@ -111,15 +115,22 @@ const listReducer = (
   }
 };
 
-const setValue = (snapshots: Message[] | null): Message[] => {
+const setValue = (
+  snapshots: { message: IMessage; id: string; ref: DatabaseReference }[] | null
+): Message[] => {
   if (!snapshots) {
     return [];
   }
 
-  return snapshots;
+  return snapshots.map(
+    (snapshot) => new Message(snapshot.message, snapshot.id, snapshot.ref)
+  );
 };
 
-const addChild = (currentState: Message[], newMessage: Message): Message[] => {
+const addChild = (
+  currentState: Message[],
+  newMessage: { message: IMessage; id: string; ref: DatabaseReference }
+): Message[] => {
   if (!newMessage) {
     return currentState;
   }
@@ -128,10 +139,16 @@ const addChild = (currentState: Message[], newMessage: Message): Message[] => {
     ? findIndex(currentState, ({ id }) => id === newMessage.id)
     : -1;
 
+  const createMessage = new Message(
+    newMessage.message,
+    newMessage.id,
+    newMessage.ref
+  );
+
   if (index !== -1) {
     return changeChild(currentState, newMessage);
   } else {
-    return currentState ? [...currentState, newMessage] : [newMessage];
+    return currentState ? [...currentState, createMessage] : [createMessage];
   }
 };
 
@@ -151,22 +168,24 @@ const appendOlder = (
 
 const changeChild = (
   currentState: Message[],
-  changedMessage: Message
+  changedMessage: { message: IMessage; id: string }
 ): Message[] => {
   if (!changedMessage) {
     return currentState;
   }
-  const index = currentState
-    ? findIndex(currentState, ({ id }) => id === changedMessage.id)
-    : 0;
-  const mutatedArray = currentState ?? [changedMessage];
-  mutatedArray.splice(index, 1, changedMessage);
-  return mutatedArray;
+
+  const message = currentState.find(
+    (message) => message.id === changedMessage.id
+  );
+
+  message.stateUpdate(changedMessage.message);
+
+  return currentState;
 };
 
 const removeChild = (
   currentState: Message[],
-  messageToDelete: Message
+  messageToDelete: string
 ): Message[] => {
   if (!messageToDelete) {
     return currentState;
@@ -176,7 +195,7 @@ const removeChild = (
     return [];
   }
 
-  return filter(currentState, (message) => message.id !== messageToDelete.id);
+  return filter(currentState, (message) => message.id !== messageToDelete);
 };
 
 export default () => useReducer(listReducer, initialState);

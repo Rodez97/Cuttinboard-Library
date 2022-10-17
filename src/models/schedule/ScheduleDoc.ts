@@ -2,14 +2,7 @@ import { ModuleFirestoreConverter } from "../modules";
 import { PrimaryFirestore } from "../PrimaryFirestore";
 import { Schedule_DayStats } from "./Schedule_DayStats";
 
-/**
- * Documento contenedor de los turnos de una semana
- */
-
 export type ScheduleDoc = PrimaryFirestore & {
-  /**
-   * Está publicado el horario?
-   */
   isPublished: boolean;
   locationId: string;
   organizationId: string;

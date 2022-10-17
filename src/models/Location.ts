@@ -13,7 +13,6 @@ import {
 } from "firebase/firestore";
 import { ref } from "firebase/storage";
 import { FirebaseSignature } from "./FirebaseSignature";
-import { ModuleFirestoreConverter } from "./modules";
 import { PrimaryFirestore } from "./PrimaryFirestore";
 import { Firestore, Storage } from "./../firebase";
 import { Employee } from "./Employee";

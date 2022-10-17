@@ -81,14 +81,7 @@ export const LocationProvider = ({
   );
 
   const locationAccessKey = useMemo((): LocationKey => {
-    if (organizationKey.role === "employee") {
-      return organizationKey.locKeys?.[locationId];
-    }
-    return {
-      locId: locationId,
-      role: organizationKey.role,
-      pos: [],
-    };
+    return organizationKey.locationKey(locationId);
   }, [organizationKey, locationId]);
 
   const isGeneralManager = useMemo(

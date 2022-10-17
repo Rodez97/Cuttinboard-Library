@@ -27,6 +27,7 @@ import {
   set,
 } from "firebase/database";
 import { useCuttinboard } from "./Cuttinboard";
+import { IGenericModule } from "../models";
 
 interface ConversationsContextProps {
   chats: Conversation[];
@@ -36,7 +37,7 @@ interface ConversationsContextProps {
   canManageApp: boolean;
   canUseApp: boolean;
   createConversation: (
-    newConv: Omit<IConversation, "locationId">
+    newConvData: Omit<IGenericModule, "locationId">
   ) => Promise<string>;
   loading: boolean;
   error: Error;
@@ -85,7 +86,12 @@ export function ConversationsProvider({
             "conversations"
           ),
           where("locationId", "==", location.id),
-          where("members", "array-contains", user.uid)
+          where(`accessTags`, "array-contains-any", [
+            user.uid,
+            `hostId_${user.uid}`,
+            "pl_public",
+            ...(locationAccessKey.pos ?? []),
+          ])
         )
     ).withConverter(Conversation.Converter)
   );
@@ -126,22 +132,21 @@ export function ConversationsProvider({
   }, [user.uid, selectedChat, location, locationAccessKey]);
 
   const createConversation = useCallback(
-    async (newConvData: Omit<IConversation, "locationId">) => {
-      let members: string[];
-      switch (newConvData.privacyLevel) {
-        case PrivacyLevel.PUBLIC:
-          members = getEmployees.map(({ id }) => id);
-          break;
-        case PrivacyLevel.POSITIONS:
-          members = getEmployees
-            .filter((emp) => emp.hasAnyPosition(newConvData.positions))
-            .map(({ id }) => id);
-          break;
-        case PrivacyLevel.PRIVATE:
-          break;
-
-        default:
-          throw new Error("Unknown privacy level");
+    async (newConvData: Omit<IGenericModule, "locationId">) => {
+      const elementToAdd = {
+        ...newConvData,
+        createdAt: serverTimestamp(),
+        createdBy: user.uid,
+        locationId: location.id,
+      };
+      if (newConvData.privacyLevel === PrivacyLevel.PUBLIC) {
+        elementToAdd.accessTags = ["pl_public"];
+      }
+      if (
+        newConvData.privacyLevel === PrivacyLevel.POSITIONS &&
+        elementToAdd.accessTags.length > 1
+      ) {
+        elementToAdd.accessTags = [elementToAdd.accessTags[0]];
       }
 
       try {
@@ -152,13 +157,7 @@ export function ConversationsProvider({
             location.organizationId,
             "conversations"
           ),
-          {
-            ...newConvData,
-            createdAt: serverTimestamp(),
-            createdBy: user.uid,
-            locationId: location.id,
-            members,
-          }
+          elementToAdd
         );
         await set(
           ref(

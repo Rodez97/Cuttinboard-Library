@@ -1,6 +1,7 @@
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import React, { ReactNode, useCallback, useContext } from "react";
-import { Message } from "../models/chat/Message";
+import { IMessage, Message } from "../models/chat/Message";
+import { ReplyRecipient } from "../models/chat/ReplyRecipient";
 import { Sender } from "../models/chat/Sender";
 import { useCuttinboard } from "./Cuttinboard";
 import { Database, Firestore, Storage } from "../firebase";
@@ -20,24 +21,17 @@ interface DirectMessagesContextProps {
   noMoreMessages: boolean;
   sendMessage: (
     messageTxt: string,
-    replyTargetMessage?: Message & {
-      type: "attachment" | "youtube" | "mediaUri" | "text";
-    }
+    replyTargetMessage?: Message
   ) => Promise<void>;
   attachFiles: (
     file: File | Blob | Uint8Array | ArrayBuffer,
     fileName: string,
     mimeType: string,
     message: string | null,
-    replyTargetMessage?: Message & {
-      type: "attachment" | "youtube" | "mediaUri" | "text";
-    }
+    replyTargetMessage?: Message
   ) => Promise<void>;
-  deleteMessage: (messageId: string) => Promise<void>;
   loading: boolean;
   error: Error;
-  addReaction: (messageId: string, emoji?: string) => Promise<void>;
-  updateLastVisitedBy: (messageId: string) => Promise<void>;
 }
 
 const DirectMessagesContext = React.createContext<DirectMessagesContextProps>(
@@ -59,17 +53,10 @@ export function DirectMessagesProvider({
     noMoreMessages,
     fetchOlderMessages,
     allMessages,
-    addReaction,
-    deleteMessage,
   } = useBaseMessaging(`directMessages/${chatId}`);
 
   const sendMessage = useCallback(
-    async (
-      messageTxt: string,
-      replyTargetMessage?: Message & {
-        type: "attachment" | "youtube" | "mediaUri" | "text";
-      }
-    ) => {
+    async (messageTxt: string, replyTargetMessage?: Message) => {
       const sender: Sender = {
         id: user.uid,
         name: user.displayName,
@@ -92,32 +79,13 @@ export function DirectMessagesProvider({
     [chatId]
   );
 
-  const updateLastVisitedBy = useCallback(
-    async (messageId: string) => {
-      try {
-        await set(
-          RTDBRef(
-            Database,
-            `directMessages/${chatId}/${messageId}/seenBy/${user.uid}`
-          ),
-          true
-        );
-      } catch (error) {
-        throw error;
-      }
-    },
-    [chatId]
-  );
-
   const attachFiles = useCallback(
     async (
       file: File | Blob | Uint8Array | ArrayBuffer,
       fileName: string,
       mimeType: string,
       message: string | null,
-      replyTargetMessage?: Message & {
-        type: "attachment" | "youtube" | "mediaUri" | "text";
-      }
+      replyTargetMessage?: Message
     ) => {
       const sender: Sender = {
         id: user.uid,
@@ -126,7 +94,7 @@ export function DirectMessagesProvider({
 
       const fileRef = ref(Storage, `directMessages/${chatId}/${fileName}`);
 
-      const msg: Partial<Message<object> & { type: "attachment" }> = {
+      const msg: Partial<IMessage<object> & { type: "attachment" }> = {
         type: "attachment",
         sender,
         createdAt: serverTimestamp(),
@@ -134,8 +102,7 @@ export function DirectMessagesProvider({
       };
 
       if (replyTargetMessage) {
-        const { replyTarget, ...others } = replyTargetMessage;
-        msg.replyTarget = others;
+        msg.replyTarget = replyTargetMessage.toReplyData;
       }
 
       if (mimeType.includes("image")) {
@@ -185,11 +152,8 @@ export function DirectMessagesProvider({
         noMoreMessages,
         sendMessage,
         attachFiles,
-        deleteMessage,
         loading: messages.loading,
         error: messages.error,
-        addReaction,
-        updateLastVisitedBy,
       }}
     >
       {children}
