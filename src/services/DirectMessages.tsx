@@ -1,11 +1,10 @@
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import React, { ReactNode, useCallback, useContext } from "react";
 import { IMessage, Message } from "../models/chat/Message";
-import { ReplyRecipient } from "../models/chat/ReplyRecipient";
 import { Sender } from "../models/chat/Sender";
 import { useCuttinboard } from "./Cuttinboard";
 import { Database, Firestore, Storage } from "../firebase";
-import { push, ref as RTDBRef, serverTimestamp, set } from "firebase/database";
+import { push, ref as RTDBRef, serverTimestamp } from "firebase/database";
 import {
   doc,
   updateDoc,

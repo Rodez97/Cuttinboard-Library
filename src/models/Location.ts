@@ -10,6 +10,8 @@ import {
   collection,
   orderBy as orderByFirestore,
   Timestamp,
+  doc,
+  deleteField,
 } from "firebase/firestore";
 import { ref } from "firebase/storage";
 import { FirebaseSignature } from "./FirebaseSignature";
@@ -267,6 +269,29 @@ export class Location
   public async updateLocation(newData: Partial<ILocation>) {
     try {
       await setDoc(this.docRef, newData, { merge: true });
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  public async ownerJoin(join?: boolean) {
+    try {
+      const empDocRef = doc(
+        Firestore,
+        "Organizations",
+        this.organizationId,
+        "employees",
+        this.organizationId
+      );
+      await setDoc(
+        empDocRef,
+        {
+          locations: {
+            [this.id]: join ? true : deleteField(),
+          },
+        },
+        { merge: true }
+      );
     } catch (error) {
       throw error;
     }

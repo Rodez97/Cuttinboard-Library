@@ -2,14 +2,10 @@ import {
   deleteUser,
   EmailAuthProvider,
   reauthenticateWithCredential,
-  signInWithCustomToken,
-  signInWithEmailAndPassword,
-  signOut,
-  updatePassword,
   updateProfile,
 } from "firebase/auth";
 import { doc, getDoc, Timestamp, updateDoc } from "firebase/firestore";
-import { httpsCallable } from "firebase/functions";
+import { useState } from "react";
 import { useSignInWithEmailAndPassword } from "react-firebase-hooks/auth";
 import { useHttpsCallable } from "react-firebase-hooks/functions";
 import { Auth, Firestore, Functions } from "../firebase";
@@ -37,7 +33,7 @@ export const useRegisterUser = () => {
    */
   const registerUser = async (registerData: RegisterProps) => {
     try {
-      const { data } = await registerCuttinboardUser(registerData);
+      await registerCuttinboardUser(registerData);
       await signIn(registerData.email, registerData.password);
     } catch (error) {
       throw error;
@@ -61,12 +57,15 @@ type ProfileUpdate = {
 /**
  * Hook que nos permite gestionar y ejecutar operaciones de autentificación del usuario
  */
-export const useCuttinboardAuth = () => {
+export const useUpdateCuttinboardAccount = () => {
+  const [updating, setUpdating] = useState(false);
+  const [error, setError] = useState<Error>(null);
   /**
    * Actualizar la información del usuario
    * @param {ProfileUpdate} newProfileData Nuevos datos a actualizar en el usuario
    */
   const updateUserProfile = async (newProfileData: Partial<ProfileUpdate>) => {
+    setUpdating(true);
     try {
       const { name, lastName, avatar } = newProfileData;
       const fullName = `${name} ${lastName}`;
@@ -88,13 +87,26 @@ export const useCuttinboardAuth = () => {
         newProfileData
       );
     } catch (error) {
-      throw error;
+      setError(error);
     }
+    setUpdating(false);
   };
 
+  return {
+    updateUserProfile,
+    updating,
+    error,
+  };
+};
+
+export const useDeleteCuttinboardAccount = () => {
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState<Error>(null);
+
   const deleteAccount = async (password: string) => {
+    setDeleting(true);
     try {
-      // Chack if have an organization
+      // Check if have an organization
       const org = await getDoc(
         doc(Firestore, "Organizations", Auth.currentUser.uid)
       );
@@ -111,12 +123,10 @@ export const useCuttinboardAuth = () => {
       await reauthenticateWithCredential(Auth.currentUser, credential);
       await deleteUser(Auth.currentUser);
     } catch (error) {
-      throw error;
+      setError(error);
     }
+    setDeleting(false);
   };
 
-  return {
-    updateUserProfile,
-    deleteAccount,
-  };
+  return { deleteAccount, deleting, error };
 };

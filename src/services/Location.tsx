@@ -36,6 +36,8 @@ interface LocationContextProps {
   isAdmin: boolean;
   getAviablePositions: RoleAccessLevels[];
   locationAccessKey: LocationKey;
+  loading: boolean;
+  error: Error | FirebaseError | CuttinboardError;
 }
 
 const LocationContext = createContext<LocationContextProps>(
@@ -49,23 +51,23 @@ interface LocationProviderProps {
   /**
    * El Contenido principal de la app cuando el usuario esté autentificado.
    */
-  children: ReactNode;
-  LoadingElement: JSX.Element;
+  children:
+    | ReactNode
+    | ((props: {
+        location: Location;
+        loading: boolean;
+        error: Error | FirebaseError | CuttinboardError;
+      }) => JSX.Element);
   organizationKey: OrganizationKey;
   locationId: string;
-  ErrorElement: (
-    error: Error | FirebaseError | CuttinboardError
-  ) => JSX.Element;
 }
 
 export const LocationProvider = ({
   children,
-  LoadingElement,
   organizationKey,
   locationId,
-  ErrorElement,
 }: LocationProviderProps) => {
-  const [location, locationLoading, locationError] = useDocumentData<Location>(
+  const [location, loading, error] = useDocumentData<Location>(
     locationId &&
       doc(Firestore, "Locations", locationId).withConverter(Location.Converter)
   );
@@ -101,20 +103,6 @@ export const LocationProvider = ({
     ) as RoleAccessLevels[];
   }, [locationAccessKey]);
 
-  if (locationLoading) {
-    return LoadingElement;
-  }
-
-  if (locationError) {
-    return ErrorElement(locationError);
-  }
-
-  if (!location) {
-    return ErrorElement(
-      new CuttinboardError("UNDEFINED_LOCATION", "Location is not defined")
-    );
-  }
-
   return (
     <LocationContext.Provider
       value={{
@@ -125,11 +113,21 @@ export const LocationProvider = ({
         getAviablePositions,
         isAdmin,
         locationAccessKey,
+        loading,
+        error,
       }}
     >
-      {children}
+      {typeof children === "function"
+        ? children({ location, loading, error })
+        : children}
     </LocationContext.Provider>
   );
 };
 
-export const useLocation = () => useContext(LocationContext);
+export const useLocation = () => {
+  const context = useContext(LocationContext);
+  if (context === undefined) {
+    throw new Error("useLocation must be used within a LocationProvider");
+  }
+  return context;
+};

@@ -124,9 +124,7 @@ export function ConversationsProvider({
       return Boolean(selectedChat.members.indexOf(user.uid) !== -1);
     }
     if (selectedChat.privacyLevel === PrivacyLevel.POSITIONS) {
-      return selectedChat.positions?.some((pos1) =>
-        locationAccessKey.pos?.includes(pos1)
-      );
+      return locationAccessKey.pos?.includes(selectedChat.position);
     }
     return false;
   }, [user.uid, selectedChat, location, locationAccessKey]);

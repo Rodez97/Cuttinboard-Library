@@ -129,9 +129,7 @@ export function CuttinboardModuleProvider({
       return selectedApp.accessTags?.includes(user.uid);
     }
     if (selectedApp.privacyLevel === PrivacyLevel.POSITIONS) {
-      return selectedApp.accessTags?.some((pos1) =>
-        locationAccessKey.pos?.includes(pos1)
-      );
+      return locationAccessKey.pos?.includes(selectedApp.position);
     }
     return false;
   }, [user.uid, selectedApp, locationAccessKey, location]);

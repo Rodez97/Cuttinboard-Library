@@ -93,11 +93,11 @@ export class GenericModule
     return Boolean(this.hosts?.indexOf(Auth.currentUser.uid) > -1);
   }
 
-  public get positions() {
+  public get position() {
     if (this.privacyLevel !== PrivacyLevel.POSITIONS) {
       return null;
     }
-    return this.accessTags?.filter(
+    return this.accessTags?.find(
       (at) => at !== "pl_public" && !at.startsWith("hostId_")
     );
   }
