@@ -1,32 +1,13 @@
 import { FirebaseError } from "firebase/app";
-import {
-  collection,
-  doc,
-  DocumentReference,
-  Query,
-  query,
-  orderBy as orderByFirestore,
-  DocumentData,
-  QueryDocumentSnapshot,
-  SnapshotOptions,
-} from "firebase/firestore";
-import { ref, StorageReference } from "firebase/storage";
-import React, {
-  createContext,
-  ReactNode,
-  useContext,
-  useMemo,
-  useRef,
-} from "react";
+import { doc } from "firebase/firestore";
+import React, { createContext, ReactNode, useContext, useMemo } from "react";
 import { useDocumentData } from "react-firebase-hooks/firestore";
 import { LocationKey } from "../models/auth/LocationKey";
 import { OrganizationKey } from "../models/auth/OrganizationKey";
-import { Employee, IEmployee } from "../models/Employee";
 import { Location } from "../models/Location";
 import { RoleAccessLevels } from "../utils/RoleAccessLevels";
-import { Auth, Firestore, Storage } from "../firebase";
+import { Firestore } from "../firebase";
 import { CuttinboardError } from "../models/CuttinboardError";
-import { FirebaseSignature } from "../models";
 
 interface LocationContextProps {
   location: Location;
@@ -103,6 +84,21 @@ export const LocationProvider = ({
     ) as RoleAccessLevels[];
   }, [locationAccessKey]);
 
+  const checkForError = useMemo(() => {
+    if (loading) return null;
+
+    // Check for location error
+    if (error) {
+      return error;
+    }
+    if (!location) {
+      return new CuttinboardError(
+        "Location not found",
+        "The location you are trying to access does not exist or you don't have access to it."
+      );
+    }
+  }, [loading, error, location]);
+
   return (
     <LocationContext.Provider
       value={{
@@ -118,7 +114,7 @@ export const LocationProvider = ({
       }}
     >
       {typeof children === "function"
-        ? children({ location, loading, error })
+        ? children({ location, loading, error: checkForError })
         : children}
     </LocationContext.Provider>
   );

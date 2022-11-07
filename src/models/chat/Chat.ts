@@ -15,7 +15,7 @@ export interface IChat {
   muted?: string[];
   createdAt: Timestamp;
   members: {
-    [memberId: string]: string;
+    [memberId: string]: { fullName: string; avatar?: string };
   };
   membersList: string[];
   recentMessage?: Timestamp;
@@ -27,7 +27,7 @@ export class Chat implements IChat, PrimaryFirestore {
   public readonly muted: string[] = [];
   public readonly createdAt: Timestamp;
   public readonly members: {
-    [memberId: string]: string;
+    [memberId: string]: { fullName: string; avatar?: string };
   };
   public readonly recentMessage?: Timestamp;
   public readonly membersList: string[];
@@ -72,10 +72,10 @@ export class Chat implements IChat, PrimaryFirestore {
   }
 
   public get recipient() {
-    const [id, name] = Object.entries(this.members).find(
+    const [id, memberData] = Object.entries(this.members).find(
       ([id]) => id !== Auth.currentUser.uid
     );
-    return { id, name };
+    return { id, ...memberData };
   }
 
   /**

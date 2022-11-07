@@ -23,12 +23,12 @@ export interface CuttinboardModuleProviderProps {
   baseRef: CollectionReference;
   children:
     | ReactNode
-    | ((
-        loading: boolean,
-        error: Error,
-        elements: GenericModule[],
-        selectedApp: GenericModule | undefined
-      ) => JSX.Element);
+    | ((props: {
+        loading: boolean;
+        error: Error;
+        elements: GenericModule[];
+        selectedApp?: GenericModule;
+      }) => JSX.Element);
   onError: (error: Error | FirestoreError) => void;
 }
 
@@ -148,7 +148,12 @@ export function CuttinboardModuleProvider({
       }}
     >
       {typeof children === "function"
-        ? children(loadingElements, elementsError, elements, selectedApp)
+        ? children({
+            loading: loadingElements,
+            error: elementsError,
+            elements,
+            selectedApp,
+          })
         : children}
     </CuttinboardModuleContext.Provider>
   );

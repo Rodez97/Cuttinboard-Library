@@ -5,7 +5,6 @@ import {
   QueryDocumentSnapshot,
   SnapshotOptions,
   WithFieldValue,
-  serverTimestamp,
   setDoc,
   arrayUnion,
   PartialWithFieldValue,
@@ -24,6 +23,7 @@ export interface IUtensil {
   currentQuantity: number;
   tags?: string[];
   changes?: UtensilChange[];
+  locationId: string;
 }
 
 export class Utensil implements IUtensil, PrimaryFirestore, FirebaseSignature {
@@ -37,6 +37,7 @@ export class Utensil implements IUtensil, PrimaryFirestore, FirebaseSignature {
   public readonly changes?: UtensilChange[];
   public readonly createdAt: Timestamp;
   public readonly createdBy: string;
+  public readonly locationId: string;
 
   public static Converter = {
     toFirestore(object: Utensil): DocumentData {
@@ -63,6 +64,7 @@ export class Utensil implements IUtensil, PrimaryFirestore, FirebaseSignature {
       changes,
       createdAt,
       createdBy,
+      locationId,
     }: IUtensil & FirebaseSignature,
     { id, docRef }: PrimaryFirestore
   ) {
@@ -76,6 +78,7 @@ export class Utensil implements IUtensil, PrimaryFirestore, FirebaseSignature {
     this.changes = changes;
     this.createdAt = createdAt;
     this.createdBy = createdBy;
+    this.locationId = locationId;
   }
 
   public get createdAtDate() {

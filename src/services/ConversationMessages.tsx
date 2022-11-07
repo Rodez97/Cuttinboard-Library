@@ -1,13 +1,11 @@
-import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import React, { ReactNode, useCallback, useContext } from "react";
-import { IMessage, Message } from "../models/chat/Message";
+import { Message } from "../models/chat/Message";
 import { Sender } from "../models/chat/Sender";
 import { useCuttinboard } from "./Cuttinboard";
-import { Database, Storage } from "../firebase";
-import { push, ref as RTDBRef, serverTimestamp } from "firebase/database";
+import { Database } from "../firebase";
+import { push, ref as RTDBRef } from "firebase/database";
 import { useLocation } from "./Location";
 import { composeMessage } from "./composeMessage";
-import { Attachment } from "models";
 import useBaseMessaging from "./useBaseMessaging";
 
 interface ConversationMessagesContextProps {
@@ -16,17 +14,17 @@ interface ConversationMessagesContextProps {
   noMoreMessages: boolean;
   sendMessage: (
     messageTxt: string,
-    replyTargetMessage?: Message
-  ) => Promise<void>;
-  attachFiles: (
-    file: File | Blob | Uint8Array | ArrayBuffer,
-    fileName: string,
-    mimeType: string,
-    message: string | null,
-    replyTargetMessage?: Message
+    replyTargetMessage: Message | null,
+    attachment?: {
+      downloadUrl: string;
+      fileName: string;
+      mimeType: string;
+      storageSourcePath: string;
+    }
   ) => Promise<void>;
   loading: boolean;
   error: Error;
+  getAttachmentRefPath: (fileName: string) => string;
 }
 
 const ConversationMessagesContext =
@@ -54,7 +52,16 @@ export function ConversationMessagesProvider({
   );
 
   const sendMessage = useCallback(
-    async (messageTxt: string, replyTargetMessage?: Message) => {
+    async (
+      messageTxt: string,
+      replyTargetMessage: Message | null,
+      attachment?: {
+        downloadUrl: string;
+        fileName: string;
+        mimeType: string;
+        storageSourcePath: string;
+      }
+    ) => {
       const sender: Sender = {
         id: user.uid,
         name: user.displayName,
@@ -62,6 +69,27 @@ export function ConversationMessagesProvider({
 
       const msg = composeMessage(sender, messageTxt, replyTargetMessage);
       msg.locationName = location.name;
+
+      if (attachment) {
+        const { downloadUrl, fileName, mimeType, storageSourcePath } =
+          attachment;
+        msg.type = "attachment";
+        if (mimeType.includes("image")) {
+          msg.contentType = "image";
+        } else if (mimeType.includes("video")) {
+          msg.contentType = "video";
+        } else if (mimeType.includes("audio")) {
+          msg.contentType = "audio";
+        } else {
+          msg.contentType = "file";
+        }
+        msg.attachment = {
+          mimeType,
+          fileName,
+          storageSourcePath,
+          uri: downloadUrl,
+        };
+      }
 
       try {
         await push(RTDBRef(Database, chatPath), msg);
@@ -72,69 +100,13 @@ export function ConversationMessagesProvider({
     [chatId]
   );
 
-  const attachFiles = useCallback(
-    async (
-      file: File | Blob | Uint8Array | ArrayBuffer,
-      fileName: string,
-      mimeType: string,
-      message: string | null,
-      replyTargetMessage?: Message
-    ) => {
-      const sender: Sender = {
-        id: user.uid,
-        name: user.displayName,
-      };
-
-      const fileRef = ref(
-        Storage,
-        `organizations/${location.organizationId}/locations/${location.id}/conversationMessages/${chatId}/${fileName}`
-      );
-
-      const msg: Partial<IMessage<object> & { type: "attachment" }> = {
-        type: "attachment",
-        sender,
-        createdAt: serverTimestamp(),
-        locationName: location.name,
-      };
-
-      if (replyTargetMessage) {
-        msg.replyTarget = replyTargetMessage.toReplyData;
-      }
-
-      if (mimeType.includes("image")) {
-        msg.contentType = "image";
-        msg.message = "🖼️ Image Message";
-      } else if (mimeType.includes("video")) {
-        msg.contentType = "video";
-        msg.message = "🎞️ Video Message";
-      } else if (mimeType.includes("audio")) {
-        msg.contentType = "audio";
-        msg.message = "🎵 Audio Message";
-      } else {
-        msg.contentType = "file";
-        msg.message = "📁 File Message";
-      }
-      if (message) {
-        msg.message = message;
-      }
-      try {
-        await uploadBytes(fileRef, file);
-
-        const attachment: Attachment = {
-          mimeType,
-          storageSourcePath: fileRef.fullPath,
-          fileName: fileName,
-          uri: await getDownloadURL(fileRef),
-        };
-
-        msg.attachment = attachment;
-
-        await push(RTDBRef(Database, chatPath), msg);
-      } catch (error) {
-        throw error;
-      }
-    },
-    [chatId, location.organizationId]
+  /**
+   * Generate the Full Path of the file in the Storage
+   */
+  const getAttachmentRefPath = useCallback(
+    (fileName: string) =>
+      `organizations/${location.organizationId}/locations/${location.id}/conversationMessages/${chatId}/${fileName}`,
+    [chatId, location]
   );
 
   return (
@@ -144,9 +116,9 @@ export function ConversationMessagesProvider({
         allMessages,
         noMoreMessages,
         sendMessage,
-        attachFiles,
         loading: messages.loading,
         error: messages.error,
+        getAttachmentRefPath,
       }}
     >
       {children}

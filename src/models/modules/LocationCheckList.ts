@@ -21,6 +21,7 @@ export interface ILocationCheckList {
   signedBy?: string;
   checklistDate?: Timestamp;
   tasks?: Record<string, Todo_Task>;
+  locationId: string;
 }
 
 export class LocationCheckList
@@ -35,6 +36,7 @@ export class LocationCheckList
   public readonly docRef: DocumentReference<DocumentData>;
   public readonly createdAt: Timestamp;
   public readonly createdBy: string;
+  public readonly locationId: string;
 
   public static Converter: FirestoreDataConverter<LocationCheckList> = {
     toFirestore(object: WithFieldValue<LocationCheckList>): DocumentData {
@@ -60,6 +62,7 @@ export class LocationCheckList
       tasks,
       createdAt,
       createdBy,
+      locationId,
     }: ILocationCheckList & FirebaseSignature,
     { id, docRef }: PrimaryFirestore
   ) {
@@ -72,6 +75,7 @@ export class LocationCheckList
     this.createdBy = createdBy;
     this.id = id;
     this.docRef = docRef;
+    this.locationId = locationId;
   }
 
   public get tasksSummary() {

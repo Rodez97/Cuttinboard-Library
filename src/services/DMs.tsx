@@ -79,8 +79,14 @@ export function DMsProvider({ children, onError }: DMsProviderProps) {
     const newDM: WithFieldValue<IChat> = {
       createdAt: serverTimestamp(),
       members: {
-        [user.uid]: user.displayName,
-        [recipient.id]: `${name} ${lastName}`,
+        [user.uid]: {
+          fullName: user.displayName,
+          avatar: user.photoURL,
+        },
+        [recipient.id]: {
+          fullName: `${name} ${lastName}`,
+          avatar: recipient.avatar,
+        },
       },
       membersList: [user.uid, recipient.id],
     };
@@ -99,7 +105,12 @@ export function DMsProvider({ children, onError }: DMsProviderProps) {
     }
   };
 
-  const startNewLocationDM = async ({ id, name, lastName }: Employee) => {
+  const startNewLocationDM = async ({
+    id,
+    name,
+    lastName,
+    avatar,
+  }: Employee) => {
     const DmId = [user.uid, id].sort().join("&");
 
     if (chats.some((chat) => chat.id === DmId)) {
@@ -108,7 +119,16 @@ export function DMsProvider({ children, onError }: DMsProviderProps) {
 
     const newDM: WithFieldValue<IChat> = {
       createdAt: serverTimestamp(),
-      members: { [user.uid]: user.displayName, [id]: `${name} ${lastName}` },
+      members: {
+        [user.uid]: {
+          fullName: user.displayName,
+          avatar: user.photoURL,
+        },
+        [id]: {
+          fullName: `${name} ${lastName}`,
+          avatar,
+        },
+      },
       membersList: [user.uid, id],
     };
 

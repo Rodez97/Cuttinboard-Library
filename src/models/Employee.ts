@@ -10,6 +10,7 @@ import {
   deleteField,
   FirestoreDataConverter,
   WithFieldValue,
+  PartialWithFieldValue,
 } from "firebase/firestore";
 import { intersection, isEmpty, orderBy } from "lodash";
 import { RoleAccessLevels } from "../utils/RoleAccessLevels";
@@ -22,15 +23,12 @@ import { PrimaryFirestore } from "./PrimaryFirestore";
  * Empleado
  */
 
-type BaseUser = Pick<
+type BaseUser = Omit<
   ICuttinboardUser,
-  "name" | "lastName" | "email" | "birthDate" | "phoneNumber" | "userDocuments"
+  "customerId" | "subscriptionId" | "paymentMethods" | "organizations"
 >;
 
 export interface IEmployee extends BaseUser {
-  preferredName?: string;
-  emergencyContact?: { name?: string; phoneNumber: string };
-  contactComments?: string;
   /**
    * Es dueño de la locación?
    */
@@ -44,6 +42,7 @@ export class Employee
   implements IEmployee, PrimaryFirestore, FirebaseSignature
 {
   public readonly id: string;
+  public readonly avatar?: string;
   public readonly docRef: DocumentReference<DocumentData>;
   public readonly createdAt: Timestamp;
   public readonly createdBy: string;
@@ -61,10 +60,10 @@ export class Employee
   public readonly locations?: {
     [locationId: string]: boolean | EmployeeLocation;
   };
-  public preferredName?: string;
-  public emergencyContact?: { name?: string; phoneNumber: string };
-  public contactComments?: string;
-  public supervisingLocations?: string[];
+  public readonly preferredName?: string;
+  public readonly emergencyContact?: { name?: string; phoneNumber: string };
+  public readonly contactComments?: string;
+  public readonly supervisingLocations?: string[];
   public locationId?: string;
 
   public static Converter: FirestoreDataConverter<Employee> = {
@@ -99,6 +98,7 @@ export class Employee
       emergencyContact,
       contactComments,
       supervisingLocations,
+      avatar,
     }: IEmployee & FirebaseSignature,
     { id, docRef }: PrimaryFirestore
   ) {
@@ -119,14 +119,11 @@ export class Employee
     this.emergencyContact = emergencyContact;
     this.contactComments = contactComments;
     this.supervisingLocations = supervisingLocations;
+    this.avatar = avatar;
   }
 
   public get fullName() {
     return `${this.name} ${this.lastName}`;
-  }
-
-  public get getAvatar() {
-    return `https://firebasestorage.googleapis.com/v0/b/cuttinboard-2021.appspot.com/o/users%2F${this.id}%2Favatar?alt=media`;
   }
 
   public get positions() {
@@ -211,24 +208,11 @@ export class Employee
     }
   }
 
-  public async edit({
-    preferredName,
-    emergencyContact,
-    contactComments,
-    locationData,
-  }: Partial<{
-    preferredName: string;
-    emergencyContact: { name?: string; phoneNumber: string };
-    contactComments: string;
-    locationData: EmployeeLocation;
-  }>) {
+  public async update(locationData: PartialWithFieldValue<EmployeeLocation>) {
     try {
       await setDoc(
         this.docRef,
         {
-          preferredName,
-          emergencyContact,
-          contactComments,
           locations: { [this.locationId]: locationData },
         },
         { merge: true }

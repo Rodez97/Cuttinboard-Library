@@ -1,10 +1,17 @@
-import React, { createContext, useContext, useMemo, useState } from "react";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useState,
+} from "react";
 import { useCollectionData } from "react-firebase-hooks/firestore";
 import { Employee } from "../models";
 import { useLocation } from "./Location";
 
 interface EmployeesContextProps {
   getEmployees: Employee[];
+  getEmployeeById: (id: string) => Employee;
 }
 
 const EmployeesContext = createContext<EmployeesContextProps>(
@@ -34,8 +41,15 @@ export const EmployeesProvider = ({
     return employeesWithLocationId;
   }, [employeesRequested, employees, location.id]);
 
+  const getEmployeeById = useCallback(
+    (id: string) => {
+      return getEmployees.find((employee) => employee.id === id);
+    },
+    [getEmployees]
+  );
+
   return (
-    <EmployeesContext.Provider value={{ getEmployees }}>
+    <EmployeesContext.Provider value={{ getEmployees, getEmployeeById }}>
       {children}
     </EmployeesContext.Provider>
   );

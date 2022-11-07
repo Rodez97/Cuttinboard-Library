@@ -16,7 +16,7 @@ import {
 import { ref } from "firebase/storage";
 import { FirebaseSignature } from "./FirebaseSignature";
 import { PrimaryFirestore } from "./PrimaryFirestore";
-import { Firestore, Storage } from "./../firebase";
+import { Auth, Firestore, Storage } from "./../firebase";
 import { Employee } from "./Employee";
 
 /**
@@ -282,6 +282,32 @@ export class Location
         this.organizationId,
         "employees",
         this.organizationId
+      );
+      await setDoc(
+        empDocRef,
+        {
+          locations: {
+            [this.id]: join ? true : deleteField(),
+          },
+        },
+        { merge: true }
+      );
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  public async supervisorJoin(join?: boolean) {
+    if (!this.supervisors.includes(Auth.currentUser.uid)) {
+      return;
+    }
+    try {
+      const empDocRef = doc(
+        Firestore,
+        "Organizations",
+        this.organizationId,
+        "employees",
+        Auth.currentUser.uid
       );
       await setDoc(
         empDocRef,

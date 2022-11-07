@@ -59,7 +59,7 @@ const CuttinboardContext = createContext<ICuttinboardContext>(
 interface CuttinboardProviderProps {
   children:
     | ReactNode
-    | ((user: User, error: Error, loading: boolean) => JSX.Element);
+    | ((props: { user: User; error: Error; loading: boolean }) => JSX.Element);
   onError: (error: Error) => void;
 }
 
@@ -113,14 +113,10 @@ export const CuttinboardProvider = ({
     useObjectVal<Partial<UserRealtimeData>>(
       user && dbRef(Database, `users/${user.uid}`)
     );
-  const [
-    selectOrganizationKey,
-    selectingOrganization,
-    errorSelectingOrganization,
-  ] = useHttpsCallable<string, { organizationKey: IOrganizationKey }>(
-    Functions,
-    "auth-selectKey"
-  );
+  const [selectOrganizationKey] = useHttpsCallable<
+    string,
+    { organizationKey: IOrganizationKey }
+  >(Functions, "auth-selectKey");
 
   useEffect(() => {
     loadCredential(user);
@@ -157,18 +153,14 @@ export const CuttinboardProvider = ({
         user,
         organizationKey,
         loadCredential,
-        loading: Boolean(loadingUser || loadingUserRealtimeData),
+        loading: loadingUser,
         error: userError ?? errorRealtimeData,
         selectLocation,
         notifications: userRealtimeData?.notifications,
       }}
     >
       {typeof children === "function"
-        ? children(
-            user,
-            userError ?? errorRealtimeData,
-            Boolean(loadingUser || loadingUserRealtimeData)
-          )
+        ? children({ user, error: userError, loading: loadingUser })
         : children}
     </CuttinboardContext.Provider>
   );

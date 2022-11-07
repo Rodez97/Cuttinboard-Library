@@ -1,10 +1,9 @@
-import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import React, { ReactNode, useCallback, useContext } from "react";
-import { IMessage, Message } from "../models/chat/Message";
+import { Message } from "../models/chat/Message";
 import { Sender } from "../models/chat/Sender";
 import { useCuttinboard } from "./Cuttinboard";
-import { Database, Firestore, Storage } from "../firebase";
-import { push, ref as RTDBRef, serverTimestamp } from "firebase/database";
+import { Database, Firestore } from "../firebase";
+import { push, ref as RTDBRef } from "firebase/database";
 import {
   doc,
   updateDoc,
@@ -12,7 +11,6 @@ import {
 } from "firebase/firestore";
 import { composeMessage } from "./composeMessage";
 import useBaseMessaging from "./useBaseMessaging";
-import { Attachment } from "models";
 
 interface DirectMessagesContextProps {
   fetchOlderMessages: () => Promise<void>;
@@ -20,17 +18,17 @@ interface DirectMessagesContextProps {
   noMoreMessages: boolean;
   sendMessage: (
     messageTxt: string,
-    replyTargetMessage?: Message
-  ) => Promise<void>;
-  attachFiles: (
-    file: File | Blob | Uint8Array | ArrayBuffer,
-    fileName: string,
-    mimeType: string,
-    message: string | null,
-    replyTargetMessage?: Message
+    replyTargetMessage: Message | null,
+    attachment?: {
+      downloadUrl: string;
+      fileName: string;
+      mimeType: string;
+      storageSourcePath: string;
+    }
   ) => Promise<void>;
   loading: boolean;
   error: Error;
+  getAttachmentRefPath: (fileName: string) => string;
 }
 
 const DirectMessagesContext = React.createContext<DirectMessagesContextProps>(
@@ -55,7 +53,16 @@ export function DirectMessagesProvider({
   } = useBaseMessaging(`directMessages/${chatId}`);
 
   const sendMessage = useCallback(
-    async (messageTxt: string, replyTargetMessage?: Message) => {
+    async (
+      messageTxt: string,
+      replyTargetMessage: Message | null,
+      attachment?: {
+        downloadUrl: string;
+        fileName: string;
+        mimeType: string;
+        storageSourcePath: string;
+      }
+    ) => {
       const sender: Sender = {
         id: user.uid,
         name: user.displayName,
@@ -66,6 +73,27 @@ export function DirectMessagesProvider({
         seenBy: { [user.uid]: true },
       };
 
+      if (attachment) {
+        const { downloadUrl, fileName, mimeType, storageSourcePath } =
+          attachment;
+        msg.type = "attachment";
+        if (mimeType.includes("image")) {
+          msg.contentType = "image";
+        } else if (mimeType.includes("video")) {
+          msg.contentType = "video";
+        } else if (mimeType.includes("audio")) {
+          msg.contentType = "audio";
+        } else {
+          msg.contentType = "file";
+        }
+        msg.attachment = {
+          mimeType,
+          fileName,
+          storageSourcePath,
+          uri: downloadUrl,
+        };
+      }
+
       try {
         await push(RTDBRef(Database, chatPath), msg);
         await updateDoc(doc(Firestore, "DirectMessage", chatId), {
@@ -78,68 +106,11 @@ export function DirectMessagesProvider({
     [chatId]
   );
 
-  const attachFiles = useCallback(
-    async (
-      file: File | Blob | Uint8Array | ArrayBuffer,
-      fileName: string,
-      mimeType: string,
-      message: string | null,
-      replyTargetMessage?: Message
-    ) => {
-      const sender: Sender = {
-        id: user.uid,
-        name: user.displayName,
-      };
-
-      const fileRef = ref(Storage, `directMessages/${chatId}/${fileName}`);
-
-      const msg: Partial<IMessage<object> & { type: "attachment" }> = {
-        type: "attachment",
-        sender,
-        createdAt: serverTimestamp(),
-        seenBy: { [user.uid]: true },
-      };
-
-      if (replyTargetMessage) {
-        msg.replyTarget = replyTargetMessage.toReplyData;
-      }
-
-      if (mimeType.includes("image")) {
-        msg.contentType = "image";
-        msg.message = "🖼️ Image Message";
-      } else if (mimeType.includes("video")) {
-        msg.contentType = "video";
-        msg.message = "🎞️ Video Message";
-      } else if (mimeType.includes("audio")) {
-        msg.contentType = "audio";
-        msg.message = "🎵 Audio Message";
-      } else {
-        msg.contentType = "file";
-        msg.message = "📁 File Message";
-      }
-      if (message) {
-        msg.message = message;
-      }
-      try {
-        await uploadBytes(fileRef, file);
-
-        const attachment: Attachment = {
-          mimeType,
-          storageSourcePath: fileRef.fullPath,
-          fileName: fileName,
-          uri: await getDownloadURL(fileRef),
-        };
-
-        msg.attachment = attachment;
-
-        await push(RTDBRef(Database, chatPath), msg);
-        await updateDoc(doc(Firestore, "DirectMessage", chatId), {
-          recentMessage: FirestoreServerTimestamp(),
-        });
-      } catch (error) {
-        throw error;
-      }
-    },
+  /**
+   * Generate the Full Path of the file in the Storage
+   */
+  const getAttachmentRefPath = useCallback(
+    (fileName: string) => `directMessages/${chatId}/${fileName}`,
     [chatId]
   );
 
@@ -150,9 +121,9 @@ export function DirectMessagesProvider({
         allMessages,
         noMoreMessages,
         sendMessage,
-        attachFiles,
         loading: messages.loading,
         error: messages.error,
+        getAttachmentRefPath,
       }}
     >
       {children}

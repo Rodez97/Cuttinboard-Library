@@ -4,12 +4,12 @@ import {
   reauthenticateWithCredential,
   updateProfile,
 } from "firebase/auth";
-import { doc, getDoc, Timestamp, updateDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, Timestamp } from "firebase/firestore";
+import { isEmpty } from "lodash";
 import { useState } from "react";
 import { useSignInWithEmailAndPassword } from "react-firebase-hooks/auth";
 import { useHttpsCallable } from "react-firebase-hooks/functions";
 import { Auth, Firestore, Functions } from "../firebase";
-import { CuttinboardError } from "./../models/CuttinboardError";
 
 type RegisterProps = {
   name: string;
@@ -23,7 +23,7 @@ export const useRegisterUser = () => {
     RegisterProps,
     string
   >(Functions, "auth-registerUser");
-  const [signIn, loginLoading, loginError] =
+  const [signIn, user, loginLoading, loginError] =
     useSignInWithEmailAndPassword(Auth);
 
   /**
@@ -44,14 +44,22 @@ export const useRegisterUser = () => {
     registerUser,
     submitting: Boolean(isSubmitting || loginLoading),
     error: signUpError ?? loginError,
+    user,
   };
 };
 
 type ProfileUpdate = {
   name: string;
   lastName: string;
-  birthDate: Timestamp;
-  avatar: string;
+  birthDate?: Timestamp;
+  avatar?: string;
+};
+
+type ContactUpdate = {
+  phoneNumber: string;
+  preferredName: string;
+  emergencyContact?: { name?: string; phoneNumber: string };
+  contactComments: string;
 };
 
 /**
@@ -64,27 +72,35 @@ export const useUpdateCuttinboardAccount = () => {
    * Actualizar la información del usuario
    * @param {ProfileUpdate} newProfileData Nuevos datos a actualizar en el usuario
    */
-  const updateUserProfile = async (newProfileData: Partial<ProfileUpdate>) => {
+  const updateUserProfile = async (
+    newProfileData: ProfileUpdate | null,
+    newContactData: Partial<ContactUpdate> | null
+  ) => {
     setUpdating(true);
     try {
-      const { name, lastName, avatar } = newProfileData;
-      const fullName = `${name} ${lastName}`;
-      if (
-        fullName !== Auth.currentUser.displayName ||
-        avatar !== Auth.currentUser.photoURL
-      ) {
+      if (newProfileData) {
+        const { name, lastName, avatar } = newProfileData;
+        const fullName = `${name} ${lastName}`;
+
         const updates: { displayName?: string; photoURL?: string } = {};
+
         if (fullName !== Auth.currentUser.displayName) {
           updates.displayName = fullName;
         }
+
         if (avatar !== Auth.currentUser.photoURL) {
           updates.photoURL = avatar;
         }
-        await updateProfile(Auth.currentUser, updates);
+
+        if (!isEmpty(updates)) {
+          await updateProfile(Auth.currentUser, updates);
+        }
       }
-      await updateDoc(
+
+      await setDoc(
         doc(Firestore, "Users", Auth.currentUser.uid),
-        newProfileData
+        { ...newProfileData, ...newContactData },
+        { merge: true }
       );
     } catch (error) {
       setError(error);
@@ -105,14 +121,14 @@ export const useDeleteCuttinboardAccount = () => {
 
   const deleteAccount = async (password: string) => {
     setDeleting(true);
+    setError(null);
     try {
       // Check if have an organization
       const org = await getDoc(
         doc(Firestore, "Organizations", Auth.currentUser.uid)
       );
       if (org.exists()) {
-        throw new CuttinboardError(
-          "OWNER",
+        throw new Error(
           "You can't delete your account because you are an Owner."
         );
       }

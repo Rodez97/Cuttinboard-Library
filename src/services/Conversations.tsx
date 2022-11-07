@@ -19,7 +19,7 @@ import { RoleAccessLevels } from "../utils/RoleAccessLevels";
 import { PrivacyLevel } from "../utils/PrivacyLevel";
 import { Database, Firestore } from "../firebase";
 import { useLocation } from "./Location";
-import { Conversation, IConversation } from "../models/chat/Conversation";
+import { Conversation } from "../models/chat/Conversation";
 import { useEmployeesList } from "./useEmployeesList";
 import {
   ref,
@@ -30,12 +30,12 @@ import { useCuttinboard } from "./Cuttinboard";
 import { IGenericModule } from "../models";
 
 interface ConversationsContextProps {
-  chats: Conversation[];
-  selectedChat?: Conversation;
-  chatId: string;
-  setChatId: (chtId: string) => void;
-  canManageApp: boolean;
-  canUseApp: boolean;
+  conversations: Conversation[];
+  selectedConversation?: Conversation;
+  conversationId: string;
+  setConversationId: (convId: string) => void;
+  canManage: boolean;
+  canUse: boolean;
   createConversation: (
     newConvData: Omit<IGenericModule, "locationId">
   ) => Promise<string>;
@@ -50,12 +50,12 @@ const ConversationsContext = createContext<ConversationsContextProps>(
 interface ConversationsProviderProps {
   children:
     | ReactNode
-    | ((
-        loading: boolean,
-        error: Error,
-        chats: Conversation[],
-        selectedChat: Conversation | undefined
-      ) => JSX.Element);
+    | ((props: {
+        loading: boolean;
+        error: Error;
+        conversations: Conversation[];
+        selectedConversation: Conversation | undefined;
+      }) => JSX.Element);
   onError: (error: Error | FirestoreError) => void;
 }
 
@@ -63,11 +63,11 @@ export function ConversationsProvider({
   children,
   onError,
 }: ConversationsProviderProps) {
-  const [chatId, setChatId] = useState("");
+  const [conversationId, setConversationId] = useState("");
   const { user } = useCuttinboard();
   const { getEmployees } = useEmployeesList();
   const { location, locationAccessKey } = useLocation();
-  const [chats, loading, error] = useCollectionData<Conversation>(
+  const [conversations, loading, error] = useCollectionData<Conversation>(
     (locationAccessKey.role <= RoleAccessLevels.GENERAL_MANAGER
       ? query(
           collection(
@@ -96,38 +96,38 @@ export function ConversationsProvider({
     ).withConverter(Conversation.Converter)
   );
 
-  const selectedChat = useMemo((): Conversation | null => {
-    if (!chatId) {
+  const selectedConversation = useMemo((): Conversation | null => {
+    if (!conversationId) {
       return null;
     }
-    return chats?.find(({ id }) => id === chatId);
-  }, [chatId, chats]);
+    return conversations?.find(({ id }) => id === conversationId);
+  }, [conversationId, conversations]);
 
-  const canManageApp = useMemo(() => {
+  const canManage = useMemo(() => {
     return Boolean(
-      selectedChat?.amIhost ||
+      selectedConversation?.amIhost ||
         locationAccessKey.role <= RoleAccessLevels.GENERAL_MANAGER
     );
-  }, [user.uid, selectedChat, locationAccessKey]);
+  }, [user.uid, selectedConversation, locationAccessKey]);
 
-  const canUseApp = useMemo((): boolean => {
-    if (!selectedChat) {
+  const canUse = useMemo((): boolean => {
+    if (!selectedConversation) {
       return false;
     }
-    if (selectedChat.amIhost) {
+    if (selectedConversation.amIhost) {
       return true;
     }
-    if (selectedChat.privacyLevel === PrivacyLevel.PUBLIC) {
+    if (selectedConversation.privacyLevel === PrivacyLevel.PUBLIC) {
       return location.members.indexOf(user.uid) !== -1;
     }
-    if (selectedChat.privacyLevel === PrivacyLevel.PRIVATE) {
-      return Boolean(selectedChat.members.indexOf(user.uid) !== -1);
+    if (selectedConversation.privacyLevel === PrivacyLevel.PRIVATE) {
+      return Boolean(selectedConversation.members?.indexOf(user.uid) !== -1);
     }
-    if (selectedChat.privacyLevel === PrivacyLevel.POSITIONS) {
-      return locationAccessKey.pos?.includes(selectedChat.position);
+    if (selectedConversation.privacyLevel === PrivacyLevel.POSITIONS) {
+      return locationAccessKey.pos?.includes(selectedConversation.position);
     }
     return false;
-  }, [user.uid, selectedChat, location, locationAccessKey]);
+  }, [user.uid, selectedConversation, location, locationAccessKey]);
 
   const createConversation = useCallback(
     async (newConvData: Omit<IGenericModule, "locationId">) => {
@@ -181,19 +181,19 @@ export function ConversationsProvider({
   return (
     <ConversationsContext.Provider
       value={{
-        chats,
-        selectedChat,
-        chatId,
-        setChatId,
-        canManageApp,
-        canUseApp,
+        conversations,
+        selectedConversation,
+        conversationId,
+        setConversationId,
+        canManage,
+        canUse,
         createConversation,
         loading,
         error,
       }}
     >
       {typeof children === "function"
-        ? children(loading, error, chats, selectedChat)
+        ? children({ loading, error, conversations, selectedConversation })
         : children}
     </ConversationsContext.Provider>
   );

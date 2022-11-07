@@ -19,6 +19,10 @@ export interface ICuttinboardUser {
   subscriptionId?: string;
   paymentMethods?: string[];
   organizations?: string[];
+
+  preferredName?: string;
+  emergencyContact?: { name?: string; phoneNumber: string };
+  contactComments?: string;
 }
 
 export class CuttinboardUser implements ICuttinboardUser, PrimaryFirestore {
@@ -35,6 +39,9 @@ export class CuttinboardUser implements ICuttinboardUser, PrimaryFirestore {
   public readonly subscriptionId?: string;
   public readonly paymentMethods?: string[];
   public readonly organizations?: string[];
+  public readonly preferredName?: string;
+  public readonly emergencyContact?: { name?: string; phoneNumber: string };
+  public readonly contactComments?: string;
 
   public static Converter = {
     toFirestore(object: CuttinboardUser): DocumentData {
@@ -64,6 +71,9 @@ export class CuttinboardUser implements ICuttinboardUser, PrimaryFirestore {
       customerId,
       subscriptionId,
       organizations,
+      preferredName,
+      emergencyContact,
+      contactComments,
     }: ICuttinboardUser,
     { id, docRef }: PrimaryFirestore
   ) {
@@ -80,5 +90,8 @@ export class CuttinboardUser implements ICuttinboardUser, PrimaryFirestore {
     this.customerId = customerId;
     this.subscriptionId = subscriptionId;
     this.organizations = organizations;
+    this.preferredName = preferredName;
+    this.emergencyContact = emergencyContact;
+    this.contactComments = contactComments;
   }
 }
