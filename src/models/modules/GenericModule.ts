@@ -102,7 +102,7 @@ export class GenericModule
     );
   }
 
-  public get members() {
+  public get getMembers() {
     if (this.privacyLevel !== PrivacyLevel.PRIVATE) {
       return null;
     }

@@ -85,4 +85,11 @@ export class ScheduleDoc
     const firstDayWeek = weekToDate(this.year, this.weekNumber, 1);
     return firstDayWeek;
   }
+
+  public get totalProjectedSales(): number {
+    return Object.values(this.statsByDay ?? {}).reduce(
+      (total, dayStats) => total + (dayStats.projectedSales ?? 0),
+      0
+    );
+  }
 }

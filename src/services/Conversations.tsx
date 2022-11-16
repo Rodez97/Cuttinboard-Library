@@ -2,6 +2,7 @@ import {
   addDoc,
   collection,
   FirestoreError,
+  PartialWithFieldValue,
   query,
   serverTimestamp,
   where,
@@ -19,7 +20,7 @@ import { RoleAccessLevels } from "../utils/RoleAccessLevels";
 import { PrivacyLevel } from "../utils/PrivacyLevel";
 import { Database, Firestore } from "../firebase";
 import { useLocation } from "./Location";
-import { Conversation } from "../models/chat/Conversation";
+import { Conversation, IConversation } from "../models/chat/Conversation";
 import { useEmployeesList } from "./useEmployeesList";
 import {
   ref,
@@ -27,7 +28,8 @@ import {
   set,
 } from "firebase/database";
 import { useCuttinboard } from "./Cuttinboard";
-import { IGenericModule } from "../models";
+import { FirebaseSignature, PrimaryFirestore } from "../models";
+import { uniq } from "lodash";
 
 interface ConversationsContextProps {
   conversations: Conversation[];
@@ -37,8 +39,13 @@ interface ConversationsContextProps {
   canManage: boolean;
   canUse: boolean;
   createConversation: (
-    newConvData: Omit<IGenericModule, "locationId">
+    newConvData: Omit<IConversation, "locationId">
   ) => Promise<string>;
+  updateConversation: (
+    updates: PartialWithFieldValue<
+      Pick<IConversation, "name" | "description" | "position">
+    >
+  ) => Promise<void>;
   loading: boolean;
   error: Error;
 }
@@ -86,12 +93,7 @@ export function ConversationsProvider({
             "conversations"
           ),
           where("locationId", "==", location.id),
-          where(`accessTags`, "array-contains-any", [
-            user.uid,
-            `hostId_${user.uid}`,
-            "pl_public",
-            ...(locationAccessKey.pos ?? []),
-          ])
+          where(`members`, "array-contains", user.uid)
         )
     ).withConverter(Conversation.Converter)
   );
@@ -104,9 +106,13 @@ export function ConversationsProvider({
   }, [conversationId, conversations]);
 
   const canManage = useMemo(() => {
-    return Boolean(
-      selectedConversation?.amIhost ||
-        locationAccessKey.role <= RoleAccessLevels.GENERAL_MANAGER
+    if (!selectedConversation) {
+      return locationAccessKey.role <= RoleAccessLevels.GENERAL_MANAGER;
+    }
+
+    return (
+      selectedConversation.iAmHost ||
+      locationAccessKey.role <= RoleAccessLevels.GENERAL_MANAGER
     );
   }, [user.uid, selectedConversation, locationAccessKey]);
 
@@ -114,37 +120,31 @@ export function ConversationsProvider({
     if (!selectedConversation) {
       return false;
     }
-    if (selectedConversation.amIhost) {
-      return true;
-    }
-    if (selectedConversation.privacyLevel === PrivacyLevel.PUBLIC) {
-      return location.members.indexOf(user.uid) !== -1;
-    }
-    if (selectedConversation.privacyLevel === PrivacyLevel.PRIVATE) {
-      return Boolean(selectedConversation.members?.indexOf(user.uid) !== -1);
-    }
-    if (selectedConversation.privacyLevel === PrivacyLevel.POSITIONS) {
-      return locationAccessKey.pos?.includes(selectedConversation.position);
-    }
-    return false;
+    return selectedConversation.iAmMember;
   }, [user.uid, selectedConversation, location, locationAccessKey]);
 
   const createConversation = useCallback(
-    async (newConvData: Omit<IGenericModule, "locationId">) => {
-      const elementToAdd = {
+    async (newConvData: Omit<IConversation, "locationId">) => {
+      const elementToAdd: PartialWithFieldValue<
+        IConversation & PrimaryFirestore & FirebaseSignature
+      > = {
         ...newConvData,
         createdAt: serverTimestamp(),
         createdBy: user.uid,
         locationId: location.id,
       };
       if (newConvData.privacyLevel === PrivacyLevel.PUBLIC) {
-        elementToAdd.accessTags = ["pl_public"];
+        // If the conversation is public, we need to add all the employees to the members list
+        elementToAdd.members = getEmployees.map(({ id }) => id);
       }
       if (
         newConvData.privacyLevel === PrivacyLevel.POSITIONS &&
-        elementToAdd.accessTags.length > 1
+        newConvData.position
       ) {
-        elementToAdd.accessTags = [elementToAdd.accessTags[0]];
+        // If the conversation is position based, we need to add all the employees with that position to the members list
+        elementToAdd.members = getEmployees
+          .filter((emp) => emp.hasAnyPosition([newConvData.position]))
+          .map(({ id }) => id);
       }
 
       try {
@@ -175,7 +175,48 @@ export function ConversationsProvider({
         throw error;
       }
     },
-    [location, location.id, getEmployees]
+    [location, getEmployees]
+  );
+
+  const updateConversation = useCallback(
+    async (
+      updates: PartialWithFieldValue<
+        Pick<IConversation, "name" | "description" | "position">
+      >
+    ) => {
+      if (!selectedConversation) {
+        return;
+      }
+
+      if (
+        selectedConversation.privacyLevel !== PrivacyLevel.POSITIONS || // If the conversation is not position based, we don't need to update the members list
+        !updates.position || // If the position is not being updated, we don't need to update the members list
+        updates.position === selectedConversation.position // If the position is not being changed, we don't need to update the members list
+      ) {
+        await selectedConversation.update(updates);
+        return;
+      }
+
+      const elementToUpdate: PartialWithFieldValue<
+        Pick<IConversation, "name" | "description" | "position" | "members">
+      > = updates;
+
+      // If the conversation is position based, we need to add all the employees with that position to the members list
+      elementToUpdate.members = getEmployees
+        .filter((emp) => emp.hasAnyPosition([updates.position as string]))
+        .map(({ id }) => id);
+
+      if (selectedConversation.hosts?.length > 0) {
+        // If the conversation has hosts, we need to add them to the members list
+        elementToUpdate.members = uniq([
+          ...elementToUpdate.members,
+          ...selectedConversation.hosts,
+        ]);
+      }
+
+      await selectedConversation.update(elementToUpdate);
+    },
+    [location, getEmployees, selectedConversation]
   );
 
   return (
@@ -190,6 +231,7 @@ export function ConversationsProvider({
         createConversation,
         loading,
         error,
+        updateConversation,
       }}
     >
       {typeof children === "function"

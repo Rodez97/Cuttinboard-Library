@@ -5,7 +5,7 @@
  * - PRIVATE - *Solo disponible para los miembros (**members**) seleccionados*
  */
 export enum PrivacyLevel {
-  PUBLIC = "PUBLIC",
-  PRIVATE = "PRIVATE",
-  POSITIONS = "POSITIONS",
+  PUBLIC = 2,
+  POSITIONS = 1,
+  PRIVATE = 0,
 }

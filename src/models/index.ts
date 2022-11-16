@@ -12,3 +12,4 @@ export * from "./Organization";
 export * from "./PrimaryFirestore";
 export * from "./schedule";
 export * from "./utensils";
+export * from "./UserRealtimeData";

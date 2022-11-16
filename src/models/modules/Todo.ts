@@ -8,6 +8,7 @@ import {
   WithFieldValue,
   deleteField,
   deleteDoc,
+  PartialWithFieldValue,
 } from "firebase/firestore";
 import { isEmpty } from "lodash";
 import { FirebaseSignature } from "../FirebaseSignature";
@@ -148,7 +149,7 @@ export class Todo implements ITodo, FirebaseSignature, PrimaryFirestore {
     }
   }
 
-  public async update(updates: Partial<ITodo>) {
+  public async update(updates: PartialWithFieldValue<ITodo>) {
     try {
       await setDoc(this.docRef, updates, { merge: true });
     } catch (error) {

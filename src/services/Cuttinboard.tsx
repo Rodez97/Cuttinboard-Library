@@ -18,26 +18,7 @@ import { Auth, Database, Functions } from "../firebase";
 import { User } from "firebase/auth";
 import { useObjectVal } from "react-firebase-hooks/database";
 import { useHttpsCallable } from "react-firebase-hooks/functions";
-
-export type UserRealtimeData = {
-  metadata: { refreshTime: number; [key: string]: any };
-  notifications: {
-    dm: {
-      [dmId: string]: number;
-    };
-    organizations: {
-      [organizationId: string]: {
-        locations: {
-          [locationId: string]: {
-            conv: { [convId: string]: number };
-            task: { [taskId: string]: number };
-            sch: { [schId: string]: number };
-          };
-        };
-      };
-    };
-  };
-};
+import { UserRealtimeData } from "../models/UserRealtimeData";
 
 interface ICuttinboardContext {
   user: User;
@@ -45,7 +26,7 @@ interface ICuttinboardContext {
   organizationKey: OrganizationKey | null;
   error: Error;
   loading: boolean;
-  selectLocation: (locationToSelect: Location) => Promise<void>;
+  selectLocation: (organizationId: string) => Promise<void>;
   notifications?: UserRealtimeData["notifications"];
 }
 
@@ -123,10 +104,9 @@ export const CuttinboardProvider = ({
   }, [userRealtimeData?.metadata?.refreshTime, user]);
 
   const selectLocation = useCallback(
-    async (locationToSelect: Location) => {
+    async (organizationId: string) => {
       // Comprobar si la nueva locación es la misma que la ya presente
       // De ser así solo actualizar el token
-      const { organizationId } = locationToSelect;
       if (organizationKey?.orgId === organizationId) {
         await loadCredential(user);
         return;
@@ -160,7 +140,11 @@ export const CuttinboardProvider = ({
       }}
     >
       {typeof children === "function"
-        ? children({ user, error: userError, loading: loadingUser })
+        ? children({
+            user,
+            error: userError ?? errorRealtimeData,
+            loading: loadingUser || loadingUserRealtimeData,
+          })
         : children}
     </CuttinboardContext.Provider>
   );

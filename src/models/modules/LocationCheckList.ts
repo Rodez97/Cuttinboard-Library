@@ -8,35 +8,42 @@ import {
   SnapshotOptions,
   setDoc,
   deleteField,
-  deleteDoc,
+  PartialWithFieldValue,
 } from "firebase/firestore";
 import { isEmpty } from "lodash";
-import { FirebaseSignature } from "../FirebaseSignature";
+import { Auth } from "../../firebase";
 import { PrimaryFirestore } from "../PrimaryFirestore";
 import { Todo_Task } from "./Todo_Task";
 
-export interface ILocationCheckList {
+export type Checklist_Section = {
   name: string;
   description?: string;
-  signedBy?: string;
-  checklistDate?: Timestamp;
   tasks?: Record<string, Todo_Task>;
+  closed?: boolean;
+  createdAt?: Timestamp;
+  createdBy?: string;
+  tag?: string; // Example: "Opening", "Closing"
+};
+
+export interface ILocationCheckList {
+  signedBy?: {
+    name: string;
+    id: string;
+  };
   locationId: string;
+  sections?: {
+    [key: string]: Checklist_Section;
+  };
 }
 
-export class LocationCheckList
-  implements ILocationCheckList, PrimaryFirestore, FirebaseSignature
-{
-  public readonly name: string;
-  public readonly description?: string;
-  public readonly signedBy?: string;
-  public readonly checklistDate?: Timestamp;
-  public readonly tasks?: Record<string, Todo_Task>;
+export class LocationCheckList implements ILocationCheckList, PrimaryFirestore {
+  public readonly signedBy?: { name: string; id: string };
+  public readonly locationId: string;
+  public readonly sections?: {
+    [key: string]: Checklist_Section;
+  };
   public readonly id: string;
   public readonly docRef: DocumentReference<DocumentData>;
-  public readonly createdAt: Timestamp;
-  public readonly createdBy: string;
-  public readonly locationId: string;
 
   public static Converter: FirestoreDataConverter<LocationCheckList> = {
     toFirestore(object: WithFieldValue<LocationCheckList>): DocumentData {
@@ -44,7 +51,7 @@ export class LocationCheckList
       return objectToSave;
     },
     fromFirestore(
-      value: QueryDocumentSnapshot<ILocationCheckList & FirebaseSignature>,
+      value: QueryDocumentSnapshot<ILocationCheckList>,
       options: SnapshotOptions
     ): LocationCheckList {
       const { id, ref } = value;
@@ -54,84 +61,93 @@ export class LocationCheckList
   };
 
   constructor(
-    {
-      name,
-      description,
-      signedBy,
-      checklistDate,
-      tasks,
-      createdAt,
-      createdBy,
-      locationId,
-    }: ILocationCheckList & FirebaseSignature,
+    { signedBy, locationId, sections }: ILocationCheckList,
     { id, docRef }: PrimaryFirestore
   ) {
-    this.name = name;
-    this.description = description;
     this.signedBy = signedBy;
-    this.checklistDate = checklistDate;
-    this.tasks = tasks;
-    this.createdAt = createdAt;
-    this.createdBy = createdBy;
+    this.locationId = locationId;
+    this.sections = sections;
     this.id = id;
     this.docRef = docRef;
-    this.locationId = locationId;
   }
 
-  public get tasksSummary() {
-    let done = 0;
-    let total = 0;
-    if (!isEmpty(this.tasks)) {
-      done = Object.values(this.tasks).filter((task) => task.status).length;
-      total = Object.values(this.tasks).length;
-    }
-    return {
-      done,
-      total,
+  public get checklistSummary() {
+    const summary = {
+      total: 0,
+      completed: 0,
     };
+
+    if (isEmpty(this.sections)) {
+      // If there are no sections, return the summary
+      return summary;
+    }
+
+    for (const sectionKey in this.sections) {
+      const section = this.sections[sectionKey];
+      if (isEmpty(section.tasks)) {
+        // If there are no tasks in the section, skip it
+        continue;
+      }
+      for (const taskKey in section.tasks) {
+        const task = section.tasks[taskKey];
+        summary.total++;
+        if (task.status) {
+          summary.completed++;
+        }
+      }
+    }
+    return summary;
   }
 
-  public async changeTaskStatus(key: string, status: boolean) {
-    if (!this.tasks?.[key]) {
-      return;
+  public getSectionSummary(sectionKey: string) {
+    const summary = {
+      total: 0,
+      completed: 0,
+    };
+
+    if (isEmpty(this.sections)) {
+      // If there are no sections, return the summary
+      return summary;
     }
-    try {
-      await setDoc(
-        this.docRef,
-        { tasks: { [key]: { status } } },
-        { merge: true }
-      );
-    } catch (error) {
-      throw error;
+
+    const section = this.sections[sectionKey];
+    if (isEmpty(section.tasks)) {
+      // If there are no tasks in the section, skip it
+      return summary;
     }
+    for (const taskKey in section.tasks) {
+      const task = section.tasks[taskKey];
+      summary.total++;
+      if (task.status) {
+        summary.completed++;
+      }
+    }
+    return summary;
   }
 
-  public async addTask(key: string, task: WithFieldValue<Todo_Task>) {
-    if (this.tasks?.[key]) {
-      throw new Error("Task already exists");
-    }
-    try {
-      await setDoc(
-        this.docRef,
-        {
-          tasks: { [key]: task },
-        },
-        { merge: true }
-      );
-    } catch (error) {
-      throw error;
-    }
-  }
-
-  public async removeTask(key: string) {
-    if (!this.tasks?.[key]) {
+  public async changeTaskStatus(
+    sectionKey: string,
+    taskKey: string,
+    status: boolean
+  ) {
+    // Check if the task exists
+    if (!this.sections?.[sectionKey]?.tasks?.[taskKey]) {
       throw new Error("There is no task with this ID");
     }
+
     try {
       await setDoc(
         this.docRef,
         {
-          tasks: { [key]: deleteField() },
+          sections: {
+            [sectionKey]: {
+              tasks: {
+                [taskKey]: {
+                  status,
+                },
+              },
+            },
+          },
         },
         { merge: true }
       );
@@ -140,21 +156,27 @@ export class LocationCheckList
     }
   }
 
-  public async clearTasks() {
-    if (isEmpty(this.tasks)) {
-      throw new Error("There is no tasks");
+  public async addTask(
+    sectionKey: string,
+    taskKey: string,
+    task: WithFieldValue<Todo_Task>
+  ) {
+    // Check if the task exists
+    if (this.sections?.[sectionKey]?.tasks?.[taskKey]) {
+      throw new Error("There is already a task with this ID");
     }
-    const tasks = Object.keys(this.tasks);
-    const update: Record<string, { status: boolean }> = {};
 
-    tasks.forEach((task) => {
-      update[task] = { status: false };
-    });
     try {
       await setDoc(
         this.docRef,
         {
-          tasks: update,
+          sections: {
+            [sectionKey]: {
+              tasks: {
+                [taskKey]: task,
+              },
+            },
+          },
         },
         { merge: true }
       );
@@ -163,17 +185,181 @@ export class LocationCheckList
     }
   }
 
-  public async delete() {
+  public async removeTask(sectionKey: string, taskKey: string) {
+    // Check if the task exists
+    if (!this.sections?.[sectionKey]?.tasks?.[taskKey]) {
+      throw new Error("There is no task with this ID");
+    }
+
     try {
-      await deleteDoc(this.docRef);
+      await setDoc(
+        this.docRef,
+        {
+          sections: {
+            [sectionKey]: {
+              tasks: {
+                [taskKey]: deleteField(),
+              },
+            },
+          },
+        },
+        { merge: true }
+      );
     } catch (error) {
       throw error;
     }
   }
 
-  public async update(updates: Partial<ILocationCheckList>) {
+  public async resetAllTasks() {
+    // Create a new object with all the tasks set to false
+    let update: {
+      [key: string]: {
+        tasks: {
+          [key: string]: {
+            status: boolean;
+          };
+        };
+      };
+    } = {};
+
+    if (isEmpty(this.sections)) {
+      // If there are no sections, return
+      return;
+    }
+
+    for (const sectionKey in this.sections) {
+      const section = this.sections[sectionKey];
+      if (isEmpty(section.tasks)) {
+        // If there are no tasks in the section, skip it
+        continue;
+      }
+      update[sectionKey] = {
+        tasks: {},
+      };
+      for (const taskKey in section.tasks) {
+        update[sectionKey].tasks[taskKey] = {
+          status: false,
+        };
+      }
+    }
+
     try {
-      await setDoc(this.docRef, updates, { merge: true });
+      await setDoc(this.docRef, { sections: update }, { merge: true });
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  public async removeSection(sectionKey: string) {
+    // Check if the section exists
+    if (!this.sections?.[sectionKey]) {
+      throw new Error("There is no section with this ID");
+    }
+
+    try {
+      await setDoc(
+        this.docRef,
+        {
+          sections: {
+            [sectionKey]: deleteField(),
+          },
+        },
+        { merge: true }
+      );
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  public async addSection(
+    sectionKey: string,
+    section: WithFieldValue<Checklist_Section>
+  ) {
+    // Check if the section exists
+    if (this.sections?.[sectionKey]) {
+      throw new Error("There is already a section with this ID");
+    }
+
+    try {
+      await setDoc(
+        this.docRef,
+        {
+          sections: {
+            [sectionKey]: section,
+          },
+        },
+        { merge: true }
+      );
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  public async signChecklist() {
+    try {
+      await setDoc(
+        this.docRef,
+        {
+          signedBy: {
+            name: Auth.currentUser.displayName,
+            id: Auth.currentUser.uid,
+          },
+        },
+        { merge: true }
+      );
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  public async updateTask(
+    sectionKey: string,
+    taskKey: string,
+    task: PartialWithFieldValue<Todo_Task>
+  ) {
+    // Check if the task exists
+    if (!this.sections?.[sectionKey]?.tasks?.[taskKey]) {
+      throw new Error("There is no task with this ID");
+    }
+
+    try {
+      await setDoc(
+        this.docRef,
+        {
+          sections: {
+            [sectionKey]: {
+              tasks: {
+                [taskKey]: task,
+              },
+            },
+          },
+        },
+        { merge: true }
+      );
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  public async updateSection(
+    sectionKey: string,
+    section: PartialWithFieldValue<Omit<Checklist_Section, "tasks">>
+  ) {
+    // Check if the section exists
+    if (!this.sections?.[sectionKey]) {
+      throw new Error("There is no section with this ID");
+    }
+
+    try {
+      await setDoc(
+        this.docRef,
+        {
+          sections: {
+            [sectionKey]: section,
+          },
+        },
+        { merge: true }
+      );
     } catch (error) {
       throw error;
     }

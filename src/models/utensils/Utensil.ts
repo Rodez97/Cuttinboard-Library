@@ -100,12 +100,8 @@ export class Utensil implements IUtensil, PrimaryFirestore, FirebaseSignature {
   }
 
   public async addChange(quantity: number, reason?: string) {
-    if (this.currentQuantity === 0 && quantity < 1) {
-      return;
-    }
-
-    if (this.currentQuantity - quantity < 0) {
-      return;
+    if (this.currentQuantity + quantity < 0) {
+      throw new Error("Can't have less than 0 utensils");
     }
 
     const newChange: WithFieldValue<UtensilChange> = {

@@ -26,7 +26,7 @@ export const EmployeesProvider = ({
   const { location } = useLocation();
   const [employeesRequested, setEmployeesRequested] = useState(false);
 
-  const [employees, loading, error] = useCollectionData(
+  const [employees] = useCollectionData(
     employeesRequested && location.employeesRef
   );
 

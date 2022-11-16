@@ -113,6 +113,9 @@ interface ScheduleContextProps {
     overtimeWage: number;
     totalWage: number;
     totalPeople: number;
+    totalShifts: number;
+    projectedSales: number;
+    laborPercentage: number;
   };
   publish: (
     notificationRecipients: "all" | "all_scheduled" | "changed" | "none"
@@ -266,7 +269,11 @@ export function ScheduleProvider({ children, onError }: ScheduleProviderProps) {
     totalWage: number;
     totalPeople: number;
     totalShifts: number;
+    projectedSales: number;
+    laborPercentage: number;
   } => {
+    const totalProjectedSales = scheduleDocument?.totalProjectedSales ?? 0;
+
     // Filter to get the empShifts that actually have shifts
     const filteredEmpShifts = employeeShiftsCollection?.filter(
       (empShift) => empShift.shiftsArray.length > 0
@@ -282,6 +289,8 @@ export function ScheduleProvider({ children, onError }: ScheduleProviderProps) {
         totalWage: 0,
         totalPeople: 0,
         totalShifts: 0,
+        projectedSales: totalProjectedSales,
+        laborPercentage: 0,
       };
     }
     // Get the total of all summary fields
@@ -312,13 +321,20 @@ export function ScheduleProvider({ children, onError }: ScheduleProviderProps) {
         normalWage: 0,
         overtimeWage: 0,
         totalWage: 0,
-        totalPeople: 0,
+        totalPeople: filteredEmpShifts.length,
         totalShifts: 0,
+        projectedSales: totalProjectedSales,
+        laborPercentage: 0,
       }
     );
-    total.totalPeople = filteredEmpShifts.length;
+
+    // Calculate total wage percentage of projected sales
+    total.laborPercentage = totalProjectedSales
+      ? (total.totalWage / totalProjectedSales) * 100
+      : 0;
+
     return total;
-  }, [employeeShiftsCollection]);
+  }, [employeeShiftsCollection, scheduleDocument]);
 
   /**
    * Publishes the schedule to the employees

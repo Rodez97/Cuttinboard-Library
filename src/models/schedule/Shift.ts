@@ -335,19 +335,6 @@ export class Shift implements IShift, PrimaryFirestore, FirebaseSignature {
     hoursLimit: number,
     overtimeRateOfPay: number
   ) {
-    if (!this.hourlyWage) {
-      // If hourly wage is not set, set default values to 0 and return
-      this.wageData = {
-        normalHours: 0,
-        overtimeHours: 0,
-        totalHours: 0,
-        normalWage: 0,
-        overtimeWage: 0,
-        totalWage: 0,
-      };
-      return;
-    }
-
     const totalShiftHours = this.shiftDuration.totalHours;
     // Calculate total accumulated hours
     const totalAccumulatedHours = accumulatedHours + totalShiftHours;
@@ -384,6 +371,19 @@ export class Shift implements IShift, PrimaryFirestore, FirebaseSignature {
     }
 
     const shiftNormalHours = totalShiftHours - shiftOvertimeHours;
+
+    if (!this.hourlyWage) {
+      // If hourly wage is not set, set default values to 0 and return
+      this.wageData = {
+        normalHours: shiftNormalHours,
+        overtimeHours: shiftOvertimeHours,
+        totalHours: totalShiftHours,
+        normalWage: 0,
+        overtimeWage: 0,
+        totalWage: 0,
+      };
+      return;
+    }
 
     // Set wage data
     this.wageData = {

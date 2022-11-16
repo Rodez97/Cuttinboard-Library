@@ -10,7 +10,7 @@ import {
   updateDoc,
 } from "firebase/firestore";
 import { Timestamp } from "firebase/firestore";
-import { getDownloadURL, ref } from "firebase/storage";
+import { deleteObject, getDownloadURL, ref } from "firebase/storage";
 import { FirebaseSignature } from "../FirebaseSignature";
 import { PrimaryFirestore } from "../PrimaryFirestore";
 
@@ -89,6 +89,7 @@ export class Cuttinboard_File
 
   public async delete() {
     try {
+      await deleteObject(this.fileRef);
       await deleteDoc(this.docRef);
     } catch (error) {
       throw error;
