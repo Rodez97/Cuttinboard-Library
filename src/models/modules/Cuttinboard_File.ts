@@ -44,7 +44,7 @@ export class Cuttinboard_File
       options: SnapshotOptions
     ): Cuttinboard_File {
       const { id, ref } = value;
-      const rawData = value.data(options)!;
+      const rawData = value.data(options);
       return new Cuttinboard_File(rawData, { id, docRef: ref });
     },
   };
@@ -55,7 +55,7 @@ export class Cuttinboard_File
       storagePath,
       fileType,
       size,
-      createdAt,
+      createdAt: createdAt,
       createdBy,
     }: ICuttinboard_File & FirebaseSignature,
     { id, docRef }: PrimaryFirestore
@@ -70,44 +70,58 @@ export class Cuttinboard_File
     this.createdBy = createdBy;
   }
 
+  /**
+   * Returns the storage reference for this file
+   */
   public get fileRef() {
     return ref(Storage, this.storagePath);
   }
 
+  /**
+   * Returns the download URL for this file
+   * @returns The download URL for this file
+   */
   public async getUrl() {
     if (this.downloadUrl) {
+      // If we already have the download URL, return it
       return this.downloadUrl;
     }
-    try {
-      const url = await getDownloadURL(this.fileRef);
-      this.downloadUrl = url;
-      return url;
-    } catch (error) {
-      throw error;
-    }
+    // Otherwise, get the download URL from storage
+    const url = await getDownloadURL(this.fileRef);
+    this.downloadUrl = url;
+    return url;
   }
 
+  /**
+   * Deletes this file from storage and firestore
+   */
   public async delete() {
-    try {
-      await deleteObject(this.fileRef);
-      await deleteDoc(this.docRef);
-    } catch (error) {
-      throw error;
-    }
+    // Delete the file from storage
+    await deleteObject(this.fileRef);
+    // Delete the file from firestore
+    await deleteDoc(this.docRef);
   }
 
+  /**
+   * Updates the name of this file
+   * @param newName The new name for this file
+   */
   public async rename(newName: string) {
     const filenameMath = this.name.match(/^(.*?)\.([^.]*)?$/);
+
+    if (!filenameMath) {
+      // If the filename doesn't match the regex, just throw an error
+      throw new Error("Invalid filename");
+    }
+
     const oldName = filenameMath[1];
     const extension = filenameMath[2];
     if (newName === oldName) {
+      // If the new name is the same as the old name, just return
       return;
     }
+    // Otherwise, update the name
     const name = `${newName}.${extension}`;
-    try {
-      await updateDoc(this.docRef, { name });
-    } catch (error) {
-      throw error;
-    }
+    await updateDoc(this.docRef, { name });
   }
 }

@@ -23,7 +23,7 @@ interface ConversationMessagesContextProps {
     }
   ) => Promise<void>;
   loading: boolean;
-  error: Error;
+  error?: Error;
   getAttachmentRefPath: (fileName: string) => string;
 }
 
@@ -62,12 +62,19 @@ export function ConversationMessagesProvider({
         storageSourcePath: string;
       }
     ) => {
+      if (!user || !user.displayName) {
+        throw new Error("No user");
+      }
       const sender: Sender = {
         id: user.uid,
         name: user.displayName,
       };
 
-      const msg = composeMessage(sender, messageTxt, replyTargetMessage);
+      const msg = composeMessage(
+        sender,
+        messageTxt,
+        replyTargetMessage ?? undefined
+      );
       msg.locationName = location.name;
 
       if (attachment) {
@@ -91,11 +98,7 @@ export function ConversationMessagesProvider({
         };
       }
 
-      try {
-        await push(RTDBRef(Database, chatPath), msg);
-      } catch (error) {
-        throw error;
-      }
+      await push(RTDBRef(Database, chatPath), msg);
     },
     [chatId]
   );

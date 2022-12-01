@@ -28,5 +28,5 @@ export interface Product {
   /**
    * Any additional properties
    */
-  [propName: string]: any;
+  [propName: string]: unknown;
 }

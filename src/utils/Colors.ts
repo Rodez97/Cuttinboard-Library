@@ -68,9 +68,9 @@ export const Colors = {
   Notes: "#FFFB99",
   SecundaryOnWhite: "#C1BEBE",
   CalculateContrast: (hex: string) => {
-    let threshold = 130;
+    const threshold = 130;
 
-    let colorBrightness =
+    const colorBrightness =
       (hexToRed(hex) * 299 + hexToGreen(hex) * 587 + hexToBlue(hex) * 114) /
       1000;
 

@@ -84,7 +84,7 @@ const listReducer = (
         ...state,
         error: action.error,
         loading: false,
-        value: undefined,
+        value: [],
       };
     case "remove":
       if (!action.snapshot) {
@@ -108,7 +108,7 @@ const listReducer = (
       return {
         ...state,
         loading: false,
-        value: undefined,
+        value: [],
       };
     default:
       return state;
@@ -178,7 +178,7 @@ const changeChild = (
     (message) => message.id === changedMessage.id
   );
 
-  message.stateUpdate(changedMessage.message);
+  message?.stateUpdate(changedMessage.message);
 
   return currentState;
 };

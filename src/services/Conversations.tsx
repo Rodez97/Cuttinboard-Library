@@ -32,7 +32,7 @@ import { FirebaseSignature, PrimaryFirestore } from "../models";
 import { uniq } from "lodash";
 
 interface ConversationsContextProps {
-  conversations: Conversation[];
+  conversations?: Conversation[];
   selectedConversation?: Conversation;
   conversationId: string;
   setConversationId: (convId: string) => void;
@@ -47,7 +47,7 @@ interface ConversationsContextProps {
     >
   ) => Promise<void>;
   loading: boolean;
-  error: Error;
+  error?: Error;
 }
 
 const ConversationsContext = createContext<ConversationsContextProps>(
@@ -59,9 +59,9 @@ interface ConversationsProviderProps {
     | ReactNode
     | ((props: {
         loading: boolean;
-        error: Error;
-        conversations: Conversation[];
-        selectedConversation: Conversation | undefined;
+        error?: Error;
+        conversations?: Conversation[];
+        selectedConversation?: Conversation;
       }) => JSX.Element);
   onError: (error: Error | FirestoreError) => void;
 }
@@ -98,21 +98,26 @@ export function ConversationsProvider({
     ).withConverter(Conversation.Converter)
   );
 
-  const selectedConversation = useMemo((): Conversation | null => {
-    if (!conversationId) {
-      return null;
+  const selectedConversation = useMemo((): Conversation | undefined => {
+    if (!conversationId || !conversations) {
+      return undefined;
     }
-    return conversations?.find(({ id }) => id === conversationId);
+    return conversations.find(({ id }) => id === conversationId);
   }, [conversationId, conversations]);
 
   const canManage = useMemo(() => {
-    if (!selectedConversation) {
-      return locationAccessKey.role <= RoleAccessLevels.GENERAL_MANAGER;
+    if (locationAccessKey.role <= RoleAccessLevels.GENERAL_MANAGER) {
+      // General managers can manage all conversations
+      return true;
     }
-
-    return (
-      selectedConversation.iAmHost ||
-      locationAccessKey.role <= RoleAccessLevels.GENERAL_MANAGER
+    if (!selectedConversation) {
+      // If there is no selected conversation, then the user can't manage it
+      return false;
+    }
+    // If the user is a manager and hosts the conversation, can manage it.
+    return Boolean(
+      selectedConversation.iAmHost &&
+        locationAccessKey.role <= RoleAccessLevels.MANAGER
     );
   }, [user.uid, selectedConversation, locationAccessKey]);
 
@@ -130,7 +135,7 @@ export function ConversationsProvider({
       > = {
         ...newConvData,
         createdAt: serverTimestamp(),
-        createdBy: user.uid,
+        createdBy: user?.uid,
         locationId: location.id,
       };
       if (newConvData.privacyLevel === PrivacyLevel.PUBLIC) {
@@ -143,7 +148,11 @@ export function ConversationsProvider({
       ) {
         // If the conversation is position based, we need to add all the employees with that position to the members list
         elementToAdd.members = getEmployees
-          .filter((emp) => emp.hasAnyPosition([newConvData.position]))
+          .filter((emp) =>
+            newConvData.position
+              ? emp.hasAnyPosition([newConvData.position])
+              : false
+          )
           .map(({ id }) => id);
       }
 
@@ -206,7 +215,10 @@ export function ConversationsProvider({
         .filter((emp) => emp.hasAnyPosition([updates.position as string]))
         .map(({ id }) => id);
 
-      if (selectedConversation.hosts?.length > 0) {
+      if (
+        selectedConversation.hosts &&
+        selectedConversation.hosts?.length > 0
+      ) {
         // If the conversation has hosts, we need to add them to the members list
         elementToUpdate.members = uniq([
           ...elementToUpdate.members,

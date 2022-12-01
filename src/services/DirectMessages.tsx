@@ -14,7 +14,7 @@ import useBaseMessaging from "./useBaseMessaging";
 
 interface DirectMessagesContextProps {
   fetchOlderMessages: () => Promise<void>;
-  allMessages: Message[];
+  allMessages?: Message[];
   noMoreMessages: boolean;
   sendMessage: (
     messageTxt: string,
@@ -27,7 +27,7 @@ interface DirectMessagesContextProps {
     }
   ) => Promise<void>;
   loading: boolean;
-  error: Error;
+  error?: Error;
   getAttachmentRefPath: (fileName: string) => string;
 }
 
@@ -63,13 +63,16 @@ export function DirectMessagesProvider({
         storageSourcePath: string;
       }
     ) => {
+      if (!user || !user.displayName) {
+        throw new Error("User is not logged in");
+      }
       const sender: Sender = {
         id: user.uid,
         name: user.displayName,
       };
 
       const msg = {
-        ...composeMessage(sender, messageTxt, replyTargetMessage),
+        ...composeMessage(sender, messageTxt, replyTargetMessage ?? undefined),
         seenBy: { [user.uid]: true },
       };
 
@@ -94,14 +97,10 @@ export function DirectMessagesProvider({
         };
       }
 
-      try {
-        await push(RTDBRef(Database, chatPath), msg);
-        await updateDoc(doc(Firestore, "DirectMessage", chatId), {
-          recentMessage: FirestoreServerTimestamp(),
-        });
-      } catch (error) {
-        throw error;
-      }
+      await push(RTDBRef(Database, chatPath), msg);
+      await updateDoc(doc(Firestore, "DirectMessage", chatId), {
+        recentMessage: FirestoreServerTimestamp(),
+      });
     },
     [chatId]
   );

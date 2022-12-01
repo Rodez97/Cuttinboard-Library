@@ -1,4 +1,3 @@
-import { ref as dbRef } from "firebase/database";
 import React, {
   createContext,
   ReactNode,
@@ -7,134 +6,151 @@ import React, {
   useEffect,
   useState,
 } from "react";
-import { useAuthState } from "react-firebase-hooks/auth";
+import { useIdToken } from "react-firebase-hooks/auth";
 import {
   IOrganizationKey,
   OrganizationKey,
 } from "../models/auth/OrganizationKey";
-import { Location } from "../models/Location";
 import { isEqual } from "lodash";
-import { Auth, Database, Functions } from "../firebase";
+import { Auth, Functions } from "../firebase";
 import { User } from "firebase/auth";
-import { useObjectVal } from "react-firebase-hooks/database";
 import { useHttpsCallable } from "react-firebase-hooks/functions";
-import { UserRealtimeData } from "../models/UserRealtimeData";
+import { Notifications, useRealtimeData } from "./useRealtimeData";
 
 interface ICuttinboardContext {
   user: User;
-  loadCredential: (lUser?: User) => Promise<void>;
-  organizationKey: OrganizationKey | null;
-  error: Error;
-  loading: boolean;
+  organizationKey?: OrganizationKey;
   selectLocation: (organizationId: string) => Promise<void>;
-  notifications?: UserRealtimeData["notifications"];
+  notifications?: Notifications;
 }
 
 const CuttinboardContext = createContext<ICuttinboardContext>(
   {} as ICuttinboardContext
 );
 
-/**
- * Props del Provider principal de la App
- */
 interface CuttinboardProviderProps {
   children:
     | ReactNode
-    | ((props: { user: User; error: Error; loading: boolean }) => JSX.Element);
-  onError: (error: Error) => void;
+    | ((props: {
+        user: User;
+        organizationKey: OrganizationKey | null | undefined;
+      }) => JSX.Element);
+  ErrorComponent: (error: Error) => JSX.Element;
+  LoadingComponent: (loading: boolean) => JSX.Element;
+  NoUserComponent: JSX.Element;
 }
 
-/**
- * Provider Principal de la lógica de Cuttinboard, aquí se carga toda la información necesaria para el correcto funcionamiento de las apps
- * - Cargas la lista de empleados con los que se trabajará en la app.
- * - Estar pendiente a los cambio que ocurran en el token de autentificación del usuario
- * - Inicializar el SDK y los diferentes módulos de Firebase que utilizará la app
- */
+type StateType = {
+  initializing: boolean;
+  organizationKey?: OrganizationKey;
+  error?: Error;
+};
+
 export const CuttinboardProvider = ({
   children,
-  onError,
+  ErrorComponent,
+  LoadingComponent,
+  NoUserComponent,
 }: CuttinboardProviderProps) => {
-  // LLave principal de la locación
-  const [organizationKey, setOrganizationKey] = useState<OrganizationKey>(null);
-  const loadCredential = useCallback(
+  const [state, setState] = useState<StateType>({
+    initializing: true,
+  });
+  const onUserChanged = useCallback(
     async (lUser: User) => {
-      // En caso de que el usuario sea inválido eliminar eliminar la llave actual de la locación en caso de ser necesario
-      // y devolver la función.
       if (!lUser) {
-        return setOrganizationKey(null);
+        // If the user is not logged in, we don't need to load the credential
+        setState({
+          initializing: false,
+        });
+        return;
       }
-      // Forzar la actualización para recoger los últimos cambios en las reclamaciones personalizadas.
-      // Tenga en cuenta que esto siempre se activa en la primera llamada.
-      // Se podría agregar una mayor optimización para evitar el desencadenante
-      // inicial cuando se emite el token y ya contiene los últimos reclamos.
+
       try {
+        // Load custom claims
         const {
           claims: { organizationKey: newOrgKey },
-        } = await lUser.getIdTokenResult(true);
-        // comprobar que la nueva llave sea diferente de la actual
+        } = await lUser.getIdTokenResult();
+
         if (!newOrgKey) {
-          setOrganizationKey(null);
-        } else if (!isEqual(newOrgKey, organizationKey)) {
-          setOrganizationKey(
-            new OrganizationKey(newOrgKey as IOrganizationKey)
-          );
+          // If the user doesn't have a organizationKey, we don't need to load the credential
+          setState({
+            initializing: false,
+          });
+        } else if (!isEqual(newOrgKey, state.organizationKey)) {
+          // If the new organizationKey is different from the current one, we need to load the credential
+          setState({
+            initializing: false,
+            organizationKey: new OrganizationKey(newOrgKey),
+          });
         }
       } catch (error) {
-        setOrganizationKey(null);
-        onError(error);
+        setState({
+          initializing: false,
+          error,
+        });
       }
     },
-    [organizationKey]
+    [state]
   );
-  // Usuario Actual
-  const [user, loadingUser, userError] = useAuthState(Auth, {
-    onUserChanged: loadCredential,
+  const [user, loadingUser, userError] = useIdToken(Auth, {
+    onUserChanged,
   });
   const [userRealtimeData, loadingUserRealtimeData, errorRealtimeData] =
-    useObjectVal<Partial<UserRealtimeData>>(
-      user && dbRef(Database, `users/${user.uid}`)
-    );
+    useRealtimeData(user?.uid);
   const [selectOrganizationKey] = useHttpsCallable<
     string,
     { organizationKey: IOrganizationKey }
   >(Functions, "auth-selectKey");
 
   useEffect(() => {
-    loadCredential(user);
-  }, [userRealtimeData?.metadata?.refreshTime, user]);
+    user?.getIdToken(true);
+  }, [userRealtimeData?.metadata?.refreshTime]);
 
   const selectLocation = useCallback(
     async (organizationId: string) => {
-      // Comprobar si la nueva locación es la misma que la ya presente
-      // De ser así solo actualizar el token
-      if (organizationKey?.orgId === organizationId) {
-        await loadCredential(user);
+      if (!user) {
         return;
       }
-      try {
-        const { data } = await selectOrganizationKey(organizationId);
-        if (!data?.organizationKey) {
-          const error = new Error("Can't select the location.");
-          onError(error);
-          throw error;
-        }
-        setOrganizationKey(new OrganizationKey(data.organizationKey));
-      } catch (error) {
-        onError(error);
-        throw error;
+
+      if (state?.organizationKey?.orgId === organizationId) {
+        // If the organizationId is the same as the current one, we don't need to load the credential but we need to update the user's token
+        await user.getIdToken(true);
+        return;
       }
+      const result = await selectOrganizationKey(organizationId);
+      if (!result || !result.data.organizationKey) {
+        const error = new Error("Can't select the location.");
+        setState({
+          initializing: false,
+          error,
+        });
+        return;
+      }
+      setState({
+        initializing: false,
+        organizationKey: new OrganizationKey(result.data.organizationKey),
+      });
     },
-    [organizationKey, user]
+    [state, user]
   );
+
+  if (loadingUser || loadingUserRealtimeData || state.initializing) {
+    return LoadingComponent(true);
+  }
+
+  if (userError || errorRealtimeData) {
+    return ErrorComponent(userError ?? errorRealtimeData);
+  }
+
+  if (!user) {
+    return NoUserComponent;
+  }
 
   return (
     <CuttinboardContext.Provider
       value={{
         user,
-        organizationKey,
-        loadCredential,
-        loading: loadingUser,
-        error: userError ?? errorRealtimeData,
+        organizationKey: state.organizationKey,
         selectLocation,
         notifications: userRealtimeData?.notifications,
       }}
@@ -142,8 +158,7 @@ export const CuttinboardProvider = ({
       {typeof children === "function"
         ? children({
             user,
-            error: userError ?? errorRealtimeData,
-            loading: loadingUser || loadingUserRealtimeData,
+            organizationKey: state.organizationKey,
           })
         : children}
     </CuttinboardContext.Provider>

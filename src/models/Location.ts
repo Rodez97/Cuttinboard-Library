@@ -19,22 +19,9 @@ import { PrimaryFirestore } from "./PrimaryFirestore";
 import { Auth, Firestore, Storage } from "./../firebase";
 import { Employee } from "./Employee";
 
-/**
- * Locación
- * @description Una locación es el objeto primario alrededor del cuál se ejectutan todas las operaciones.
- */
 export interface ILocation {
-  /**
-   * Nombre
-   */
   name: string;
-  /**
-   * Descripción
-   */
   description?: string;
-  /**
-   * Dirección de la locación
-   */
   address?: Partial<{
     city: string;
     country: string;
@@ -43,21 +30,9 @@ export interface ILocation {
     streetNumber: string;
     zip: string | number;
   }>;
-  /**
-   * Correo electrónico de la locación
-   */
   email?: string;
-  /**
-   * Número de teléfono de la locación
-   */
   phoneNumber?: string;
-  /**
-   * ID interno de la locación en caso de ser necesario por parte del cliente
-   */
   intId?: string;
-  /**
-   * Estado actual de la suscripción vinculada a la locación y por ende la locación en si
-   */
   subscriptionStatus:
     | "incomplete"
     | "incomplete_expired"
@@ -66,21 +41,9 @@ export interface ILocation {
     | "past_due"
     | "canceled"
     | "unpaid";
-  /**
-   * Espacio de almacenamiento consumido por la locación en bytes
-   */
   storageUsed: number;
-  /**
-   * Límites de la locación según su plan
-   */
   limits: {
-    /**
-     * Límite maximo de empleados
-     */
     employees: number;
-    /**
-     * Capacidad máxima de almacenamiento
-     */
     storage: string;
   };
   organizationId: string;
@@ -96,11 +59,11 @@ export interface ILocation {
 export class Location
   implements ILocation, PrimaryFirestore, FirebaseSignature
 {
-  readonly id: string;
-  readonly docRef: DocumentReference<DocumentData>;
-  readonly createdAt: Timestamp;
-  readonly createdBy: string;
-  readonly subscriptionStatus:
+  public readonly id: string;
+  public readonly docRef: DocumentReference<DocumentData>;
+  public readonly createdAt: Timestamp;
+  public readonly createdBy: string;
+  public readonly subscriptionStatus:
     | "incomplete"
     | "incomplete_expired"
     | "trialing"
@@ -108,36 +71,30 @@ export class Location
     | "past_due"
     | "canceled"
     | "unpaid";
-  readonly storageUsed: number;
-  readonly limits: {
-    /**
-     * Límite maximo de empleados
-     */
-    employees: number;
-    /**
-     * Capacidad máxima de almacenamiento
-     */
-    storage: string;
+  public readonly storageUsed: number;
+  public readonly limits: {
+    readonly employees: number;
+    readonly storage: string;
   };
-  readonly organizationId: string;
-  readonly subscriptionId: string;
-  readonly subItemId: string;
-  public name: string;
-  public description?: string;
-  public address?: Partial<{
-    city: string;
-    country: string;
-    state: string;
-    street: string;
-    streetNumber: string;
-    zip: string | number;
+  public readonly organizationId: string;
+  public readonly subscriptionId: string;
+  public readonly subItemId: string;
+  public readonly name: string;
+  public readonly description?: string;
+  public readonly address?: Partial<{
+    readonly city: string;
+    readonly country: string;
+    readonly state: string;
+    readonly street: string;
+    readonly streetNumber: string;
+    readonly zip: string | number;
   }>;
-  public email?: string;
-  public phoneNumber?: string;
-  public intId?: string;
-  public members: string[];
-  public supervisors?: string[];
-  public settings?: { positions?: string[] };
+  public readonly email?: string;
+  public readonly phoneNumber?: string;
+  public readonly intId?: string;
+  public readonly members: string[];
+  public readonly supervisors?: string[];
+  public readonly settings?: { readonly positions?: string[] };
 
   public static Converter = {
     toFirestore(object: Location): DocumentData {
@@ -149,7 +106,7 @@ export class Location
       options: SnapshotOptions
     ): Location {
       const { id, ref } = value;
-      const rawData = value.data(options)!;
+      const rawData = value.data(options);
       return new Location(rawData, { id, docRef: ref });
     },
   };
@@ -243,83 +200,66 @@ export class Location
   }
 
   public async addPosition(newPosition: string) {
-    try {
-      await setDoc(
-        this.docRef,
-        { settings: { positions: arrayUnion(newPosition.trim()) } },
-        { merge: true }
-      );
-    } catch (error) {
-      throw error;
-    }
+    await setDoc(
+      this.docRef,
+      { settings: { positions: arrayUnion(newPosition.trim()) } },
+      { merge: true }
+    );
   }
 
   public async removePosition(position: string) {
-    try {
-      await setDoc(
-        this.docRef,
-        { settings: { positions: arrayRemove(position.trim()) } },
-        { merge: true }
-      );
-    } catch (error) {
-      throw error;
-    }
+    await setDoc(
+      this.docRef,
+      { settings: { positions: arrayRemove(position.trim()) } },
+      { merge: true }
+    );
   }
 
   public async updateLocation(newData: Partial<ILocation>) {
-    try {
-      await setDoc(this.docRef, newData, { merge: true });
-    } catch (error) {
-      throw error;
-    }
+    await setDoc(this.docRef, newData, { merge: true });
   }
 
   public async ownerJoin(join?: boolean) {
-    try {
-      const empDocRef = doc(
-        Firestore,
-        "Organizations",
-        this.organizationId,
-        "employees",
-        this.organizationId
-      );
-      await setDoc(
-        empDocRef,
-        {
-          locations: {
-            [this.id]: join ? true : deleteField(),
-          },
+    const empDocRef = doc(
+      Firestore,
+      "Organizations",
+      this.organizationId,
+      "employees",
+      this.organizationId
+    );
+    await setDoc(
+      empDocRef,
+      {
+        locations: {
+          [this.id]: join ? true : deleteField(),
         },
-        { merge: true }
-      );
-    } catch (error) {
-      throw error;
-    }
+      },
+      { merge: true }
+    );
   }
 
   public async supervisorJoin(join?: boolean) {
+    if (!this.supervisors || !Auth.currentUser) {
+      return;
+    }
     if (!this.supervisors.includes(Auth.currentUser.uid)) {
       return;
     }
-    try {
-      const empDocRef = doc(
-        Firestore,
-        "Organizations",
-        this.organizationId,
-        "employees",
-        Auth.currentUser.uid
-      );
-      await setDoc(
-        empDocRef,
-        {
-          locations: {
-            [this.id]: join ? true : deleteField(),
-          },
+    const empDocRef = doc(
+      Firestore,
+      "Organizations",
+      this.organizationId,
+      "employees",
+      Auth.currentUser.uid
+    );
+    await setDoc(
+      empDocRef,
+      {
+        locations: {
+          [this.id]: join ? true : deleteField(),
         },
-        { merge: true }
-      );
-    } catch (error) {
-      throw error;
-    }
+      },
+      { merge: true }
+    );
   }
 }

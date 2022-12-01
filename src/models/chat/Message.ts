@@ -5,6 +5,7 @@ import { MessageContentType } from "./MessageContentType";
 import { Sender } from "./Sender";
 import dayjs from "dayjs";
 import { ReplyRecipient } from "./ReplyRecipient";
+import { isEmpty, pickBy } from "lodash";
 
 export type IMessage<T extends number | object = number> = {
   message: string;
@@ -27,7 +28,6 @@ export type IMessage<T extends number | object = number> = {
  *
  * @export
  * @class Message
- * @typedef {Message}
  * @implements {IMessage}
  */
 export class Message implements IMessage {
@@ -80,7 +80,7 @@ export class Message implements IMessage {
     this.messageRef = ref;
   }
 
-  public get toReplyData(): ReplyRecipient {
+  public get toReplyData(): ReplyRecipient | null {
     const {
       message,
       createdAt,
@@ -95,7 +95,7 @@ export class Message implements IMessage {
       return null;
     }
 
-    const object: any = {
+    const object: ReplyRecipient = {
       message,
       createdAt,
       type,
@@ -106,13 +106,8 @@ export class Message implements IMessage {
       id,
     };
 
-    Object.entries(object).forEach(([key, val]) => {
-      if (val === undefined) {
-        delete object[key];
-      }
-    });
-
-    return object;
+    // Remove undefined values from object
+    return pickBy(object, (value) => value !== undefined) as ReplyRecipient;
   }
 
   public get createdAtDate() {
@@ -120,55 +115,52 @@ export class Message implements IMessage {
   }
 
   public get haveUserReaction() {
-    return Boolean(this.reactions?.[Auth.currentUser.uid]);
+    if (!Auth.currentUser || !this.reactions || isEmpty(this.reactions)) {
+      return false;
+    }
+    return Boolean(this.reactions[Auth.currentUser.uid]);
   }
 
   public async addReaction(emoji?: string) {
+    if (!Auth.currentUser || !Auth.currentUser.displayName) {
+      return;
+    }
     const updates: { [key: string]: { emoji: string; name: string } | null } =
       {};
     updates[`/reactions/${Auth.currentUser.uid}`] = emoji
       ? { emoji, name: Auth.currentUser.displayName }
       : null;
-    try {
-      await update(this.messageRef, updates);
-      if (emoji) {
-        this.reactions = {
-          ...this.reactions,
-          [Auth.currentUser.uid]: {
-            emoji,
-            name: Auth.currentUser.displayName,
-          },
-        };
-      } else {
-        const newReactionsObj = this.reactions;
-        delete newReactionsObj?.[Auth.currentUser.uid];
-        this.reactions = newReactionsObj;
-      }
-    } catch (error) {
-      throw error;
+    await update(this.messageRef, updates);
+    if (emoji) {
+      this.reactions = {
+        ...this.reactions,
+        [Auth.currentUser.uid]: {
+          emoji,
+          name: Auth.currentUser.displayName,
+        },
+      };
+    } else {
+      const newReactionsObj = this.reactions;
+      delete newReactionsObj?.[Auth.currentUser.uid];
+      this.reactions = newReactionsObj;
     }
   }
 
   public async updateLastVisitedBy() {
+    if (!Auth.currentUser) {
+      return;
+    }
     const updates: { [key: string]: true | null } = {};
     updates[`/seenBy/${Auth.currentUser.uid}`] = true;
-    try {
-      await update(this.messageRef, updates);
-      this.seenBy = {
-        ...this.seenBy,
-        [Auth.currentUser.uid]: true,
-      };
-    } catch (error) {
-      throw error;
-    }
+    await update(this.messageRef, updates);
+    this.seenBy = {
+      ...this.seenBy,
+      [Auth.currentUser.uid]: true,
+    };
   }
 
   public async delete() {
-    try {
-      await remove(this.messageRef);
-    } catch (error) {
-      throw error;
-    }
+    await remove(this.messageRef);
   }
 
   public stateUpdate({

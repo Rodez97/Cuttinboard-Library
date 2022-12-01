@@ -19,19 +19,12 @@ import { EmployeeLocation } from "./EmployeeLocation";
 import { FirebaseSignature } from "./FirebaseSignature";
 import { PrimaryFirestore } from "./PrimaryFirestore";
 
-/**
- * Empleado
- */
-
 type BaseUser = Omit<
   ICuttinboardUser,
   "customerId" | "subscriptionId" | "paymentMethods" | "organizations"
 >;
 
 export interface IEmployee extends BaseUser {
-  /**
-   * Es dueño de la locación?
-   */
   organizationId: string;
   role: RoleAccessLevels.ADMIN | RoleAccessLevels.OWNER | "employee";
   locations?: { [locationId: string]: boolean | EmployeeLocation };
@@ -64,7 +57,7 @@ export class Employee
   public readonly emergencyContact?: { name?: string; phoneNumber: string };
   public readonly contactComments?: string;
   public readonly supervisingLocations?: string[];
-  public locationId?: string;
+  public readonly locationId?: string;
 
   public static Converter: FirestoreDataConverter<Employee> = {
     toFirestore(object: WithFieldValue<Employee>): DocumentData {
@@ -76,14 +69,14 @@ export class Employee
       options: SnapshotOptions
     ): Employee {
       const { id, ref } = value;
-      const rawData = value.data(options)!;
+      const rawData = value.data(options);
       return new Employee(rawData, { id, docRef: ref });
     },
   };
 
   constructor(
     {
-      createdAt,
+      createdAt: createdAt,
       createdBy,
       name,
       lastName,
@@ -120,6 +113,7 @@ export class Employee
     this.contactComments = contactComments;
     this.supervisingLocations = supervisingLocations;
     this.avatar = avatar;
+    this.locationId = globalThis.locationData?.id;
   }
 
   public get fullName() {
@@ -127,6 +121,9 @@ export class Employee
   }
 
   public get positions() {
+    if (!this.locationId) {
+      return [];
+    }
     const selectedLoc = this.locations?.[this.locationId];
     if (
       this.role === "employee" &&
@@ -139,6 +136,9 @@ export class Employee
   }
 
   public get mainPosition() {
+    if (!this.locationId) {
+      return "";
+    }
     const selectedLoc = this.locations?.[this.locationId];
     if (
       this.role === "employee" &&
@@ -151,6 +151,9 @@ export class Employee
   }
 
   public get locationRole() {
+    if (!this.locationId) {
+      return null;
+    }
     if (this.role !== "employee") {
       return this.role;
     }
@@ -162,6 +165,9 @@ export class Employee
   }
 
   public get locationData() {
+    if (!this.locationId) {
+      return null;
+    }
     const selectedLoc = this.locations?.[this.locationId];
     if (
       this.role === "employee" &&
@@ -174,6 +180,9 @@ export class Employee
   }
 
   public getHourlyWage(position: string) {
+    if (!this.locationId) {
+      return 0;
+    }
     if (this.role !== "employee") {
       return 0;
     }
@@ -189,36 +198,36 @@ export class Employee
   }
 
   public async delete() {
+    if (!this.locationId) {
+      return;
+    }
     const selectedLoc = this.locations?.[this.locationId];
-    const locationsCount = Object.keys(this.locations).length;
-    try {
-      if (
-        this.role === "employee" &&
-        locationsCount === 1 &&
-        !isEmpty(selectedLoc)
-      ) {
-        await deleteDoc(this.docRef);
-      } else {
-        await updateDoc(this.docRef, {
-          locations: { [this.locationId]: deleteField() },
-        });
-      }
-    } catch (error) {
-      throw error;
+    const locationsCount = this.locations
+      ? Object.keys(this.locations).length
+      : 0;
+    if (
+      this.role === "employee" &&
+      locationsCount === 1 &&
+      !isEmpty(selectedLoc)
+    ) {
+      await deleteDoc(this.docRef);
+    } else {
+      await updateDoc(this.docRef, {
+        locations: { [this.locationId]: deleteField() },
+      });
     }
   }
 
   public async update(locationData: PartialWithFieldValue<EmployeeLocation>) {
-    try {
-      await setDoc(
-        this.docRef,
-        {
-          locations: { [this.locationId]: locationData },
-        },
-        { merge: true }
-      );
-    } catch (error) {
-      throw error;
+    if (!this.locationId) {
+      return;
     }
+    await setDoc(
+      this.docRef,
+      {
+        locations: { [this.locationId]: locationData },
+      },
+      { merge: true }
+    );
   }
 }

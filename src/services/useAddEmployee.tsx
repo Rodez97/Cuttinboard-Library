@@ -10,7 +10,7 @@ export const useAddEmployee = () =>
       email: string;
       role: RoleAccessLevels | "employee";
       positions: string[];
-      wagePerPosition: {};
+      wagePerPosition: Record<string, number>;
       mainPosition: string;
       locationId: string;
     },

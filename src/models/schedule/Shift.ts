@@ -6,7 +6,6 @@ import {
   Timestamp,
   deleteField,
 } from "firebase/firestore";
-import { Todo_Task } from "../modules/Todo_Task";
 import { PrimaryFirestore } from "../PrimaryFirestore";
 import isoWeek from "dayjs/plugin/isoWeek";
 import advancedFormat from "dayjs/plugin/advancedFormat";
@@ -26,7 +25,6 @@ export interface IShift {
   start: string;
   end: string;
   position?: string;
-  tasks?: Record<string, Todo_Task>;
   notes?: string;
   hourlyWage?: number;
   status: "draft" | "published";
@@ -42,10 +40,9 @@ export class Shift implements IShift, PrimaryFirestore, FirebaseSignature {
   public readonly createdBy: string;
   public readonly start: string;
   public readonly end: string;
-  public readonly position?: string;
-  public readonly tasks?: Record<string, Todo_Task>;
-  public readonly notes?: string;
-  public readonly hourlyWage?: number;
+  private readonly _position?: string;
+  private readonly _notes?: string;
+  private readonly _hourlyWage?: number;
   public readonly status: "draft" | "published";
   public readonly pendingUpdate?: Partial<IShift>;
   public readonly deleting?: boolean;
@@ -58,6 +55,15 @@ export class Shift implements IShift, PrimaryFirestore, FirebaseSignature {
     overtimeWage: number;
     totalWage: number;
   };
+
+  public get origData() {
+    return {
+      start: dayjs(this.start, SHIFTFORMAT),
+      end: dayjs(this.end, SHIFTFORMAT),
+      position: this._position,
+      notes: this._notes,
+    };
+  }
 
   /**
    * Parses a string into a dayjs date
@@ -82,13 +88,12 @@ export class Shift implements IShift, PrimaryFirestore, FirebaseSignature {
       start,
       end,
       position,
-      tasks,
       notes,
       hourlyWage,
       deleting,
       pendingUpdate,
       status,
-      createdAt,
+      createdAt: createdAt,
       createdBy,
       updatedAt,
     }: IShift & FirebaseSignature,
@@ -98,10 +103,9 @@ export class Shift implements IShift, PrimaryFirestore, FirebaseSignature {
     this.docRef = docRef;
     this.start = start;
     this.end = end;
-    this.position = position;
-    this.tasks = tasks;
-    this.notes = notes;
-    this.hourlyWage = hourlyWage;
+    this._position = position;
+    this._notes = notes;
+    this._hourlyWage = hourlyWage;
     this.createdAt = createdAt;
     this.createdBy = createdBy;
     this.deleting = deleting;
@@ -110,15 +114,39 @@ export class Shift implements IShift, PrimaryFirestore, FirebaseSignature {
     this.updatedAt = updatedAt;
   }
 
+  public get position(): string | undefined {
+    if (this.hasPendingUpdates) {
+      return this.pendingUpdate?.position ?? "";
+    }
+    return this._position;
+  }
+
+  public get notes(): string | undefined {
+    if (this.hasPendingUpdates) {
+      return this.pendingUpdate?.notes ?? "";
+    }
+    return this._notes;
+  }
+
+  public get hourlyWage(): number {
+    if (this.hasPendingUpdates) {
+      return this.pendingUpdate?.hourlyWage ?? 0;
+    }
+    return this._hourlyWage ?? 0;
+  }
+
   /**
    * Get the start date as a dayjs date
    * @date 7/11/2022 - 0:27:19
    *
    * @public
    * @readonly
-   * @type {Dayjs} start date
    */
   public get getStartDayjsDate(): Dayjs {
+    if (this.hasPendingUpdates && this.pendingUpdate?.start) {
+      return dayjs(this.pendingUpdate.start, SHIFTFORMAT);
+    }
+
     return dayjs(this.start, SHIFTFORMAT);
   }
 
@@ -128,9 +156,11 @@ export class Shift implements IShift, PrimaryFirestore, FirebaseSignature {
    *
    * @public
    * @readonly
-   * @type {Dayjs} end date
    */
   public get getEndDayjsDate(): Dayjs {
+    if (this.hasPendingUpdates && this.pendingUpdate?.end) {
+      return dayjs(this.pendingUpdate.end, SHIFTFORMAT);
+    }
     return dayjs(this.end, SHIFTFORMAT);
   }
 
@@ -140,7 +170,6 @@ export class Shift implements IShift, PrimaryFirestore, FirebaseSignature {
    *
    * @public
    * @readonly
-   * @type {number} ISO week number
    */
   public get shiftIsoWeekday(): number {
     return this.getStartDayjsDate.isoWeekday();
@@ -152,7 +181,6 @@ export class Shift implements IShift, PrimaryFirestore, FirebaseSignature {
    *
    * @public
    * @readonly
-   * @type {boolean} true if shift has pending update
    */
   public get hasPendingUpdates(): boolean {
     return !isEmpty(this.pendingUpdate);
@@ -164,13 +192,31 @@ export class Shift implements IShift, PrimaryFirestore, FirebaseSignature {
    *
    * @public
    * @readonly
-   * @type {{ totalHours: number; totalMinutes: number }}
    */
   public get shiftDuration(): { totalHours: number; totalMinutes: number } {
-    const totalMinutes = this.getEndDayjsDate.diff(
-      this.getStartDayjsDate,
-      "minutes"
-    );
+    if (this.deleting) {
+      // if the shift is being deleted, the duration is 0
+      return { totalHours: 0, totalMinutes: 0 };
+    }
+
+    let totalMinutes = 0;
+
+    if (
+      this.hasPendingUpdates &&
+      this.pendingUpdate?.start &&
+      this.pendingUpdate?.end
+    ) {
+      // If there are pending updates, use those dates
+      totalMinutes = Shift.toDate(this.pendingUpdate.end).diff(
+        Shift.toDate(this.pendingUpdate.start),
+        "minute"
+      );
+    } else {
+      totalMinutes = this.getEndDayjsDate.diff(
+        this.getStartDayjsDate,
+        "minutes"
+      );
+    }
     const totalHours = totalMinutes / 60;
     return { totalHours, totalMinutes };
   }
@@ -181,12 +227,13 @@ export class Shift implements IShift, PrimaryFirestore, FirebaseSignature {
    *
    * @public
    * @readonly
-   * @type {number}
    */
   public get getBaseWage(): number {
-    if (!this.hourlyWage) {
+    if (this.deleting) {
+      // if the shift is being deleted, the wage is 0
       return 0;
     }
+
     return this.hourlyWage * this.shiftDuration.totalHours;
   }
 
@@ -236,71 +283,44 @@ export class Shift implements IShift, PrimaryFirestore, FirebaseSignature {
    * @param pendingUpdate - The pending update
    */
   public async editShift(pendingUpdate: Partial<IShift>) {
-    try {
-      // Add pending update to shift
-      await setDoc(
-        this.docRef,
-        { shifts: { [this.id]: { pendingUpdate } } },
-        { mergeFields: [`shifts.${this.id}.pendingUpdate`] }
-      );
-    } catch (error) {
-      throw error;
-    }
+    // Add pending update to shift
+    await setDoc(
+      this.docRef,
+      { shifts: { [this.id]: { pendingUpdate } } },
+      { mergeFields: [`shifts.${this.id}.pendingUpdate`] }
+    );
   }
 
   /**
    * Cancel pending update
    */
   public async cancelUpdate() {
-    try {
-      // Remove pending update from shift
-      await setDoc(
-        this.docRef,
-        { shifts: { [this.id]: { pendingUpdate: deleteField() } } },
-        { mergeFields: [`shifts.${this.id}.pendingUpdate`] }
-      );
-    } catch (error) {
-      throw error;
-    }
-  }
-
-  /**
-   * Change task status
-   * @param {string} taskId - The task to change
-   * @param {boolean} status - The new status
-   */
-  public async changeTask(taskId: string, status: boolean) {
-    if (!this.tasks?.[taskId]) {
-      // If task does not exist, throw error
-      throw new Error("Task does not exist");
-    }
-    try {
-      // Update task status
-      await setDoc(
-        this.docRef,
-        {
-          shifts: { [this.id]: { tasks: { [taskId]: { status } } } },
-        },
-        { merge: true }
-      );
-    } catch (error) {
-      throw error;
-    }
+    // Remove pending update from shift
+    await setDoc(
+      this.docRef,
+      { shifts: { [this.id]: { pendingUpdate: deleteField() } } },
+      { mergeFields: [`shifts.${this.id}.pendingUpdate`] }
+    );
   }
 
   /**
    * Delete shift
    */
   public async delete() {
-    try {
-      // Put shift in deleting state
+    if (this.status === "draft") {
+      // If the shift is a draft, delete it
+      await setDoc(
+        this.docRef,
+        { shifts: { [this.id]: deleteField() } },
+        { merge: true }
+      );
+    } else {
+      // If the shift is not a draft, mark it as deleting
       await setDoc(
         this.docRef,
         { shifts: { [this.id]: { deleting: true } } },
         { merge: true }
       );
-    } catch (error) {
-      throw error;
     }
   }
 
@@ -308,16 +328,12 @@ export class Shift implements IShift, PrimaryFirestore, FirebaseSignature {
    * Restore a pending deletion shift
    */
   public async restore() {
-    try {
-      // Remove deleting state from shift
-      await setDoc(
-        this.docRef,
-        { shifts: { [this.id]: { deleting: false } } },
-        { merge: true }
-      );
-    } catch (error) {
-      throw error;
-    }
+    // Remove deleting state from shift
+    await setDoc(
+      this.docRef,
+      { shifts: { [this.id]: { deleting: false } } },
+      { merge: true }
+    );
   }
 
   /**

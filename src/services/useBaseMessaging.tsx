@@ -29,25 +29,25 @@ function useBaseMessaging(chatPath: string) {
       limitToLast(50)
     );
 
-    const onChildAdded = (snapshot: DataSnapshot | null) => {
+    const onChildAdded = (snapshot: DataSnapshot) => {
       dispatch({
         type: "add",
         snapshot: {
           message: snapshot.val(),
-          id: snapshot.key,
+          id: snapshot.key!,
           ref: snapshot.ref,
         },
       });
     };
 
-    const onChildChanged = (snapshot: DataSnapshot | null) => {
+    const onChildChanged = (snapshot: DataSnapshot) => {
       dispatch({
         type: "change",
-        snapshot: { message: snapshot.val(), id: snapshot.key },
+        snapshot: { message: snapshot.val(), id: snapshot.key! },
       });
     };
 
-    const onChildRemoved = (snapshot: DataSnapshot | null) => {
+    const onChildRemoved = (snapshot: DataSnapshot) => {
       dispatch({
         type: "remove",
         snapshot: snapshot.key,
@@ -58,12 +58,12 @@ function useBaseMessaging(chatPath: string) {
       dispatch({ type: "error", error });
     };
 
-    const onValue = (snapshots: DataSnapshot[] | null) => {
+    const onValue = (snapshots: DataSnapshot[]) => {
       dispatch({
         type: "value",
         snapshots: snapshots.map((snp) => ({
           message: snp.val(),
-          id: snp.key,
+          id: snp.key!,
           ref: snp.ref,
         })),
       });
@@ -167,7 +167,7 @@ function useBaseMessaging(chatPath: string) {
               const olderMessages: Message[] = [];
 
               snapshot.forEach((snp) => {
-                olderMessages.push(new Message(snp.val(), snp.key, snp.ref));
+                olderMessages.push(new Message(snp.val(), snp.key!, snp.ref));
               });
 
               dispatch({

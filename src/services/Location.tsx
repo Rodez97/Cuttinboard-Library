@@ -1,13 +1,17 @@
-import { FirebaseError } from "firebase/app";
 import { doc } from "firebase/firestore";
-import React, { createContext, ReactNode, useContext, useMemo } from "react";
+import React, {
+  createContext,
+  ReactNode,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
 import { useDocumentData } from "react-firebase-hooks/firestore";
 import { LocationKey } from "../models/auth/LocationKey";
 import { OrganizationKey } from "../models/auth/OrganizationKey";
 import { Location } from "../models/Location";
 import { RoleAccessLevels } from "../utils/RoleAccessLevels";
 import { Firestore } from "../firebase";
-import { CuttinboardError } from "../models/CuttinboardError";
 
 interface LocationContextProps {
   location: Location;
@@ -15,10 +19,10 @@ interface LocationContextProps {
   isGeneralManager: boolean;
   isManager: boolean;
   isAdmin: boolean;
-  getAviablePositions: RoleAccessLevels[];
+  availablePositions: RoleAccessLevels[];
   locationAccessKey: LocationKey;
   loading: boolean;
-  error: Error | FirebaseError | CuttinboardError;
+  error?: Error;
 }
 
 const LocationContext = createContext<LocationContextProps>(
@@ -29,93 +33,111 @@ const LocationContext = createContext<LocationContextProps>(
  * Props del Provider principal de la App
  */
 interface LocationProviderProps {
-  /**
-   * El Contenido principal de la app cuando el usuario esté autentificado.
-   */
-  children:
-    | ReactNode
-    | ((props: {
-        location: Location;
-        loading: boolean;
-        error: Error | FirebaseError | CuttinboardError;
-      }) => JSX.Element);
+  children: ReactNode | ((location: Location) => JSX.Element);
   organizationKey: OrganizationKey;
   locationId: string;
+  ErrorComponent: (error: Error) => JSX.Element;
+  LoadingComponent: (loading: boolean) => JSX.Element;
 }
+
+type StateType = {
+  initializing: boolean;
+  isOwner: boolean;
+  isAdmin: boolean;
+  isGeneralManager: boolean;
+  isManager: boolean;
+  availablePositions: RoleAccessLevels[];
+  locationAccessKey: LocationKey;
+  error?: Error;
+};
 
 export const LocationProvider = ({
   children,
   organizationKey,
   locationId,
+  ErrorComponent,
+  LoadingComponent,
 }: LocationProviderProps) => {
+  const [state, setState] = useState<StateType>({
+    initializing: true,
+    isOwner: false,
+    isAdmin: false,
+    isGeneralManager: false,
+    isManager: false,
+    availablePositions: [],
+    locationAccessKey: {} as LocationKey,
+  });
   const [location, loading, error] = useDocumentData<Location>(
-    locationId &&
-      doc(Firestore, "Locations", locationId).withConverter(Location.Converter)
+    doc(Firestore, "Locations", locationId).withConverter(Location.Converter)
   );
 
-  const isOwner = useMemo(
-    () => organizationKey?.role === RoleAccessLevels.OWNER,
-    [organizationKey]
-  );
-
-  const isAdmin = useMemo(
-    () => organizationKey?.role === RoleAccessLevels.ADMIN,
-    [organizationKey]
-  );
-
-  const locationAccessKey = useMemo((): LocationKey => {
-    return organizationKey.locationKey(locationId);
-  }, [organizationKey, locationId]);
-
-  const isGeneralManager = useMemo(
-    () => locationAccessKey?.role === RoleAccessLevels.GENERAL_MANAGER,
-    [locationAccessKey]
-  );
-
-  const isManager = useMemo(
-    () => locationAccessKey?.role === RoleAccessLevels.MANAGER,
-    [locationAccessKey]
-  );
-
-  const getAviablePositions = useMemo(() => {
-    const myRole = locationAccessKey?.role;
-    return Object.values(RoleAccessLevels).filter(
-      (role) => role > myRole
-    ) as RoleAccessLevels[];
-  }, [locationAccessKey]);
-
-  const checkForError = useMemo(() => {
-    if (loading) return null;
-
-    // Check for location error
-    if (error) {
-      return error;
+  useEffect(() => {
+    if (location) {
+      // If the location exist and is loaded, we check if the user has access to it
+      const locKey = organizationKey.locationKey(locationId);
+      if (!locKey) {
+        // If the user doesn't have access to the location, we set the error
+        setState({
+          ...state,
+          initializing: false,
+          error: new Error("We couldn't find your location key"),
+        });
+        // Set global variable
+        globalThis.locationData = undefined;
+      } else {
+        // If the user has access to the location, we set the location access key
+        setState({
+          initializing: false,
+          isOwner: organizationKey.role === RoleAccessLevels.OWNER,
+          isAdmin: organizationKey.role === RoleAccessLevels.ADMIN,
+          isGeneralManager: locKey.role === RoleAccessLevels.GENERAL_MANAGER,
+          locationAccessKey: locKey,
+          isManager: locKey.role === RoleAccessLevels.MANAGER,
+          availablePositions: Object.values(RoleAccessLevels).filter(
+            (role) => role > locKey.role
+          ) as RoleAccessLevels[],
+          error: undefined,
+        });
+        globalThis.locationData = {
+          id: locationId,
+          name: location.name,
+          role: locKey.role,
+          organizationId: location.organizationId,
+        };
+      }
+    } else if (!loading) {
+      // If the location doesn't exist, we set the error
+      setState({
+        ...state,
+        initializing: false,
+        error: new Error("We couldn't find your location"),
+      });
+      globalThis.locationData = undefined;
     }
-    if (!location) {
-      return new CuttinboardError(
-        "Location not found",
-        "The location you are trying to access does not exist or you don't have access to it."
-      );
-    }
-  }, [loading, error, location]);
+  }, [locationId, organizationKey, loading, error]);
+
+  if (state.initializing) {
+    return LoadingComponent(state.initializing);
+  }
+
+  if (state.error) {
+    return ErrorComponent(state.error);
+  }
+
+  if (!location) {
+    return ErrorComponent(new Error("We couldn't find your location"));
+  }
 
   return (
     <LocationContext.Provider
       value={{
         location,
-        isOwner,
-        isGeneralManager,
-        isManager,
-        getAviablePositions,
-        isAdmin,
-        locationAccessKey,
+        ...state,
         loading,
         error,
       }}
     >
-      {typeof children === "function"
-        ? children({ location, loading, error: checkForError })
-        : children}
+      {typeof children === "function" ? children(location) : children}
     </LocationContext.Provider>
   );
 };

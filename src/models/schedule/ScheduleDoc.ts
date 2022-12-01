@@ -8,34 +8,50 @@ import {
 import { weekToDate } from "../../services";
 import { FirebaseSignature } from "../FirebaseSignature";
 import { PrimaryFirestore } from "../PrimaryFirestore";
-import { Schedule_DayStats } from "./Schedule_DayStats";
+import { WageDataByDay } from "./EmployeeShifts";
+
+export type WeekSummary = {
+  total: {
+    normalHours: number;
+    overtimeHours: number;
+    totalHours: number;
+    normalWage: number;
+    overtimeWage: number;
+    totalWage: number;
+    totalPeople: number;
+    totalShifts: number;
+    projectedSales: number;
+    laborPercentage: number;
+  };
+  byDay: WageDataByDay;
+};
 
 export interface IScheduleDoc {
-  locationId: string;
-  notes?: string;
   weekId: string;
-  statsByDay?: Record<number, Schedule_DayStats>;
+  locationId: string;
+  year: number;
   weekNumber: number;
   notificationRecipients?: string[];
+  projectedSalesByDay?: Record<number, number>;
   updatedAt: Timestamp;
-  year: number;
+  scheduleSummary: WeekSummary;
 }
 
 export class ScheduleDoc
   implements IScheduleDoc, PrimaryFirestore, FirebaseSignature
 {
-  public readonly locationId: string;
-  public readonly notes?: string;
   public readonly weekId: string;
-  public readonly statsByDay?: Record<number, Schedule_DayStats>;
+  public readonly locationId: string;
+  public readonly year: number;
   public readonly weekNumber: number;
   public readonly notificationRecipients?: string[];
+  public readonly projectedSalesByDay?: Record<number, number>;
+  public readonly updatedAt: Timestamp;
+  public readonly scheduleSummary: WeekSummary;
   public readonly id: string;
   public readonly docRef: DocumentReference<DocumentData>;
   public readonly createdAt: Timestamp;
   public readonly createdBy: string;
-  public readonly updatedAt: Timestamp;
-  public readonly year: number;
 
   public static Converter = {
     toFirestore(object: ScheduleDoc): DocumentData {
@@ -47,38 +63,38 @@ export class ScheduleDoc
       options: SnapshotOptions
     ): ScheduleDoc {
       const { id, ref } = value;
-      const rawData = value.data(options)!;
+      const rawData = value.data(options);
       return new ScheduleDoc(rawData, { id, docRef: ref });
     },
   };
 
   constructor(
     {
-      locationId,
-      notes,
       weekId,
-      statsByDay,
+      locationId,
+      year,
       weekNumber,
       notificationRecipients,
+      projectedSalesByDay,
+      updatedAt,
+      scheduleSummary,
       createdAt,
       createdBy,
-      updatedAt,
-      year,
     }: IScheduleDoc & FirebaseSignature,
     { id, docRef }: PrimaryFirestore
   ) {
+    this.weekId = weekId;
+    this.locationId = locationId;
+    this.year = year;
+    this.weekNumber = weekNumber;
+    this.notificationRecipients = notificationRecipients;
+    this.projectedSalesByDay = projectedSalesByDay;
+    this.updatedAt = updatedAt;
+    this.scheduleSummary = scheduleSummary;
     this.id = id;
     this.docRef = docRef;
     this.createdAt = createdAt;
     this.createdBy = createdBy;
-    this.locationId = locationId;
-    this.notes = notes;
-    this.weekId = weekId;
-    this.statsByDay = statsByDay;
-    this.weekNumber = weekNumber;
-    this.notificationRecipients = notificationRecipients;
-    this.updatedAt = updatedAt;
-    this.year = year;
   }
 
   public get getWeekStart(): Date {
@@ -87,9 +103,32 @@ export class ScheduleDoc
   }
 
   public get totalProjectedSales(): number {
-    return Object.values(this.statsByDay ?? {}).reduce(
-      (total, dayStats) => total + (dayStats.projectedSales ?? 0),
+    return Object.values(this.projectedSalesByDay ?? {}).reduce(
+      (acc, curr) => acc + curr,
       0
     );
+  }
+
+  public getSummaryByDay(day: number): WageDataByDay[number] {
+    // Check if the day is in the week
+    if (day < 1 || day > 7) {
+      throw new Error("Day must be between 1 and 7");
+    }
+    // Check if the day exists in the summary
+    if (!this.scheduleSummary?.byDay?.[day]) {
+      // If not, return default values
+      return {
+        normalHours: 0,
+        overtimeHours: 0,
+        totalHours: 0,
+        normalWage: 0,
+        overtimeWage: 0,
+        totalWage: 0,
+        people: 0,
+        totalShifts: 0,
+      };
+    }
+    // If it does, return the day's summary
+    return this.scheduleSummary.byDay[day];
   }
 }

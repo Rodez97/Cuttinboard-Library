@@ -23,12 +23,14 @@ export const composeMessage = (
   if (replyTargetMessage) {
     msg = {
       ...msg,
-      replyTarget: replyTargetMessage.toReplyData,
+      replyTarget: replyTargetMessage.toReplyData
+        ? replyTargetMessage.toReplyData
+        : undefined,
     };
   }
 
   if (
-    /(?:(?:https?:\/\/))[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,4}\b(?:[-a-zA-Z0-9@:%_\+.~#?&\/=]*(\.jpg|\.png|\.jpeg))([-a-zA-Z0-9@:%._\+~#=?&]{2,256})?/g.test(
+    /(?:(?:https?:\/\/))[-a-zA-Z0-9@:%._+~#=]{2,256}\.[a-z]{2,4}\b(?:[-a-zA-Z0-9@:%_+.~#?&/=]*(\.jpg|\.png|\.jpeg))([-a-zA-Z0-9@:%._+~#=?&]{2,256})?/g.test(
       messageTxt
     )
   ) {
@@ -40,7 +42,7 @@ export const composeMessage = (
       message: "🖼️ Image Message",
     };
   } else if (
-    /(?:(?:https?:\/\/))[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,4}\b(?:[-a-zA-Z0-9@:%_\+.~#?&\/=]*(\.webm|\.mkv|\.flv|\.og[g|v]|\.avi|\.mp4|\.3gp))([-a-zA-Z0-9@:%._\+~#=?&]{2,256})?/g.test(
+    /(?:(?:https?:\/\/))[-a-zA-Z0-9@:%._+~#=]{2,256}\.[a-z]{2,4}\b(?:[-a-zA-Z0-9@:%_+.~#?&/=]*(\.webm|\.mkv|\.flv|\.og[g|v]|\.avi|\.mp4|\.3gp))([-a-zA-Z0-9@:%._+~#=?&]{2,256})?/g.test(
       messageTxt
     )
   ) {
@@ -52,7 +54,7 @@ export const composeMessage = (
       message: "🎞️ Video Message",
     };
   } else if (
-    /^((?:https?:)?\/\/)?((?:www|m)\.)?((?:youtube\.com|youtu.be))(\/(?:[\w\-]+\?v=|embed\/|v\/)?)([\w\-]+)(\S+)?$/gm.test(
+    /^((?:https?:)?\/\/)?((?:www|m)\.)?((?:youtube\.com|youtu.be))(\/(?:[\w-]+\?v=|embed\/|v\/)?)([\w-]+)(\S+)?$/gm.test(
       messageTxt
     )
   ) {

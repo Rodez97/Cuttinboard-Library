@@ -6,76 +6,128 @@ import {
   SnapshotOptions,
   updateDoc,
   deleteDoc,
+  FirestoreDataConverter,
+  serverTimestamp,
+  CollectionReference,
+  addDoc,
 } from "firebase/firestore";
-import { FirebaseSignature } from "../FirebaseSignature";
+import { Auth } from "../../firebase";
 import { PrimaryFirestore } from "../PrimaryFirestore";
 
 export interface INote {
-  title: string;
+  title?: string;
   content: string;
-  authorName: string;
+  author: {
+    id: string;
+    name: string;
+    at: Timestamp;
+  };
+  updated?: {
+    id: string;
+    name: string;
+    at: Timestamp;
+  };
 }
 
-export class Note implements INote, PrimaryFirestore, FirebaseSignature {
-  public readonly title: string;
+export class Note implements INote, PrimaryFirestore {
+  public readonly title?: string;
   public readonly content: string;
-  public readonly authorName: string;
   public readonly id: string;
   public readonly docRef: DocumentReference<DocumentData>;
-  public readonly createdAt: Timestamp;
-  public readonly createdBy: string;
+  public readonly author: { id: string; name: string; at: Timestamp };
+  public readonly updated?:
+    | { id: string; name: string; at: Timestamp }
+    | undefined;
 
-  public static Converter = {
+  /**
+   * Create a new note in the database and return it as a Note object instance with the id and docRef properties
+   * @param contentRef The reference to the content collection
+   * @param data The data to create the note with
+   * @returns The new note as a Note object instance
+   */
+  public static NewNote = async (
+    contentRef: CollectionReference,
+    data: { title?: string; content: string }
+  ) => {
+    if (!Auth.currentUser || !Auth.currentUser.displayName) {
+      throw new Error("You must be logged in to create a note.");
+    }
+    const author = {
+      id: Auth.currentUser.uid,
+      name: Auth.currentUser.displayName,
+      at: serverTimestamp(),
+    };
+    const docRef = await addDoc(contentRef, {
+      ...data,
+      author,
+    });
+    return new Note(
+      {
+        ...data,
+        author: {
+          id: author.id,
+          name: author.name,
+          at: Timestamp.now(),
+        },
+      },
+      {
+        id: docRef.id,
+        docRef,
+      }
+    );
+  };
+
+  public static Converter: FirestoreDataConverter<Note> = {
     toFirestore(object: Note): DocumentData {
       const { docRef, id, ...objectToSave } = object;
       return objectToSave;
     },
     fromFirestore(
-      value: QueryDocumentSnapshot<INote & FirebaseSignature>,
+      value: QueryDocumentSnapshot<INote>,
       options: SnapshotOptions
     ): Note {
       const { id, ref } = value;
-      const rawData = value.data(options)!;
+      const rawData = value.data(options);
       return new Note(rawData, { id, docRef: ref });
     },
   };
 
   constructor(
-    {
-      title,
-      content,
-      authorName,
-      createdAt,
-      createdBy,
-    }: INote & FirebaseSignature,
+    { title, content, author, updated }: INote,
     { id, docRef }: PrimaryFirestore
   ) {
     this.title = title;
     this.content = content;
-    this.authorName = authorName;
     this.id = id;
     this.docRef = docRef;
-    this.createdAt = createdAt;
-    this.createdBy = createdBy;
+    this.author = author;
+    this.updated = updated;
   }
 
-  public get createdDate() {
-    return this.createdAt.toDate();
+  public get createdAt() {
+    return this.author.at.toDate();
   }
 
-  public async edit(title: string, content: string) {
-    try {
-      await updateDoc(this.docRef, { title, content });
-    } catch (error) {
-      throw error;
+  public async update(updates: Partial<{ title: string; content: string }>) {
+    if (!Auth.currentUser || !Auth.currentUser.displayName) {
+      throw new Error("You must be logged in to update a note.");
     }
+    // Create a new updated object with the current user's id and name
+    const updated = {
+      id: Auth.currentUser.uid,
+      name: Auth.currentUser.displayName,
+      at: serverTimestamp(),
+    };
+    await updateDoc(this.docRef, {
+      ...updates,
+      updated,
+    });
   }
 
+  /**
+   * Delete the note from the database
+   */
   public async delete() {
-    try {
-      await deleteDoc(this.docRef);
-    } catch (error) {
-      throw error;
-    }
+    await deleteDoc(this.docRef);
   }
 }

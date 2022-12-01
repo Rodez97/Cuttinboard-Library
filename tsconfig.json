@@ -12,7 +12,8 @@
     "allowJs": true,
     "baseUrl": "src",
     "sourceMap": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "strictNullChecks": true
   },
   "exclude": ["node_modules", "dist"]
 }

@@ -13,10 +13,13 @@ import {
   SnapshotOptions,
   WithFieldValue,
   setDoc,
+  query,
+  collection,
+  where,
 } from "firebase/firestore";
 import { Timestamp } from "firebase/firestore";
 import { isEmpty, orderBy } from "lodash";
-import { Auth } from "../../firebase";
+import { Auth, Firestore } from "../../firebase";
 import dayjs from "dayjs";
 import isoWeek from "dayjs/plugin/isoWeek";
 import duration from "dayjs/plugin/duration";
@@ -51,6 +54,19 @@ export interface IEmployeeShifts {
   locationId: string;
 }
 
+export type WageDataByDay = {
+  [weekday: number]: {
+    normalHours: number;
+    overtimeHours: number;
+    totalHours: number;
+    normalWage: number;
+    overtimeWage: number;
+    totalWage: number;
+    totalShifts: number;
+    people: number;
+  };
+};
+
 /**
  * EmployeeShifts is a collection of shifts for a given employee and week.
  * @date 6/11/2022 - 23:38:09
@@ -74,22 +90,10 @@ export class EmployeeShifts
   public readonly createdBy: string;
   public readonly updatedAt: Timestamp;
   public readonly locationId: string;
-  private _wageData: {
-    normalHours: number;
-    overtimeHours: number;
-    totalHours: number;
-    normalWage: number;
-    overtimeWage: number;
-    totalWage: number;
-    totalShifts: number;
-  };
+  private _wageData: WageDataByDay;
 
   /**
    * Firestore Data Converter
-   * @date 6/11/2022 - 23:37:31
-   *
-   * @public
-   * @static
    */
   public static Converter = {
     toFirestore(object: EmployeeShifts): DocumentData {
@@ -101,10 +105,24 @@ export class EmployeeShifts
       options: SnapshotOptions
     ): EmployeeShifts {
       const { id, ref } = value;
-      const rawData = value.data(options)!;
+      const rawData = value.data(options);
       return new EmployeeShifts(rawData, { id, docRef: ref });
     },
   };
+
+  public static Reference = (weekId: string) =>
+    globalThis.locationData
+      ? query(
+          collection(
+            Firestore,
+            "Organizations",
+            globalThis.locationData.organizationId,
+            "shifts"
+          ),
+          where("weekId", "==", weekId),
+          where("locationId", "==", globalThis.locationData.id)
+        ).withConverter(EmployeeShifts.Converter)
+      : null;
 
   constructor(
     {
@@ -127,7 +145,7 @@ export class EmployeeShifts
     this.locationId = locationId;
     this.weekId = weekId;
 
-    if (!isEmpty(shifts)) {
+    if (shifts && !isEmpty(shifts)) {
       // Convert the shifts object to Shift class and add it to the shifts object
       this.shifts = Object.entries(shifts).reduce<Record<string, Shift>>(
         (acc, [shiftId, shiftData]) => {
@@ -141,14 +159,9 @@ export class EmployeeShifts
 
   /**
    * Get the shifts array from the shifts object and sort it by start time in ascending order (earliest to latest)
-   * @date 6/11/2022 - 23:31:22
-   *
-   * @public
-   * @readonly
-   * @type {Shift[]} - Array of shifts sorted by start time
    */
   public get shiftsArray(): Shift[] {
-    if (isEmpty(this.shifts)) {
+    if (!this.shifts || isEmpty(this.shifts)) {
       return [];
     }
     // Order shifts by start date
@@ -159,59 +172,84 @@ export class EmployeeShifts
     );
   }
 
-  public get wageData(): {
-    normalHours: number;
-    overtimeHours: number;
-    totalHours: number;
-    normalWage: number;
-    overtimeWage: number;
-    totalWage: number;
-    totalShifts: number;
-  } {
+  public get wageData(): WageDataByDay {
     if (this._wageData) {
       // If the wage data is already calculated, return it
       return this._wageData;
     }
-    const normalHours = this.shiftsArray.reduce(
-      (acc, shift) => acc + shift.shiftDuration.totalHours,
-      0
-    );
-    const totalWage = this.shiftsArray.reduce(
-      (acc, shift) => acc + shift.getBaseWage,
-      0
-    );
+    if (isEmpty(this.shifts)) {
+      // If there are no shifts, return an empty object
+      return {};
+    }
+    // If the wage data is not calculated, calculate it and return it
+    const wageData = this.shiftsArray.reduce<WageDataByDay>((acc, shift) => {
+      const weekday = shift.getStartDayjsDate.isoWeekday();
+      const shiftHours = shift.shiftDuration.totalHours;
+      const shiftWage = shift.getBaseWage;
+      const shiftOvertimeWage = 0;
+      const shiftOvertimeHours = 0;
+      if (acc[weekday]) {
+        // If the weekday already exists in the accumulator, add the shift hours and wage to the existing values
+        acc[weekday].normalHours += shiftHours;
+        acc[weekday].overtimeHours += shiftOvertimeHours;
+        acc[weekday].totalHours += shiftHours + shiftOvertimeHours;
+        acc[weekday].normalWage += shiftWage;
+        acc[weekday].overtimeWage += shiftOvertimeWage;
+        acc[weekday].totalWage += shiftWage + shiftOvertimeWage;
+        acc[weekday].totalShifts += 1;
+      } else {
+        // If the weekday does not exist in the accumulator, add it with the shift hours and wage
+        acc[weekday] = {
+          normalHours: shiftHours,
+          overtimeHours: shiftOvertimeHours,
+          totalHours: shiftHours + shiftOvertimeHours,
+          normalWage: shiftWage,
+          overtimeWage: shiftOvertimeWage,
+          totalWage: shiftWage + shiftOvertimeWage,
+          totalShifts: 1,
+          people: 1,
+        };
+      }
+      return acc;
+    }, {});
+    this._wageData = wageData;
 
-    // Return default values
-    return {
-      normalHours,
-      overtimeHours: 0,
-      totalHours: normalHours,
-      normalWage: totalWage,
-      overtimeWage: 0,
-      totalWage,
-      totalShifts: this.shiftsArray.length,
-    };
+    return this._wageData;
   }
 
-  private set wageData(value: {
-    normalHours: number;
-    overtimeHours: number;
-    totalHours: number;
-    normalWage: number;
-    overtimeWage: number;
-    totalWage: number;
-    totalShifts: number;
-  }) {
+  private set wageData(value: WageDataByDay) {
     this._wageData = value;
+  }
+
+  public get summary(): WageDataByDay[0] {
+    const wageData = this.wageData;
+    const summary = Object.values(wageData).reduce<WageDataByDay[0]>(
+      (acc, day) => {
+        acc.normalHours += day.normalHours;
+        acc.overtimeHours += day.overtimeHours;
+        acc.totalHours += day.totalHours;
+        acc.normalWage += day.normalWage;
+        acc.overtimeWage += day.overtimeWage;
+        acc.totalWage += day.totalWage;
+        acc.totalShifts += day.totalShifts;
+        return acc;
+      },
+      {
+        normalHours: 0,
+        overtimeHours: 0,
+        totalHours: 0,
+        normalWage: 0,
+        overtimeWage: 0,
+        totalWage: 0,
+        totalShifts: 0,
+        people: 1,
+      }
+    );
+    return summary;
   }
 
   /**
    * Check is the employee's schedule have any changes or is unpublished
-   * @date 6/11/2022 - 23:16:34
-   *
-   * @public
-   * @readonly
-   * @type {boolean} - true if the schedule is unpublished or have any changes
    */
   public get haveChanges(): boolean {
     return this.shiftsArray.some((shift) =>
@@ -230,9 +268,6 @@ export class EmployeeShifts
    *
    * - If this functions in not called, the wage data will be the default value without overtime
    *
-   * @date 6/11/2022 - 23:19:49
-   *
-   * @public
    */
   public calculateWageData(
     args: {
@@ -242,58 +277,47 @@ export class EmployeeShifts
     } | null = null
   ) {
     // initialize the wage data
-    let summ: {
-      normalHours: number;
-      overtimeHours: number;
-      totalHours: number;
-      normalWage: number;
-      overtimeWage: number;
-      totalWage: number;
-      totalShifts: number;
-    } = {
-      normalHours: 0,
-      overtimeHours: 0,
-      totalHours: 0,
-      normalWage: 0,
-      overtimeWage: 0,
-      totalWage: 0,
-      totalShifts: 0,
-    };
+    const sum: WageDataByDay = {};
 
     if (isEmpty(this.shifts)) {
       // if there is no shifts, return the default value
-      summ = {
-        normalHours: 0,
-        overtimeHours: 0,
-        totalHours: 0,
-        normalWage: 0,
-        overtimeWage: 0,
-        totalWage: 0,
-        totalShifts: 0,
-      };
+      this.wageData = sum;
+      return;
     }
 
     if (args === null) {
       // if no args, just return the total
       this.shiftsArray.forEach((shift) => {
-        const {
-          normalHours,
-          overtimeHours,
-          totalHours,
-          normalWage,
-          overtimeWage,
-          totalWage,
-        } = shift.wageData;
-        summ = {
-          normalHours: summ.normalHours + normalHours,
-          overtimeHours: summ.overtimeHours + overtimeHours,
-          totalHours: summ.totalHours + totalHours,
-          normalWage: summ.normalWage + normalWage,
-          overtimeWage: summ.overtimeWage + overtimeWage,
-          totalWage: summ.totalWage + totalWage,
-          totalShifts: summ.totalShifts + 1,
-        };
+        const weekday = shift.getStartDayjsDate.isoWeekday();
+        const shiftHours = shift.shiftDuration.totalHours;
+        const shiftWage = shift.getBaseWage;
+        const shiftOvertimeWage = 0;
+        const shiftOvertimeHours = 0;
+        if (sum[weekday]) {
+          // If the weekday already exists in the accumulator, add the shift hours and wage to the existing values
+          sum[weekday].normalHours += shiftHours;
+          sum[weekday].overtimeHours += shiftOvertimeHours;
+          sum[weekday].totalHours += shiftHours + shiftOvertimeHours;
+          sum[weekday].normalWage += shiftWage;
+          sum[weekday].overtimeWage += shiftOvertimeWage;
+          sum[weekday].totalWage += shiftWage + shiftOvertimeWage;
+          sum[weekday].totalShifts += 1;
+        } else {
+          // If the weekday does not exist in the accumulator, add it with the shift hours and wage
+          sum[weekday] = {
+            normalHours: shiftHours,
+            overtimeHours: shiftOvertimeHours,
+            totalHours: shiftHours + shiftOvertimeHours,
+            normalWage: shiftWage,
+            overtimeWage: shiftOvertimeWage,
+            totalWage: shiftWage + shiftOvertimeWage,
+            totalShifts: 1,
+            people: 1,
+          };
+        }
       });
+      this.wageData = sum;
+      return;
     }
 
     const { mode, hoursLimit, multiplier } = args;
@@ -317,15 +341,29 @@ export class EmployeeShifts
           totalWage,
         } = shift.wageData;
         accumulatedHours += shift.shiftDuration.totalHours;
-        summ = {
-          normalHours: summ.normalHours + normalHours,
-          overtimeHours: summ.overtimeHours + overtimeHours,
-          totalHours: summ.totalHours + totalHours,
-          normalWage: summ.normalWage + normalWage,
-          overtimeWage: summ.overtimeWage + overtimeWage,
-          totalWage: summ.totalWage + totalWage,
-          totalShifts: summ.totalShifts + 1,
-        };
+        const weekday = shift.getStartDayjsDate.isoWeekday();
+        if (sum[weekday]) {
+          // If the weekday already exists in the accumulator, add the shift hours and wage to the existing values
+          sum[weekday].normalHours += normalHours;
+          sum[weekday].overtimeHours += overtimeHours;
+          sum[weekday].totalHours += totalHours;
+          sum[weekday].normalWage += normalWage;
+          sum[weekday].overtimeWage += overtimeWage;
+          sum[weekday].totalWage += totalWage;
+          sum[weekday].totalShifts += 1;
+        } else {
+          // If the weekday does not exist in the accumulator, add it with the shift hours and wage
+          sum[weekday] = {
+            normalHours,
+            overtimeHours,
+            totalHours,
+            normalWage,
+            overtimeWage,
+            totalWage,
+            totalShifts: 1,
+            people: 1,
+          };
+        }
       });
     }
 
@@ -341,20 +379,34 @@ export class EmployeeShifts
           overtimeWage,
           totalWage,
         } = shift.wageData;
-        summ = {
-          normalHours: summ.normalHours + normalHours,
-          overtimeHours: summ.overtimeHours + overtimeHours,
-          totalHours: summ.totalHours + totalHours,
-          normalWage: summ.normalWage + normalWage,
-          overtimeWage: summ.overtimeWage + overtimeWage,
-          totalWage: summ.totalWage + totalWage,
-          totalShifts: summ.totalShifts + 1,
-        };
+        const weekday = shift.getStartDayjsDate.isoWeekday();
+        if (sum[weekday]) {
+          // If the weekday already exists in the accumulator, add the shift hours and wage to the existing values
+          sum[weekday].normalHours += normalHours;
+          sum[weekday].overtimeHours += overtimeHours;
+          sum[weekday].totalHours += totalHours;
+          sum[weekday].normalWage += normalWage;
+          sum[weekday].overtimeWage += overtimeWage;
+          sum[weekday].totalWage += totalWage;
+          sum[weekday].totalShifts += 1;
+        } else {
+          // If the weekday does not exist in the accumulator, add it with the shift hours and wage
+          sum[weekday] = {
+            normalHours,
+            overtimeHours,
+            totalHours,
+            normalWage,
+            overtimeWage,
+            totalWage,
+            totalShifts: 1,
+            people: 1,
+          };
+        }
       });
     }
 
     // set the wage data
-    this.wageData = summ;
+    this.wageData = sum;
   }
 
   /**
@@ -375,48 +427,48 @@ export class EmployeeShifts
     applyToWeekDays: number[],
     id: string
   ): Promise<void> {
+    if (!Auth.currentUser) {
+      throw new Error("User not authenticated");
+    }
+
     // New shift record
     let newShifts: Record<
       string,
       WithFieldValue<IShift & FirebaseSignature>
     > = {};
 
-    try {
-      const { start, end, ...rest } = shift;
-      const baseStart = Shift.toDate(start);
-      const baseEnd = Shift.toDate(end);
-      // Create a new shift for each date
-      for (const isoWeekDay of applyToWeekDays) {
-        const shiftId = `${isoWeekDay}-${id}`;
-        const column = dates.find((c) => dayjs(c).isoWeekday() === isoWeekDay);
-        // Adjust the start and end dates to the correct weekday
-        const newStart = dayjs(column)
-          .hour(baseStart.hour())
-          .minute(baseStart.minute());
-        const newEnd = dayjs(column)
-          .hour(baseEnd.hour())
-          .minute(baseEnd.minute());
-        // If end time is before start time, add a day to the end time
-        const end = newEnd.isBefore(newStart) ? newEnd.add(1, "day") : newEnd;
-        // Create the new shift
-        newShifts = {
-          ...newShifts,
-          [shiftId]: {
-            ...rest,
-            start: Shift.toString(newStart.toDate()),
-            end: Shift.toString(end.toDate()),
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-            createdBy: Auth.currentUser.uid,
-            status: "draft",
-          },
-        };
-      }
-      // Add the new shifts to the schedule
-      await setDoc(this.docRef, { shifts: newShifts }, { merge: true });
-    } catch (error) {
-      throw error;
+    const { start, end, ...rest } = shift;
+    const baseStart = Shift.toDate(start);
+    const baseEnd = Shift.toDate(end);
+    // Create a new shift for each date
+    for (const isoWeekDay of applyToWeekDays) {
+      const shiftId = `${isoWeekDay}-${id}`;
+      const column = dates.find((c) => dayjs(c).isoWeekday() === isoWeekDay);
+      // Adjust the start and end dates to the correct weekday
+      const newStart = dayjs(column)
+        .hour(baseStart.hour())
+        .minute(baseStart.minute());
+      const newEnd = dayjs(column)
+        .hour(baseEnd.hour())
+        .minute(baseEnd.minute());
+      // If end time is before start time, add a day to the end time
+      const end = newEnd.isBefore(newStart) ? newEnd.add(1, "day") : newEnd;
+      // Create the new shift
+      newShifts = {
+        ...newShifts,
+        [shiftId]: {
+          ...rest,
+          start: Shift.toString(newStart.toDate()),
+          end: Shift.toString(end.toDate()),
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          createdBy: Auth.currentUser.uid,
+          status: "draft",
+        },
+      };
     }
+    // Add the new shifts to the schedule
+    await setDoc(this.docRef, { shifts: newShifts }, { merge: true });
   }
 
   /**
@@ -428,7 +480,7 @@ export class EmployeeShifts
    */
   public batchPublish(batch: WriteBatch) {
     // If there are no shifts, return
-    if (isEmpty(this.shifts)) {
+    if (!this.shifts || isEmpty(this.shifts)) {
       return;
     }
 
@@ -482,7 +534,7 @@ export class EmployeeShifts
    */
   public batchUnpublish(batch: WriteBatch) {
     // If there are no shifts, return
-    if (isEmpty(this.shifts)) {
+    if (!this.shifts || isEmpty(this.shifts)) {
       return;
     }
 
@@ -521,7 +573,7 @@ export class EmployeeShifts
     shiftId: string
   ): boolean => {
     // Check if there are any shifts
-    if (!Boolean(this.shiftsArray.length)) {
+    if (!this.shiftsArray.length) {
       return false;
     }
 
@@ -559,7 +611,7 @@ export class EmployeeShifts
    */
   public getOvertimeRateOfPay = (multiplier: number) => {
     // Check if there are any shifts
-    if (!Boolean(this.shiftsArray.length)) {
+    if (!this.shiftsArray.length) {
       return 0;
     }
     // Get total hours from shifts array

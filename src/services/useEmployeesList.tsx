@@ -1,17 +1,14 @@
-import React, {
-  createContext,
-  useCallback,
-  useContext,
-  useMemo,
-  useState,
-} from "react";
+import { FirestoreError } from "firebase/firestore";
+import React, { createContext, useCallback, useContext } from "react";
 import { useCollectionData } from "react-firebase-hooks/firestore";
 import { Employee } from "../models";
 import { useLocation } from "./Location";
 
 interface EmployeesContextProps {
   getEmployees: Employee[];
-  getEmployeeById: (id: string) => Employee;
+  getEmployeeById: (id: string) => Employee | undefined;
+  loading: boolean;
+  error: FirestoreError | undefined;
 }
 
 const EmployeesContext = createContext<EmployeesContextProps>(
@@ -24,35 +21,32 @@ export const EmployeesProvider = ({
   children: React.ReactNode;
 }) => {
   const { location } = useLocation();
-  const [employeesRequested, setEmployeesRequested] = useState(false);
-
-  const [employees] = useCollectionData(
-    employeesRequested && location.employeesRef
-  );
-
-  const getEmployees = useMemo(() => {
-    if (!employeesRequested) {
-      setEmployeesRequested(true);
-    }
-    const employeesWithLocationId = employees ?? [];
-    employeesWithLocationId.forEach((employee) => {
-      employee.locationId = location.id;
-    });
-    return employeesWithLocationId;
-  }, [employeesRequested, employees, location.id]);
+  const [employees, loading, error] = useCollectionData(location.employeesRef);
 
   const getEmployeeById = useCallback(
-    (id: string) => {
-      return getEmployees.find((employee) => employee.id === id);
-    },
-    [getEmployees]
+    (id: string) =>
+      employees ? employees.find((employee) => employee.id === id) : undefined,
+    [employees]
   );
 
   return (
-    <EmployeesContext.Provider value={{ getEmployees, getEmployeeById }}>
+    <EmployeesContext.Provider
+      value={{
+        getEmployees: employees ?? [],
+        getEmployeeById,
+        loading,
+        error,
+      }}
+    >
       {children}
     </EmployeesContext.Provider>
   );
 };
 
-export const useEmployeesList = () => useContext(EmployeesContext);
+export const useEmployeesList = () => {
+  const context = useContext(EmployeesContext);
+  if (!context) {
+    throw new Error("useEmployeesList must be used within a EmployeesProvider");
+  }
+  return context;
+};
