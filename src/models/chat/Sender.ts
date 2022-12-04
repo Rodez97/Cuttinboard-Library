@@ -1,9 +1,5 @@
 /**
- * @description Message Sender data
- * @date 17/10/2022 - 0:56:23
- *
- * @export
- * @typedef {Sender}
+ * A Sender contains the information of the sender of a message.
  */
 export type Sender = {
   id: string;

@@ -5,9 +5,7 @@ import { initializeFirestore } from "firebase/firestore";
 import { getFunctions } from "firebase/functions";
 import { getStorage } from "firebase/storage";
 
-/**
- * Opciones con las que inicializar/configurar la app de Firebase
- */
+// Firebase configuration object
 export const FIREBASE_CONFIG: FirebaseOptions = {
   apiKey: "AIzaSyAfvaqijLqBAj8dou3yTbbzrUbO-8jT32k",
   authDomain: "app.cuttinboard.com",
@@ -19,28 +17,23 @@ export const FIREBASE_CONFIG: FirebaseOptions = {
   measurementId: "G-F2B7ZNZWD3",
 };
 
-// Inicializar la app de Firebase
+// Initialize the Firebase app
 export const App = initializeApp(FIREBASE_CONFIG);
-/**
- * Instancia de Firestore
- */
+
+// Initialize Firestore
 export const Firestore = initializeFirestore(App, {
   ignoreUndefinedProperties: true,
   experimentalForceLongPolling: true,
 });
-/**
- * Instancia de Auth
- */
+
+// Initialize Firebase Auth
 export const Auth = getAuth(App);
-/**
- * Instancia de Storage
- */
+
+// Initialize Cloud Storage
 export const Storage = getStorage(App);
-/**
- * Instancia de Functions
- */
+
+// Initialize Cloud Functions
 export const Functions = getFunctions(App);
-/**
- * Instancia de Realtime Database
- */
+
+// Initialize Realtime Database
 export const Database = getDatabase(App);

@@ -1,11 +1,10 @@
 /**
  * An Attachment is a file that is attached to a message and uploaded to cloud storage.
- * @date 1/12/2022 - 18:49:13
- *
- * @export
- * @typedef {Attachment}
  */
 export type Attachment = {
+  /**
+   * The mime type of the attachment.
+   */
   mimeType: string;
   /**
    * The path to the file in cloud storage.

@@ -140,20 +140,27 @@ function useBaseMessaging(chatPath: string) {
   const fetchOlderMessages = useCallback(
     async () =>
       new Promise<void>((resolve, reject) => {
+        // Return early if there are no more messages to fetch or if all messages have been fetched
         if (allMessages?.length === 0 || noMoreMessages) {
           resolve();
         }
+
+        // Get the first message in the message list
         const { createdAt, ...firstMessage } =
           allMessages[allMessages.length - 1];
 
+        // Check if the first message is a system message with type "start"
         if (
           firstMessage.type === "system" &&
           firstMessage.systemType === "start"
         ) {
+          // Set the "noMoreMessages" flag to true to indicate that all messages have been fetched
           setNoMoreMessages(true);
           resolve();
         }
+
         try {
+          // Query the database for older messages in the chat
           const chatsRef = query(
             RTDBRef(Database, chatPath),
             orderByChild("createdAt"),
@@ -161,6 +168,7 @@ function useBaseMessaging(chatPath: string) {
             endBefore(createdAt)
           );
 
+          // Listen for the query results and append the older messages to the message list
           return firebaseOnValue(
             chatsRef,
             (snapshot) => {

@@ -1,6 +1,6 @@
 import React, {
   createContext,
-  ReactNode,
+  ReactElement,
   useCallback,
   useContext,
   useEffect,
@@ -17,47 +17,100 @@ import { User } from "firebase/auth";
 import { useHttpsCallable } from "react-firebase-hooks/functions";
 import { Notifications, useRealtimeData } from "./useRealtimeData";
 
-interface ICuttinboardContext {
+/**
+ * The `ICuttinboardContext` interface represents the context provided by the `CuttinboardProvider` component.
+ * It includes information about the current user and organization, as well as methods for selecting an organization location and accessing notifications.
+ */
+export interface ICuttinboardContext {
+  /**
+   * The current user.
+   */
   user: User;
+  /**
+   * The organization key for the current user, if any.
+   */
   organizationKey?: OrganizationKey;
-  selectLocation: (organizationId: string) => Promise<void>;
-  notifications?: Notifications;
+  /**
+   * A method for selecting an organization location for the current user.
+   * @param organizationId - The ID of the organization to select.
+   * @returns A promise that resolves when the organization location has been selected.
+   */
+  selectOrganizationLocation: (organizationId: string) => Promise<void>;
+  /**
+   * The notifications for the current user.
+   */
+  notifications: Notifications;
 }
 
+// Create the context
 const CuttinboardContext = createContext<ICuttinboardContext>(
   {} as ICuttinboardContext
 );
 
-interface CuttinboardProviderProps {
+/**
+ * The `ICuttinboardProviderProps` interface represents the props for the `CuttinboardProvider` component.
+ * It includes the children of the component, as well as components for rendering errors, loading, and no user.
+ */
+export interface ICuttinboardProviderProps {
+  /**
+   * The children of the component.
+   * This can be a React element or a function that returns a React element.
+   */
   children:
-    | ReactNode
+    | ReactElement
     | ((props: {
         user: User;
         organizationKey: OrganizationKey | null | undefined;
-      }) => JSX.Element);
-  ErrorComponent: (error: Error) => JSX.Element;
-  LoadingComponent: (loading: boolean) => JSX.Element;
-  NoUserComponent: JSX.Element;
+      }) => ReactElement);
+  /**
+   * A component for rendering errors.
+   * @param error - The error to render.
+   * @returns A React element to render the error.
+   */
+  ErrorRenderer: (error: Error) => ReactElement;
+  /**
+   * A component for rendering the loading state.
+   * @param loading - A flag indicating whether the component is in the loading state.
+   * @returns A React element to render the loading state.
+   */
+  LoadingRenderer: (loading: boolean) => ReactElement;
+  /**
+   * A component for rendering when there is no user.
+   */
+  NoUserRenderer: ReactElement;
 }
 
+/**
+ * The `StateType` type represents the state of the `CuttinboardProvider` component.
+ * It includes a flag indicating whether the component is initializing, the organization key for the current user, and any error that may have occurred.
+ */
 type StateType = {
+  /**
+   * A flag indicating whether the component is initializing.
+   */
   initializing: boolean;
+  /**
+   * The organization key for the current user, if any.
+   */
   organizationKey?: OrganizationKey;
-  error?: Error;
+  /**
+   * An error that may have occurred, if any.
+   */
+  error?: Error | null;
 };
 
 export const CuttinboardProvider = ({
   children,
-  ErrorComponent,
-  LoadingComponent,
-  NoUserComponent,
-}: CuttinboardProviderProps) => {
+  ErrorRenderer: ErrorComponent,
+  LoadingRenderer: LoadingComponent,
+  NoUserRenderer: NoUserComponent,
+}: ICuttinboardProviderProps) => {
   const [state, setState] = useState<StateType>({
     initializing: true,
   });
   const onUserChanged = useCallback(
-    async (lUser: User) => {
-      if (!lUser) {
+    async (user: User) => {
+      if (!user) {
         // If the user is not logged in, we don't need to load the credential
         setState({
           initializing: false,
@@ -69,18 +122,14 @@ export const CuttinboardProvider = ({
         // Load custom claims
         const {
           claims: { organizationKey: newOrgKey },
-        } = await lUser.getIdTokenResult();
+        } = await user.getIdTokenResult();
 
-        if (!newOrgKey) {
-          // If the user doesn't have a organizationKey, we don't need to load the credential
-          setState({
-            initializing: false,
-          });
-        } else if (!isEqual(newOrgKey, state.organizationKey)) {
-          // If the new organizationKey is different from the current one, we need to load the credential
+        // If the user doesn't have an organization key or the new key is different from the current one, we need to load the credential
+        if (newOrgKey && !isEqual(newOrgKey, state.organizationKey)) {
           setState({
             initializing: false,
             organizationKey: new OrganizationKey(newOrgKey),
+            error: null, // Set the error to null when there is no error.
           });
         }
       } catch (error) {
@@ -92,6 +141,7 @@ export const CuttinboardProvider = ({
     },
     [state]
   );
+
   const [user, loadingUser, userError] = useIdToken(Auth, {
     onUserChanged,
   });
@@ -106,29 +156,30 @@ export const CuttinboardProvider = ({
     user?.getIdToken(true);
   }, [userRealtimeData?.metadata?.refreshTime]);
 
-  const selectLocation = useCallback(
+  const selectOrganizationLocation = useCallback(
     async (organizationId: string) => {
-      if (!user) {
+      if (!user || state?.organizationKey?.orgId === organizationId) {
+        // If the user is not logged in or the organizationId is the same as the current one, we don't need to load the credential
+        if (user) {
+          // Update the user's token if the user is logged in.
+          await user.getIdToken(true);
+        }
         return;
       }
 
-      if (state?.organizationKey?.orgId === organizationId) {
-        // If the organizationId is the same as the current one, we don't need to load the credential but we need to update the user's token
-        await user.getIdToken(true);
-        return;
-      }
       const result = await selectOrganizationKey(organizationId);
       if (!result || !result.data.organizationKey) {
-        const error = new Error("Can't select the location.");
+        // If there is an error or the organization key is not found, set the error state and return.
         setState({
           initializing: false,
-          error,
+          error: new Error("Can't select the location."),
         });
         return;
       }
       setState({
         initializing: false,
         organizationKey: new OrganizationKey(result.data.organizationKey),
+        error: null, // Set the error to null when there is no error.
       });
     },
     [state, user]
@@ -151,8 +202,8 @@ export const CuttinboardProvider = ({
       value={{
         user,
         organizationKey: state.organizationKey,
-        selectLocation,
-        notifications: userRealtimeData?.notifications,
+        selectOrganizationLocation,
+        notifications: userRealtimeData?.notifications ?? ({} as Notifications),
       }}
     >
       {typeof children === "function"
@@ -165,6 +216,10 @@ export const CuttinboardProvider = ({
   );
 };
 
+/**
+ * The `useCuttinboard` hook returns the `CuttinboardContext` value.
+ * @returns The `ICuttinboardContext` for the current user.
+ */
 export const useCuttinboard = () => {
   const context = useContext(CuttinboardContext);
   if (context === undefined) {

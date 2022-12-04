@@ -1,3 +1,6 @@
+/**
+ * Access roles for an employee in an organization or a location.
+ */
 export enum RoleAccessLevels {
   /**
    * The owner of the organization.
@@ -17,7 +20,6 @@ export enum RoleAccessLevels {
   /**
    * Managers are intermediate level employees that have higher access than regular employees.
    * - They can do everything that regular employees can do, but they can also do some things that regular employees can't do.
-   *
    */
   MANAGER = 3,
   /**

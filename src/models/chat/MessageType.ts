@@ -1,8 +1,5 @@
 /**
- * @date 17/10/2022 - 0:59:06
- *
- * @export
- * @typedef {MessageType}
+ * Message type are used to determine how it should be rendered in the UI.
  */
 export type MessageType =
   | "system"

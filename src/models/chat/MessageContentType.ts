@@ -1,7 +1,4 @@
 /**
- * @date 17/10/2022 - 0:59:57
- *
- * @export
- * @typedef {MessageContentType}
+ * The content type of the message in case it is an attachment or a mediaUri
  */
 export type MessageContentType = "image" | "video" | "audio" | "file";

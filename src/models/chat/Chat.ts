@@ -12,6 +12,9 @@ import {
 } from "firebase/firestore";
 import { PrimaryFirestore } from "../PrimaryFirestore";
 
+/**
+ * Chat interface implemented by the Chat class.
+ */
 export interface IChat {
   muted?: string[];
   createdAt: Timestamp;
@@ -22,65 +25,48 @@ export interface IChat {
   recentMessage?: Timestamp;
 }
 
+/**
+ * Recipient of the chat.
+ */
 export type Recipient = { id: string; fullName: string; avatar?: string };
 
 /**
  * A Chat is a conversation between two users.
  * - A chat, (or Direct Message) is a global chat between two users independent of any location.
  * - To create a chat, you and the other user must be in the same organization.
- * @date 1/12/2022 - 18:55:36
- *
- * @export
- * @class Chat
- * @implements {IChat}
- * @implements {PrimaryFirestore}
  */
 export class Chat implements IChat, PrimaryFirestore {
+  /**
+   * The id of the chat.
+   */
   public readonly id: string;
+  /**
+   * The document reference of the chat.
+   */
   public readonly docRef: DocumentReference<DocumentData>;
   /**
    * The muted array contains the ids of users who have muted this chat.
-   * @date 1/12/2022 - 18:55:58
-   *
-   * @public
-   * @readonly
    */
   public readonly muted: string[] = [];
+  /**
+   * The timestamp of when the chat was created.
+   */
   public readonly createdAt: Timestamp;
   /**
-   * The members object contains the ids of the users in the chat as keys.
-   * @date 1/12/2022 - 18:56:19
-   *
-   * @public
-   * @readonly
+   * The members of the chat.
    */
-  public readonly members: {
-    [memberId: string]: { fullName: string; avatar?: string };
-  };
+  public readonly members: Record<string, Omit<Recipient, "id">>;
   /**
    * The recentMessage timestamp is updated whenever a new message is added to the chat.
-   * @date 1/12/2022 - 18:56:51
-   *
-   * @public
-   * @readonly
    */
   public readonly recentMessage?: Timestamp;
   /**
-   * Get the members list from the members object.
-   * @date 1/12/2022 - 18:57:03
-   *
-   * @public
-   * @readonly
+   * The membersList is an array of the ids of the members of the chat.
    */
   public readonly membersList: string[];
 
   /**
-   * This is the converter that is used to convert the data from firestore to the class.
-   * @date 1/12/2022 - 18:57:15
-   *
-   * @public
-   * @static
-   * @type {FirestoreDataConverter<Chat>}
+   * Convert a QueryDocumentSnapshot to a Chat instance.
    */
   public static Converter: FirestoreDataConverter<Chat> = {
     toFirestore(object: Chat): DocumentData {
@@ -97,10 +83,15 @@ export class Chat implements IChat, PrimaryFirestore {
     },
   };
 
-  constructor(
-    { muted, members, createdAt, recentMessage, membersList }: IChat,
-    { id, docRef }: PrimaryFirestore
-  ) {
+  /**
+   * Creates an instance of Chat.
+   * @param data - The data of the chat.
+   * @param firestoreBase - The firestore base of the chat.
+   */
+  constructor(data: IChat, firestoreBase: PrimaryFirestore) {
+    const { muted, members, createdAt, recentMessage, membersList } = data;
+    const { id, docRef } = firestoreBase;
+
     this.id = id;
     this.docRef = docRef;
     this.muted = muted ?? [];
@@ -113,11 +104,6 @@ export class Chat implements IChat, PrimaryFirestore {
   /**
    * - If we have a recent message, we can use its timestamp to sort the chats.
    * - If we don't have a recent message, we can use the createdAt timestamp.
-   * @date 1/12/2022 - 18:57:28
-   *
-   * @public
-   * @readonly
-   * @type {Date}
    */
   public get getOrderTime(): Date {
     return (this.recentMessage ?? this.createdAt).toDate();
@@ -125,11 +111,6 @@ export class Chat implements IChat, PrimaryFirestore {
 
   /**
    * Check if the current user has muted this chat.
-   * @date 1/12/2022 - 18:57:50
-   *
-   * @public
-   * @readonly
-   * @type {boolean}
    */
   public get isMuted(): boolean {
     if (!Auth.currentUser) {
@@ -142,11 +123,6 @@ export class Chat implements IChat, PrimaryFirestore {
    * Get the other user in the chat.
    * - This is useful for displaying the other user's name and avatar in the chat list.
    * - This is also useful for displaying the other user's name and avatar in the chat header.
-   * @date 1/12/2022 - 18:58:07
-   *
-   * @public
-   * @readonly
-   * @type {Recipient}
    */
   public get recipient(): Recipient {
     if (!Auth.currentUser) {
@@ -173,11 +149,6 @@ export class Chat implements IChat, PrimaryFirestore {
 
   /**
    * Change the muted status of the current user by adding or removing their id from the muted array.
-   * @date 1/12/2022 - 18:58:22
-   *
-   * @public
-   * @async
-   * @returns {Promise<void>}
    */
   public async toggleMuteChat(): Promise<void> {
     if (!Auth.currentUser) {

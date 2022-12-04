@@ -1,3 +1,6 @@
+/**
+ * Basic colors used in the app and their hex values.
+ */
 export const Colors = {
   // paper & background
   paper: "#ffffff",
@@ -48,11 +51,11 @@ export const Colors = {
   },
   MainDark: "#121432",
   MainBlue: "#2B7DE9",
-  SecundaryOnDark: "#C1BEBE",
+  SecondaryOnDark: "#C1BEBE",
   MainOnDark: "#FFFFFF",
   MainOnWhite: "#F7F7F7",
   MainBlack: "#000000",
-  SecundaryBlack: "#61657E",
+  SecondaryBlack: "#61657E",
   Green: {
     Main: "#68AEA0",
     Light: "#E3F5F0",
@@ -66,7 +69,12 @@ export const Colors = {
     Light: "#FDFCED",
   },
   Notes: "#FFFB99",
-  SecundaryOnWhite: "#C1BEBE",
+  SecondaryOnWhite: "#C1BEBE",
+  /**
+   * Calculates the contrast color for a given background color.
+   * @param hex - The hex value of the color.
+   * @returns The contrast color.
+   */
   CalculateContrast: (hex: string) => {
     const threshold = 130;
 

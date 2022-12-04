@@ -31,50 +31,120 @@ import { useCuttinboard } from "./Cuttinboard";
 import { FirebaseSignature, PrimaryFirestore } from "../models";
 import { uniq } from "lodash";
 
-interface ConversationsContextProps {
-  conversations?: Conversation[];
-  selectedConversation?: Conversation;
-  conversationId: string;
-  setConversationId: (convId: string) => void;
+/**
+ * The `ConversationsContextProps` interface defines the shape of the
+ * object that is passed to the `ConversationsContext` provider.
+ */
+export interface IConversationsContextProps {
+  /**
+   * An optional array of `Conversation` objects representing
+   * all of the conversations available in the current location.
+   */
+  allConversations?: Conversation[];
+  /**
+   * The current active conversation.
+   */
+  activeConversation?: Conversation;
+  /**
+   * The ID of the current active conversation.
+   */
+  activeConversationId: string;
+  /**
+   * A callback function that sets the active conversation ID.
+   * @param conversationId The ID of the conversation to select.
+   */
+  setActiveConversationId: (conversationId: string) => void;
+  /**
+   * A boolean value indicating whether the current user
+   * has permission to manage conversations.
+   */
   canManage: boolean;
+  /**
+   * A boolean value indicating whether the current user
+   * has permission to use conversations.
+   */
   canUse: boolean;
-  createConversation: (
+  /**
+   * A callback function that adds a new conversation with the given data.
+   * @param newConvData The data for the new conversation.
+   */
+  addConversation: (
     newConvData: Omit<IConversation, "locationId">
   ) => Promise<string>;
-  updateConversation: (
+  /**
+   * A callback function that updates the active conversation with the given updates.
+   * @param updates The updates to apply to the active conversation.
+   */
+  modifyConversation: (
     updates: PartialWithFieldValue<
       Pick<IConversation, "name" | "description" | "position">
     >
   ) => Promise<void>;
+  /**
+   * A boolean value indicating whether the component is currently loading data.
+   */
   loading: boolean;
+  /**
+   * An optional error object that contains information about any error that may have occurred.
+   */
   error?: Error;
 }
 
-const ConversationsContext = createContext<ConversationsContextProps>(
-  {} as ConversationsContextProps
+const ConversationsContext = createContext<IConversationsContextProps>(
+  {} as IConversationsContextProps
 );
 
+/**
+ * The `ConversationsProviderProps` interface defines the shape of the
+ * object that is passed to the `ConversationsProvider` component.
+ */
 interface ConversationsProviderProps {
+  /**
+   * The content to render inside the provider. This can
+   * either be a React node or a render callback that receives the loading state,
+   * error information, and conversations data as its arguments.
+   */
   children:
     | ReactNode
     | ((props: {
+        /**
+         * {@inheritDoc IConversationsContextProps.loading}
+         */
         loading: boolean;
+        /**
+         * {@inheritDoc IConversationsContextProps.error}
+         */
         error?: Error;
-        conversations?: Conversation[];
-        selectedConversation?: Conversation;
+        /**
+         * {@inheritDoc IConversationsContextProps.allConversations}
+         */
+        allConversations?: Conversation[];
+        /**
+         * {@inheritDoc IConversationsContextProps.activeConversation}
+         */
+        activeConversation?: Conversation;
       }) => JSX.Element);
+  /**
+   * A callback function that is called when an error occurs
+   * while loading or updating conversations.
+   */
   onError: (error: Error | FirestoreError) => void;
 }
 
+/**
+ * The `ConversationsProvider` is a React component that provides context for conversations and conversation management.
+ * It uses the `useCuttinboard` hook to get information about the current user, the `useEmployeesList` hook to get a list of employees at the current location,
+ * and the `useLocation` hook to get information about the current location.
+ */
 export function ConversationsProvider({
   children,
   onError,
 }: ConversationsProviderProps) {
-  const [conversationId, setConversationId] = useState("");
+  const [activeConversationId, setActiveConversationId] = useState("");
   const { user } = useCuttinboard();
   const { getEmployees } = useEmployeesList();
   const { location, locationAccessKey } = useLocation();
-  const [conversations, loading, error] = useCollectionData<Conversation>(
+  const [allConversations, loading, error] = useCollectionData<Conversation>(
     (locationAccessKey.role <= RoleAccessLevels.GENERAL_MANAGER
       ? query(
           collection(
@@ -98,56 +168,69 @@ export function ConversationsProvider({
     ).withConverter(Conversation.Converter)
   );
 
-  const selectedConversation = useMemo((): Conversation | undefined => {
-    if (!conversationId || !conversations) {
+  /**
+   * {@inheritDoc IConversationsContextProps.activeConversation}
+   */
+  const activeConversation = useMemo((): Conversation | undefined => {
+    if (!activeConversationId || !allConversations) {
       return undefined;
     }
-    return conversations.find(({ id }) => id === conversationId);
-  }, [conversationId, conversations]);
+    return allConversations.find(({ id }) => id === activeConversationId);
+  }, [activeConversationId, allConversations]);
 
+  /**
+   * {@inheritDoc IConversationsContextProps.canManage}
+   */
   const canManage = useMemo(() => {
     if (locationAccessKey.role <= RoleAccessLevels.GENERAL_MANAGER) {
       // General managers can manage all conversations
       return true;
     }
-    if (!selectedConversation) {
+    if (!activeConversation) {
       // If there is no selected conversation, then the user can't manage it
       return false;
     }
     // If the user is a manager and hosts the conversation, can manage it.
     return Boolean(
-      selectedConversation.iAmHost &&
+      activeConversation.iAmHost &&
         locationAccessKey.role <= RoleAccessLevels.MANAGER
     );
-  }, [user.uid, selectedConversation, locationAccessKey]);
+  }, [user.uid, activeConversation, locationAccessKey]);
 
+  /**
+   * {@inheritDoc IConversationsContextProps.canUse}
+   */
   const canUse = useMemo((): boolean => {
-    if (!selectedConversation) {
+    if (!activeConversation) {
       return false;
     }
-    return selectedConversation.iAmMember;
-  }, [user.uid, selectedConversation, location, locationAccessKey]);
+    return activeConversation.iAmMember;
+  }, [user.uid, activeConversation, location, locationAccessKey]);
 
-  const createConversation = useCallback(
+  /**
+   * {@inheritDoc IConversationsContextProps.addConversation}
+   */
+  const addConversation = useCallback(
     async (newConvData: Omit<IConversation, "locationId">) => {
-      const elementToAdd: PartialWithFieldValue<
+      const newConversationToAdd: PartialWithFieldValue<
         IConversation & PrimaryFirestore & FirebaseSignature
       > = {
         ...newConvData,
         createdAt: serverTimestamp(),
-        createdBy: user?.uid,
+        createdBy: user.uid,
         locationId: location.id,
       };
+      // Determine which employees should be added to the conversation members list.
+      let members: string[] = [];
       if (newConvData.privacyLevel === PrivacyLevel.PUBLIC) {
-        // If the conversation is public, we need to add all the employees to the members list
-        elementToAdd.members = getEmployees.map(({ id }) => id);
-      }
-      if (
+        // If the conversation is public, add all employees to the members list.
+        members = getEmployees.map(({ id }) => id);
+      } else if (
         newConvData.privacyLevel === PrivacyLevel.POSITIONS &&
         newConvData.position
       ) {
-        // If the conversation is position based, we need to add all the employees with that position to the members list
-        elementToAdd.members = getEmployees
+        // If the conversation is position-based, add only employees with the specified position to the members list.
+        members = getEmployees
           .filter((emp) =>
             newConvData.position
               ? emp.hasAnyPosition([newConvData.position])
@@ -155,8 +238,11 @@ export function ConversationsProvider({
           )
           .map(({ id }) => id);
       }
+      // Add the members to the element to add.
+      newConversationToAdd.members = members;
 
       try {
+        // Add the new conversation to the database.
         const newConvRef = await addDoc(
           collection(
             Firestore,
@@ -164,8 +250,9 @@ export function ConversationsProvider({
             location.organizationId,
             "conversations"
           ),
-          elementToAdd
+          newConversationToAdd
         );
+        // Create and add the first message to the conversation, which is the conversation creation message itself.
         await set(
           ref(
             Database,
@@ -187,22 +274,25 @@ export function ConversationsProvider({
     [location, getEmployees]
   );
 
-  const updateConversation = useCallback(
+  /**
+   * {@inheritDoc IConversationsContextProps.modifyConversation}
+   */
+  const modifyConversation = useCallback(
     async (
       updates: PartialWithFieldValue<
         Pick<IConversation, "name" | "description" | "position">
       >
     ) => {
-      if (!selectedConversation) {
+      if (!activeConversation) {
         return;
       }
 
       if (
-        selectedConversation.privacyLevel !== PrivacyLevel.POSITIONS || // If the conversation is not position based, we don't need to update the members list
+        activeConversation.privacyLevel !== PrivacyLevel.POSITIONS || // If the conversation is not position based, we don't need to update the members list
         !updates.position || // If the position is not being updated, we don't need to update the members list
-        updates.position === selectedConversation.position // If the position is not being changed, we don't need to update the members list
+        updates.position === activeConversation.position // If the position is not being changed, we don't need to update the members list
       ) {
-        await selectedConversation.update(updates);
+        await activeConversation.update(updates);
         return;
       }
 
@@ -215,44 +305,50 @@ export function ConversationsProvider({
         .filter((emp) => emp.hasAnyPosition([updates.position as string]))
         .map(({ id }) => id);
 
-      if (
-        selectedConversation.hosts &&
-        selectedConversation.hosts?.length > 0
-      ) {
+      if (activeConversation.hosts && activeConversation.hosts?.length > 0) {
         // If the conversation has hosts, we need to add them to the members list
         elementToUpdate.members = uniq([
           ...elementToUpdate.members,
-          ...selectedConversation.hosts,
+          ...activeConversation.hosts,
         ]);
       }
 
-      await selectedConversation.update(elementToUpdate);
+      await activeConversation.update(elementToUpdate);
     },
-    [location, getEmployees, selectedConversation]
+    [location, getEmployees, activeConversation]
   );
 
   return (
     <ConversationsContext.Provider
       value={{
-        conversations,
-        selectedConversation,
-        conversationId,
-        setConversationId,
+        allConversations,
+        activeConversation,
+        activeConversationId,
+        setActiveConversationId,
         canManage,
         canUse,
-        createConversation,
+        addConversation,
         loading,
         error,
-        updateConversation,
+        modifyConversation,
       }}
     >
       {typeof children === "function"
-        ? children({ loading, error, conversations, selectedConversation })
+        ? children({
+            loading,
+            error,
+            allConversations,
+            activeConversation,
+          })
         : children}
     </ConversationsContext.Provider>
   );
 }
 
+/**
+ * A hook to get the conversations context
+ * @returns The current conversations context
+ */
 export const useConversations = () => {
   const context = useContext(ConversationsContext);
   if (context === undefined) {

@@ -21,6 +21,9 @@ dayjs.extend(customParseFormat);
 dayjs.extend(duration);
 dayjs.extend(isBetween);
 
+/**
+ * Base interface implemented by Shift class.
+ */
 export interface IShift {
   start: string;
   end: string;
@@ -33,29 +36,102 @@ export interface IShift {
   updatedAt: Timestamp;
 }
 
+/**
+ * A class that represents a shift in the database.
+ */
 export class Shift implements IShift, PrimaryFirestore, FirebaseSignature {
+  /**
+   * Id of the shift
+   */
   public readonly id: string;
+  /**
+   * Document reference of the shift
+   */
   public readonly docRef: DocumentReference<DocumentData>;
+  /**
+   * Timestamp of when the shift was created
+   */
   public readonly createdAt: Timestamp;
+  /**
+   * Id of the user who created the shift
+   */
   public readonly createdBy: string;
+  /**
+   * Start date of the shift in string format
+   * - Format: `DD-MM-YYYY HH:mm` (e.g. 01-01-2021 12:00)
+   */
   public readonly start: string;
+  /**
+   * End date of the shift in string format
+   * - Format: `DD-MM-YYYY HH:mm` (e.g. 01-01-2021 12:00)
+   */
   public readonly end: string;
+  /**
+   * Position associated with the shift
+   */
   private readonly _position?: string;
+  /**
+   * Short notes about the shift
+   */
   private readonly _notes?: string;
+  /**
+   * Wage per hour of the shift
+   */
   private readonly _hourlyWage?: number;
+  /**
+   * The current status of the shift
+   * - `draft` - The shift is not published
+   * - `published` - The shift is published
+   */
   public readonly status: "draft" | "published";
+  /**
+   * An object containing the pending updates to the shift as a partial shift object.
+   */
   public readonly pendingUpdate?: Partial<IShift>;
+  /**
+   * True if the shift is marked for deletion.
+   */
   public readonly deleting?: boolean;
+  /**
+   * Timestamp of when the shift was last updated
+   */
   public readonly updatedAt: Timestamp;
+  /**
+   * Get the wage data of the shift
+   */
   private _wageData: {
+    /**
+     * Number of hours worked without overtime
+     */
     normalHours: number;
+    /**
+     * Number of overtime hours worked
+     */
     overtimeHours: number;
+    /**
+     * Total worked hours
+     * - `normalHours + overtimeHours`
+     */
     totalHours: number;
+    /**
+     * Wage for normal hours
+     */
     normalWage: number;
+    /**
+     * Wage for overtime hours
+     */
     overtimeWage: number;
+    /**
+     * Total wage
+     * - `normalWage + overtimeWage`
+     */
     totalWage: number;
   };
 
+  /**
+   * Get the base data of the shift independent of pending updates.
+   * - User to show the actual data in the UI. (My Shifts)
+   */
   public get origData() {
     return {
       start: dayjs(this.start, SHIFTFORMAT),
@@ -68,7 +144,6 @@ export class Shift implements IShift, PrimaryFirestore, FirebaseSignature {
   /**
    * Parses a string into a dayjs date
    * @param {string} date date string
-   * @returns {Dayjs} dayjs date
    */
   static toDate(date: string): Dayjs {
     return dayjs(date, SHIFTFORMAT);
@@ -77,12 +152,16 @@ export class Shift implements IShift, PrimaryFirestore, FirebaseSignature {
   /**
    * Converts a shift formatted Date to a string
    * @param {Date} date date to convert
-   * @returns {string} formatted date string
    */
   static toString(date: Date): string {
     return dayjs(date).format(SHIFTFORMAT);
   }
 
+  /**
+   * Creates an instance of Shift.
+   * @param data Data to create a shift from
+   * @param firestoreBase The id and docRef of the shift
+   */
   constructor(
     {
       start,
@@ -114,6 +193,9 @@ export class Shift implements IShift, PrimaryFirestore, FirebaseSignature {
     this.updatedAt = updatedAt;
   }
 
+  /**
+   * Get the position associated with the shift
+   */
   public get position(): string | undefined {
     if (this.hasPendingUpdates) {
       return this.pendingUpdate?.position ?? "";
@@ -121,6 +203,9 @@ export class Shift implements IShift, PrimaryFirestore, FirebaseSignature {
     return this._position;
   }
 
+  /**
+   * Get the notes associated with the shift
+   */
   public get notes(): string | undefined {
     if (this.hasPendingUpdates) {
       return this.pendingUpdate?.notes ?? "";
@@ -128,6 +213,9 @@ export class Shift implements IShift, PrimaryFirestore, FirebaseSignature {
     return this._notes;
   }
 
+  /**
+   * Wage per hour of the shift
+   */
   public get hourlyWage(): number {
     if (this.hasPendingUpdates) {
       return this.pendingUpdate?.hourlyWage ?? 0;
@@ -137,10 +225,6 @@ export class Shift implements IShift, PrimaryFirestore, FirebaseSignature {
 
   /**
    * Get the start date as a dayjs date
-   * @date 7/11/2022 - 0:27:19
-   *
-   * @public
-   * @readonly
    */
   public get getStartDayjsDate(): Dayjs {
     if (this.hasPendingUpdates && this.pendingUpdate?.start) {
@@ -152,10 +236,6 @@ export class Shift implements IShift, PrimaryFirestore, FirebaseSignature {
 
   /**
    * Get the end date as a dayjs date
-   * @date 7/11/2022 - 0:27:42
-   *
-   * @public
-   * @readonly
    */
   public get getEndDayjsDate(): Dayjs {
     if (this.hasPendingUpdates && this.pendingUpdate?.end) {
@@ -166,32 +246,20 @@ export class Shift implements IShift, PrimaryFirestore, FirebaseSignature {
 
   /**
    * Get ISO week number of the shift start date
-   * @date 7/11/2022 - 0:28:02
-   *
-   * @public
-   * @readonly
    */
   public get shiftIsoWeekday(): number {
     return this.getStartDayjsDate.isoWeekday();
   }
 
   /**
-   * Check if the shift has a pending update
-   * @date 7/11/2022 - 0:28:28
-   *
-   * @public
-   * @readonly
+   * True if the shift has a pending update
    */
   public get hasPendingUpdates(): boolean {
     return !isEmpty(this.pendingUpdate);
   }
 
   /**
-   * Get the duration of the shift in hours and minutes
-   * @date 7/11/2022 - 0:29:14
-   *
-   * @public
-   * @readonly
+   * Duration of the shift in hours and minutes
    */
   public get shiftDuration(): { totalHours: number; totalMinutes: number } {
     if (this.deleting) {
@@ -223,10 +291,6 @@ export class Shift implements IShift, PrimaryFirestore, FirebaseSignature {
 
   /**
    * Get the base wage for the shift based on the hourly wage and the duration of the shift
-   * @date 7/11/2022 - 0:44:42
-   *
-   * @public
-   * @readonly
    */
   public get getBaseWage(): number {
     if (this.deleting) {
@@ -239,9 +303,6 @@ export class Shift implements IShift, PrimaryFirestore, FirebaseSignature {
 
   /**
    * Get the wage data for the shift
-   * @date 7/11/2022 - 0:45:18
-   *
-   * @public
    */
   public get wageData(): {
     normalHours: number;
@@ -338,10 +399,6 @@ export class Shift implements IShift, PrimaryFirestore, FirebaseSignature {
 
   /**
    * Calculate the shift wage data based on the overtime settings
-   *
-   * @date 7/11/2022 - 0:49:33
-   *
-   * @public
    * @param {number} accumulatedHours - The accumulated hours from previous shifts in the week, set to 0 if you want to calculate the wage data for the current shift only or daily overtime
    * @param {number} hoursLimit - The overtime hours limit
    * @param {number} overtimeRateOfPay - The overtime rate of pay

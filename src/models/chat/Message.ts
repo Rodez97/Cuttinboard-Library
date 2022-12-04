@@ -7,6 +7,9 @@ import dayjs from "dayjs";
 import { ReplyRecipient } from "./ReplyRecipient";
 import { isEmpty, pickBy } from "lodash";
 
+/**
+ * Base interface implemented by Message class.
+ */
 export type IMessage<T extends number | object = number> = {
   message: string;
   createdAt: T;
@@ -24,28 +27,87 @@ export type IMessage<T extends number | object = number> = {
 
 /**
  * Chat Message
- * @date 17/10/2022 - 1:00:14
- *
- * @export
- * @class Message
- * @implements {IMessage}
  */
 export class Message implements IMessage {
+  /**
+   * The Id of the message
+   */
   public readonly id: string;
+  /**
+   * The message reference in Realtime Database
+   */
   public readonly messageRef: DatabaseReference;
+  /**
+   * Message content
+   */
   public message: string;
+  /**
+   * The time the message was created
+   */
   public createdAt: number;
+  /**
+   * The type of the message
+   */
   public type: "attachment" | "youtube" | "mediaUri" | "text" | "system";
+  /**
+   * The type of the system message
+   * - start: The first message of the chat
+   */
   public systemType: "start";
+  /**
+   * In case the message is a reply to another message, this property will contain the message that is being replied to.
+   */
   public replyTarget?: ReplyRecipient;
+  /**
+   * The sender of the message
+   */
   public sender: Sender;
+  /**
+   * Emoji reactions to the message
+   * - key: The user id of the user that reacted
+   * - value: The emoji that the user reacted with and the name of the user
+   * @example
+   * {
+   *  "123qwerty": { emoji: "👍", name: "John Doe"},
+   * }
+   */
   public reactions?: Record<string, { emoji: string; name: string }>;
+  /**
+   * The name of the location
+   * - This property is only used for notification purposes
+   */
   public locationName: string;
+  /**
+   * The users that have seen the message
+   * - key: The user id of the user that has seen the message
+   * - value: true
+   * @example
+   * {
+   *  "123qwerty": true,
+   * }
+   * @remarks
+   * This property is only used in 1-on-1 chats
+   */
   public seenBy?: Record<string, boolean>;
+  /**
+   * The attachment of the message (if any)
+   */
   public attachment: Attachment;
+  /**
+   * The content type of the message in case it is an attachment
+   */
   public contentType: MessageContentType;
+  /**
+   * The source url of the attachment if it is a mediaUri
+   */
   public sourceUrl: string;
 
+  /**
+   * Creates a new Message instance
+   * @param messageData The message data
+   * @param id The id of the message (The key of the message in Realtime Database)
+   * @param ref The message reference in Realtime Database
+   */
   constructor(
     {
       message,
@@ -80,6 +142,10 @@ export class Message implements IMessage {
     this.messageRef = ref;
   }
 
+  /**
+   * Extracts the data that we can use to reply to the message
+   * - This method is used to reply to a message
+   */
   public get toReplyData(): ReplyRecipient | null {
     const {
       message,
@@ -110,10 +176,16 @@ export class Message implements IMessage {
     return pickBy(object, (value) => value !== undefined) as ReplyRecipient;
   }
 
+  /**
+   * Gets the time the message was created in a dayjs instance
+   */
   public get createdAtDate() {
     return dayjs(this.createdAt);
   }
 
+  /**
+   * Check if the message has user reactions
+   */
   public get haveUserReaction() {
     if (!Auth.currentUser || !this.reactions || isEmpty(this.reactions)) {
       return false;
@@ -121,9 +193,15 @@ export class Message implements IMessage {
     return Boolean(this.reactions[Auth.currentUser.uid]);
   }
 
+  /**
+   * Adds a reaction to the message
+   * @param emoji The emoji to react with (e.g. "👍") (max 1 emoji)
+   * @remarks
+   * To remove a reaction, pass `undefined` as the emoji parameter or don't pass any parameter
+   */
   public async addReaction(emoji?: string) {
     if (!Auth.currentUser || !Auth.currentUser.displayName) {
-      return;
+      throw new Error("User is not authenticated");
     }
     const updates: { [key: string]: { emoji: string; name: string } | null } =
       {};
@@ -146,9 +224,14 @@ export class Message implements IMessage {
     }
   }
 
+  /**
+   * Updates the user that has seen the message
+   * @remarks
+   * This method is only used in 1-on-1 chats
+   */
   public async updateLastVisitedBy() {
     if (!Auth.currentUser) {
-      return;
+      throw new Error("User is not authenticated");
     }
     const updates: { [key: string]: true | null } = {};
     updates[`/seenBy/${Auth.currentUser.uid}`] = true;
@@ -159,10 +242,19 @@ export class Message implements IMessage {
     };
   }
 
+  /**
+   * Deletes the message
+   */
   public async delete() {
     await remove(this.messageRef);
   }
 
+  /**
+   * Updates the content of the message (Used when a message is edited from the database)
+   * @param newState The new state of the message
+   * @remarks
+   * This method is used internally
+   */
   public stateUpdate({
     message,
     createdAt,

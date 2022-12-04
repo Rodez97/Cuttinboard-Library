@@ -11,24 +11,31 @@ export interface ILocationKey {
 
 /**
  * The key for a specific location.
- * @property `locId` The id of the location.
- * @property `role` The role of the employee in the location.
- * @property `pos` The position of the employee in the location.
  */
 export class LocationKey {
+  /**
+   * The id of the location.
+   */
   public readonly locId: string;
+  /**
+   * The role of the employee in the location.
+   */
   public readonly role: RoleAccessLevels;
+  /**
+   * The positions of the employee in the location.
+   */
   public readonly pos?: string[];
 
   /**
-   * Creates an instance of LocationKey.
-   * Note: The positions are in the form of an array of strings,
+   * Creates a new instance of the LocationKey class.
+   * @param keyData The location key data.
+   * @remarks
+   * The positions are in the form of an array of strings,
    * but we get them from the organizationKey as a JSON string,
    * so we need to parse them.
-   * @constructor
-   * @param {ILocationKey} { locId, role, pos } The location key data.
    */
-  constructor({ locId, role, pos }: ILocationKey) {
+  constructor(keyData: ILocationKey) {
+    const { locId, role, pos } = keyData;
     this.locId = locId;
     this.role = role;
     // Parse the positions from the JSON string

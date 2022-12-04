@@ -74,7 +74,7 @@ export const LocationProvider = ({
   useEffect(() => {
     if (location) {
       // If the location exist and is loaded, we check if the user has access to it
-      const locKey = organizationKey.locationKey(locationId);
+      const locKey = organizationKey.getLocationKey(locationId);
       if (!locKey) {
         // If the user doesn't have access to the location, we set the error
         setState({

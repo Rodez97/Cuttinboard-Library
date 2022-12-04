@@ -1,0 +1,13 @@
+{
+  "groups": [
+    {
+      "title": "Documentation",
+      "pages": [
+        {
+          "title": "Access Tags usage in Cuttinboard Boards",
+          "source": "./custom_pages/AccessTags.MD"
+        }
+      ]
+    }
+  ]
+}

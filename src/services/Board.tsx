@@ -12,55 +12,106 @@ import { Board, IBoard } from "../models/modules/Board";
 import { useLocation } from "./Location";
 import { useCuttinboard } from "./Cuttinboard";
 
-export interface BoardProviderProps {
+export interface IBoardProviderProps {
+  /**
+   * The reference to the board collection
+   */
   baseRef: CollectionReference;
+  /**
+   * The Children to render.
+   * - Can be a function.
+   * - Can be a ReactNode.
+   * @example
+   * ```tsx
+   * <BoardProvider baseRef={baseRef}>
+   *  {({loading, error, boards, selectedBoard}) => (<div>{selectedBoard.name}</div>)}
+   * </BoardProvider>
+   * ```
+   */
   children:
     | ReactNode
     | ((props: {
+        /**
+         * Whether the data is loading
+         */
         loading: boolean;
+        /**
+         * The error if there is one
+         */
         error?: Error;
+        /**
+         * The boards that are available
+         */
         boards?: Board[];
+        /**
+         * The selected board if there is one
+         */
         selectedBoard?: Board;
       }) => JSX.Element);
 }
 
-export interface BoardProviderContext {
+/**
+ * The Board Provider Context
+ */
+export interface IBoardProviderContext {
   /**
-   * The currently selected board
+   * The selected board, or undefined if not found.
    */
   selectedBoard?: Board;
   /**
    * Selects a board by its ID
-   * @param board
+   * @param id The ID of the board to select
    */
   selectBoard: (id: string) => void;
   /**
-   * Creates a new board.
-   * @returns The newly created board Id.
+   * The addNewBoard function is used to add a new board to a database, and return its ID.
+   * @param newBoardData The data for the new board.
+   * @returns The ID of the newly added board.
+   * @remarks
+   * If the privacyLevel of the new board is set to PUBLIC, the function also adds the "pl_public" access tag to the elementToAdd object.
+   * @example
+   * ```tsx
+   * const newBoardId = await addNewBoard({
+   *  name: "New Board",
+   *  privacyLevel: PrivacyLevel.PRIVATE,
+   * });
+   * ```
    */
-  newBoard: (boardData: Omit<IBoard, "locationId">) => Promise<string>;
+  addNewBoard: (newBoardData: Omit<IBoard, "locationId">) => Promise<string>;
   /**
    * The list of boards
    */
   boards?: Board[];
   /**
-   * True if the user can manage boards
+   * Whether the current user has the ability to manage the selected board.
    */
-  canManage: boolean;
-
+  canManageBoard: boolean;
+  /**
+   * Whether the data is loading
+   */
   loading: boolean;
+  /**
+   * The error if there is one
+   */
   error?: Error;
 }
 
-export const BoardContext = React.createContext<BoardProviderContext>(
-  {} as BoardProviderContext
+/**
+ * The Board Provider Context that is used to select a board and create new boards.
+ */
+export const BoardContext = React.createContext<IBoardProviderContext>(
+  {} as IBoardProviderContext
 );
 
-export function BoardProvider({ children, baseRef }: BoardProviderProps) {
+/**
+ * The Board Provider
+ * @param props The props for the board provider component.
+ * @returns A React Component that provides the board context.
+ */
+export function BoardProvider({ children, baseRef }: IBoardProviderProps) {
   const [selectedBoardId, selectBoard] = useState("");
   const { user } = useCuttinboard();
   const { locationAccessKey, location } = useLocation();
-
   const [boards, loading, error] = useCollectionData<Board>(
     (locationAccessKey.role <= RoleAccessLevels.GENERAL_MANAGER
       ? query(baseRef, where(`locationId`, "==", location.id))
@@ -77,6 +128,9 @@ export function BoardProvider({ children, baseRef }: BoardProviderProps) {
     ).withConverter(Board.Converter)
   );
 
+  /**
+   * The selected board, or undefined if not found.
+   */
   const selectedBoard = useMemo(
     () =>
       boards && selectedBoardId
@@ -85,21 +139,29 @@ export function BoardProvider({ children, baseRef }: BoardProviderProps) {
     [selectedBoardId, boards]
   );
 
-  const newBoard = async (newApp: Omit<IBoard, "locationId">) => {
+  /**
+   * {@inheritdoc IBoardProviderContext.addNewBoard}
+   */
+  const addNewBoard = async (
+    newBoardData: Omit<IBoard, "locationId">
+  ): Promise<string> => {
     const elementToAdd = {
-      ...newApp,
+      ...newBoardData,
       createdAt: serverTimestamp(),
       createdBy: user.uid,
       locationId: location.id,
     };
-    if (newApp.privacyLevel === PrivacyLevel.PUBLIC) {
+    if (newBoardData.privacyLevel === PrivacyLevel.PUBLIC) {
       elementToAdd.accessTags = ["pl_public"];
     }
     const newModuleRef = await addDoc(baseRef, elementToAdd);
     return newModuleRef.id;
   };
 
-  const canManage = useMemo(() => {
+  /**
+   * {@inheritdoc IBoardProviderContext.canManageBoard}
+   */
+  const canManageBoard = useMemo(() => {
     if (locationAccessKey.role <= RoleAccessLevels.GENERAL_MANAGER) {
       return true;
     }
@@ -118,10 +180,10 @@ export function BoardProvider({ children, baseRef }: BoardProviderProps) {
         selectedBoard,
         selectBoard,
         boards,
-        canManage,
+        canManageBoard,
         loading,
         error,
-        newBoard,
+        addNewBoard,
       }}
     >
       {typeof children === "function"
@@ -136,6 +198,10 @@ export function BoardProvider({ children, baseRef }: BoardProviderProps) {
   );
 }
 
+/**
+ * A hook that returns the board context
+ * @returns The Board Context
+ */
 export const useBoard = () => {
   const context = useContext(BoardContext);
   if (context === undefined) {

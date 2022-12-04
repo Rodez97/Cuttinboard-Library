@@ -1,7 +1,6 @@
 export * from "./auth";
 export * from "./billing";
 export * from "./chat";
-export * from "./CuttinboardError";
 export * from "./auth/CuttinboardUser";
 export * from "./Employee";
 export * from "./EmployeeLocation";

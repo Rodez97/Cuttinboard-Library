@@ -14,6 +14,9 @@ import { deleteObject, getDownloadURL, ref } from "firebase/storage";
 import { FirebaseSignature } from "../FirebaseSignature";
 import { PrimaryFirestore } from "../PrimaryFirestore";
 
+/**
+ * Base interface implemented by [Cuttinboard_File] class.
+ */
 export interface ICuttinboard_File {
   name: string;
   storagePath: string;
@@ -21,19 +24,58 @@ export interface ICuttinboard_File {
   size: number;
 }
 
+/**
+ * A class that represents a file uploaded to cloud storage from a Files Drawer.
+ */
 export class Cuttinboard_File
   implements ICuttinboard_File, PrimaryFirestore, FirebaseSignature
 {
+  /**
+   * The mutable name of the file.
+   */
   public readonly name: string;
+  /**
+   * The path to the file in cloud storage.
+   */
   public readonly storagePath: string;
+  /**
+   * The mime type of the file.
+   * @see https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/MIME_types
+   */
   public readonly fileType: string;
+  /**
+   * The size of the file in bytes.
+   * @see https://developer.mozilla.org/en-US/docs/Web/API/File/size
+   * @remarks
+   * This is a read-only property.
+   */
   public readonly size: number;
+  /**
+   * The id of the document in firestore.
+   */
   public readonly id: string;
+  /**
+   * The document reference for this file in firestore.
+   */
   public readonly docRef: DocumentReference<DocumentData>;
+  /**
+   * The timestamp of when this file was created
+   */
   public readonly createdAt: Timestamp;
+  /**
+   * The id of the user who uploaded this file
+   */
   public readonly createdBy: string;
+  /**
+   * The download URL for this file
+   * @remarks
+   * This is obtained from storage and is cached here.
+   */
   private downloadUrl?: string;
 
+  /**
+   * Converts a firestore document snapshot to a [Cuttinboard_File] instance
+   */
   public static Converter: FirestoreDataConverter<Cuttinboard_File> = {
     toFirestore(object: WithFieldValue<Cuttinboard_File>): DocumentData {
       const { docRef, id, ...objectToSave } = object;
@@ -49,6 +91,11 @@ export class Cuttinboard_File
     },
   };
 
+  /**
+   * Creates a new [Cuttinboard_File] instance
+   * @param data The data to create this file with
+   * @param firestoreBase The id and document reference for this file in firestore
+   */
   constructor(
     {
       name,
@@ -79,7 +126,8 @@ export class Cuttinboard_File
 
   /**
    * Returns the download URL for this file
-   * @returns The download URL for this file
+   * @remarks
+   * This is cached in the [downloadUrl] property.
    */
   public async getUrl() {
     if (this.downloadUrl) {

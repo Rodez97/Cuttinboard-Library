@@ -11,36 +11,74 @@ import {
 } from "firebase/firestore";
 import { composeMessage } from "./composeMessage";
 import useBaseMessaging from "./useBaseMessaging";
+import { Attachment } from "../models";
 
-interface DirectMessagesContextProps {
-  fetchOlderMessages: () => Promise<void>;
+/**
+ * The props for the Direct Messages context.
+ */
+export interface IDirectMessagesContextProps {
+  /**
+   * A function that fetches previous messages from the current conversation.
+   */
+  fetchPreviousMessages: () => Promise<void>;
+  /**
+   * An array of `Message` objects representing all of the messages in the current conversation.
+   */
   allMessages?: Message[];
-  noMoreMessages: boolean;
-  sendMessage: (
-    messageTxt: string,
+  /**
+   * A boolean indicating whether there are no more messages to fetch in the current conversation.
+   */
+  hasNoMoreMessages: boolean;
+  /**
+   * A function that submits a new message to the current conversation.
+   * @param messageText - The text of the message.
+   * @param replyTargetMessage - The message that the new message is replying to, or null if it is not a reply.
+   * @param attachment - An optional attachment for the message.
+   * @returns A promise that resolves when the message has been submitted.
+   */
+  submitMessage: (
+    messageText: string,
     replyTargetMessage: Message | null,
-    attachment?: {
-      downloadUrl: string;
-      fileName: string;
-      mimeType: string;
-      storageSourcePath: string;
-    }
+    attachment?: Attachment
   ) => Promise<void>;
-  loading: boolean;
+  /**
+   * A boolean indicating whether the context is currently loading data.
+   */
+  isLoading: boolean;
+  /**
+   * An optional error that occurred during a previous operation in the context.
+   */
   error?: Error;
-  getAttachmentRefPath: (fileName: string) => string;
+  /**
+   * A function that returns the file path for a given attachment file name.
+   * @param fileName - The name of the attachment file.
+   * @returns The file path for the attachment.
+   */
+  getAttachmentFilePath: (fileName: string) => string;
 }
 
-const DirectMessagesContext = React.createContext<DirectMessagesContextProps>(
-  {} as DirectMessagesContextProps
+const DirectMessagesContext = React.createContext<IDirectMessagesContextProps>(
+  {} as IDirectMessagesContextProps
 );
 
+/**
+ * A component that provides the Direct Messages context.
+ */
 export function DirectMessagesProvider({
   children,
   chatId,
 }: {
+  /**
+   * The children of the component.
+   */
   children: ReactNode;
+  /**
+   * The ID of the chat that the context is for.
+   */
   chatId: string;
+  /**
+   * The IDs of the users that are in the chat.
+   */
   members: string[];
 }) {
   const { user } = useCuttinboard();
@@ -52,16 +90,11 @@ export function DirectMessagesProvider({
     allMessages,
   } = useBaseMessaging(`directMessages/${chatId}`);
 
-  const sendMessage = useCallback(
+  const submitMessage = useCallback(
     async (
       messageTxt: string,
       replyTargetMessage: Message | null,
-      attachment?: {
-        downloadUrl: string;
-        fileName: string;
-        mimeType: string;
-        storageSourcePath: string;
-      }
+      attachment?: Attachment
     ) => {
       if (!user || !user.displayName) {
         throw new Error("User is not logged in");
@@ -77,8 +110,7 @@ export function DirectMessagesProvider({
       };
 
       if (attachment) {
-        const { downloadUrl, fileName, mimeType, storageSourcePath } =
-          attachment;
+        const { uri, fileName, mimeType, storageSourcePath } = attachment;
         msg.type = "attachment";
         if (mimeType.includes("image")) {
           msg.contentType = "image";
@@ -93,7 +125,7 @@ export function DirectMessagesProvider({
           mimeType,
           fileName,
           storageSourcePath,
-          uri: downloadUrl,
+          uri,
         };
       }
 
@@ -116,13 +148,13 @@ export function DirectMessagesProvider({
   return (
     <DirectMessagesContext.Provider
       value={{
-        fetchOlderMessages,
+        fetchPreviousMessages: fetchOlderMessages,
         allMessages,
-        noMoreMessages,
-        sendMessage,
-        loading: messages.loading,
+        hasNoMoreMessages: noMoreMessages,
+        submitMessage,
+        isLoading: messages.loading,
         error: messages.error,
-        getAttachmentRefPath,
+        getAttachmentFilePath: getAttachmentRefPath,
       }}
     >
       {children}

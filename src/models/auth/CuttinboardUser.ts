@@ -9,6 +9,15 @@ import {
 import { PrimaryFirestore } from "../PrimaryFirestore";
 
 /**
+ * Emergency Contact is an additional contact that can be added to a user's profile.
+ * - This is used to notify a user's emergency contact in the event of an emergency.
+ */
+export type EmergencyContact = {
+  name?: string;
+  phoneNumber: string;
+};
+
+/**
  * The CuttinboardUser interface implemented by the CuttinboardUser class.
  */
 export interface ICuttinboardUser {
@@ -24,51 +33,82 @@ export interface ICuttinboardUser {
   paymentMethods?: string[];
   organizations?: string[];
   preferredName?: string;
-  emergencyContact?: { name?: string; phoneNumber: string };
+  emergencyContact?: EmergencyContact;
   contactComments?: string;
 }
 
 /**
  * A CuttinboardUser is the base user model for Cuttinboard.
- * @constructor
- * @param data The data to create the CuttinboardUser with.
- * @param firestoreBase (id, docRef) - The firestore data for the user.
- *
- * @property `id` The id of the user.
- * @property `docRef` The document reference for the user.
- * @property `avatar` The avatar of the user.
- * @property `name` The name of the user.
- * @property `lastName` The last name of the user.
- * @property `email` The email of the user.
- * @property `phoneNumber` The phone number of the user.
- * @property `userDocuments` The documents uploaded by the user. A record of the document id and the storage path.
- * @property `birthDate` The birth date of the user. (We don't need to use this, but it's here for future use.)
- * @property `customerId` The Stripe customer id of the user in case they have or have had a subscription to cuttinboard.
- * @property `subscriptionId` The subscription id of the user in case they have a subscription to the owner plan.
- * @property `paymentMethods` The payment methods of the user. This is an array of payment method ids from Stripe.
- * @property `organizations` The organizations the user is a part of. This is an array of organization ids.
- * @property `preferredName` The preferred name of the user. This is used for contact purposes and is not required.
- * @property `emergencyContact` The emergency contact of the user. This is used for contact purposes and is not required.
- * @property `contactComments` The contact comments of the user. This is used for contact purposes and is not required.
  */
 export class CuttinboardUser implements ICuttinboardUser, PrimaryFirestore {
+  /**
+   * The id of the user.
+   */
   public readonly id: string;
+  /**
+   * The document reference for the user.
+   */
   public readonly docRef: DocumentReference<DocumentData>;
+  /**
+   * The avatar of the user.
+   */
   public readonly avatar?: string;
+  /**
+   * The name of the user.
+   */
   public readonly name: string;
+  /**
+   * The last name of the user.
+   */
   public readonly lastName: string;
+  /**
+   * The email of the user.
+   */
   public readonly email: string;
+  /**
+   * The phone number of the user.
+   */
   public readonly phoneNumber?: string;
+  /**
+   * The documents uploaded by the user. A record of the document id and the storage path.
+   */
   public readonly userDocuments?: Record<string, string>;
+  /**
+   * The birth date of the user. (We don't need to use this, but it's here for future use.)
+   */
   public readonly birthDate?: Timestamp;
+  /**
+   * The Stripe customer id of the user in case they have or have had a subscription to cuttinboard.
+   */
   public readonly customerId?: string;
+  /**
+   * The subscription id of the user in case they have a subscription to the owner plan.
+   */
   public readonly subscriptionId?: string;
+  /**
+   * The payment methods of the user. This is an array of payment method ids from Stripe.
+   */
   public readonly paymentMethods?: string[];
+  /**
+   * The organizations the user is a part of. This is an array of organization ids.
+   */
   public readonly organizations?: string[];
+  /**
+   * The preferred name of the user. This is used for contact purposes and is not required.
+   */
   public readonly preferredName?: string;
-  public readonly emergencyContact?: { name?: string; phoneNumber: string };
+  /**
+   * The emergency contact of the user. This is used for contact purposes and is not required.
+   */
+  public readonly emergencyContact?: EmergencyContact;
+  /**
+   * The contact comments of the user. This is used for contact purposes and is not required.
+   */
   public readonly contactComments?: string;
 
+  /**
+   * Converts a QueryDocumentSnapshot to a CuttinboardUser from the firestore database.
+   */
   public static Converter: FirestoreDataConverter<CuttinboardUser> = {
     toFirestore(object: CuttinboardUser): DocumentData {
       const { docRef, id, ...objectToSave } = object;
@@ -84,6 +124,11 @@ export class CuttinboardUser implements ICuttinboardUser, PrimaryFirestore {
     },
   };
 
+  /**
+   * Creates a new instance of the CuttinboardUser class.
+   * @param data The data to create the CuttinboardUser with.
+   * @param firestoreBase (id, docRef) - The firestore data for the user.
+   */
   constructor(
     {
       avatar,

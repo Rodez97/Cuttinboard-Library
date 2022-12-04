@@ -13,17 +13,34 @@ import { useSignInWithEmailAndPassword } from "react-firebase-hooks/auth";
 import { useHttpsCallable } from "react-firebase-hooks/functions";
 import { Auth, Firestore, Functions } from "../firebase";
 
-type RegisterProps = {
+/**
+ * Data used to register a new user.
+ */
+export type RegisterProps = {
+  /**
+   * The user's first name.
+   */
   name: string;
+  /**
+   * The user's last name.
+   */
   lastName: string;
+  /**
+   * The user's email address.
+   */
   email: string;
+  /**
+   * The user's password.
+   */
   password: string;
 };
 
-type useRegisterUserType = {
+/**
+ * This is a custom Hook for registering a new user with email and password. If the user is successfully created, the user will be signed in.
+ */
+export const useRegisterUser = (): {
   /**
-   * Register a new user with email and password.
-   * - If the user is successfully created, the user will be signed in.
+   * A function for registering a new user with the provided registerData. The function returns a promise that resolves with the user's credentials, if the registration is successful.
    * @param {RegisterProps} registerData - The data to register the user with.
    * @returns {Promise<UserCredential | undefined>} - The user credential of the newly created user.
    */
@@ -31,25 +48,18 @@ type useRegisterUserType = {
     registerData: RegisterProps
   ) => Promise<UserCredential | undefined>;
   /**
-   * The submission status of the register operation.
+   * A boolean indicating whether the register operation is currently in progress.
    */
   submitting: boolean;
   /**
-   * If the register operation failed, this will contain the error details.
+   * An error object containing details about any error that occurred during the register operation.
    */
   error: Error | AuthError | undefined;
   /**
-   * If the register operation succeeded, this will contain the user's credentials.
+   * An object containing the user's credentials, if the register operation was successful.
    */
   user: UserCredential | undefined;
-};
-
-/**
- * Register a new user with email and password.
- * - If the user is successfully created, the user will be signed in.
- * @returns {useRegisterUserType} - The register user hook.
- */
-export const useRegisterUser = (): useRegisterUserType => {
+} => {
   const [registerCuttinboardUser, isSubmitting, signUpError] = useHttpsCallable<
     RegisterProps,
     string
@@ -72,21 +82,63 @@ export const useRegisterUser = (): useRegisterUserType => {
   };
 };
 
-type ProfileUpdate = {
+/**
+ * An object representing a user's profile information.
+ */
+export type ProfileUpdate = {
+  /**
+   * The user's first name.
+   */
   name: string;
+  /**
+   * The user's last name.
+   */
   lastName: string;
+  /**
+   * The user's birth date.
+   */
   birthDate?: Timestamp;
+  /**
+   * The URL of the user's avatar.
+   */
   avatar?: string;
 };
 
-type ContactUpdate = {
+/**
+ * An object representing a user's contact information.
+ */
+export type ContactUpdate = {
+  /**
+   * The user's phone number.
+   */
   phoneNumber?: string;
+  /**
+   * The user's preferred name.
+   */
   preferredName?: string;
-  emergencyContact?: { name?: string; phoneNumber?: string };
+  /**
+   * The user's emergency contact information.
+   */
+  emergencyContact?: {
+    /**
+     * The emergency contact's name.
+     */
+    name?: string;
+    /**
+     * The emergency contact's phone number.
+     */
+    phoneNumber?: string;
+  };
+  /**
+   * Additional comments about the user's contact information.
+   */
   contactComments?: string;
 };
 
-type useUpdateCuttinboardAccountType = {
+/**
+ * This code defines a custom Hook named useUpdateCuttinboardAccount that provides a function updateUserProfile that updates a user's profile and contact information in a database. The Hook also provides state variables updating and error that can be used to track the submission status and any errors that occurred during the update process.
+ */
+export const useUpdateCuttinboardAccount = (): {
   /**
    * Update the user's profile and contact information.
    * @param profileUpdate The user's profile information.
@@ -105,75 +157,75 @@ type useUpdateCuttinboardAccountType = {
    * If the update operation failed, this will contain the error details.
    */
   error: Error | null;
+} => {
+  const [updating, setUpdating] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  const updateUserProfile = async (
+    newProfileData: ProfileUpdate | null,
+    newContactData: Partial<ContactUpdate> | null
+  ) => {
+    if (isEmpty(newProfileData) && isEmpty(newContactData)) {
+      setError(new Error("No data to update."));
+      return;
+    }
+    if (!Auth.currentUser) {
+      setError(new Error("No user is currently signed in."));
+      return;
+    }
+
+    try {
+      setUpdating(true);
+      if (newProfileData) {
+        const { name, lastName, avatar } = newProfileData;
+        const fullName = `${name} ${lastName}`;
+
+        const updates: { displayName?: string; photoURL?: string } = {};
+
+        if (fullName !== Auth.currentUser.displayName) {
+          // If the user's name has changed, update the display name.
+          updates.displayName = fullName;
+        }
+
+        if (avatar !== Auth.currentUser.photoURL) {
+          // If the user's avatar has changed, update the photo URL.
+          updates.photoURL = avatar;
+        }
+
+        if (!isEmpty(updates)) {
+          // If there are any updates to the user's profile, update them.
+          await updateProfile(Auth.currentUser, updates);
+        }
+      }
+
+      // Update the user's contact information.
+      await setDoc(
+        doc(Firestore, "Users", Auth.currentUser.uid),
+        { ...newProfileData, ...newContactData },
+        { merge: true }
+      );
+    } catch (error) {
+      setError(error);
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  return {
+    updateUserProfile,
+    updating,
+    error,
+  };
 };
 
 /**
- * Update the user's profile and contact information.
- * @returns {useUpdateCuttinboardAccountType} The update operation status and error.
+ * Hook for deleting a user's account.
+ *
+ * @returns An object with a `deleteAccount` function for deleting the user's
+ * account, a `deleting` boolean indicating the status of the delete operation,
+ * and an `error` property that will be non-null if the delete operation fails.
  */
-export const useUpdateCuttinboardAccount =
-  (): useUpdateCuttinboardAccountType => {
-    const [updating, setUpdating] = useState(false);
-    const [error, setError] = useState<Error | null>(null);
-
-    const updateUserProfile = async (
-      newProfileData: ProfileUpdate | null,
-      newContactData: Partial<ContactUpdate> | null
-    ) => {
-      if (isEmpty(newProfileData) && isEmpty(newContactData)) {
-        setError(new Error("No data to update."));
-        return;
-      }
-      if (!Auth.currentUser) {
-        setError(new Error("No user is currently signed in."));
-        return;
-      }
-
-      try {
-        setUpdating(true);
-        if (newProfileData) {
-          const { name, lastName, avatar } = newProfileData;
-          const fullName = `${name} ${lastName}`;
-
-          const updates: { displayName?: string; photoURL?: string } = {};
-
-          if (fullName !== Auth.currentUser.displayName) {
-            // If the user's name has changed, update the display name.
-            updates.displayName = fullName;
-          }
-
-          if (avatar !== Auth.currentUser.photoURL) {
-            // If the user's avatar has changed, update the photo URL.
-            updates.photoURL = avatar;
-          }
-
-          if (!isEmpty(updates)) {
-            // If there are any updates to the user's profile, update them.
-            await updateProfile(Auth.currentUser, updates);
-          }
-        }
-
-        // Update the user's contact information.
-        await setDoc(
-          doc(Firestore, "Users", Auth.currentUser.uid),
-          { ...newProfileData, ...newContactData },
-          { merge: true }
-        );
-      } catch (error) {
-        setError(error);
-      } finally {
-        setUpdating(false);
-      }
-    };
-
-    return {
-      updateUserProfile,
-      updating,
-      error,
-    };
-  };
-
-type useDeleteCuttinboardAccountType = {
+export const useDeleteCuttinboardAccount = (): {
   /**
    * Delete the current user's account.
    * - If the user is successfully deleted, the user will be signed out.
@@ -190,47 +242,39 @@ type useDeleteCuttinboardAccountType = {
    * If the delete operation failed, this will contain the error details.
    */
   error: Error | null;
-};
+} => {
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
 
-/**
- * Hook that will help us to delete the current user's account.
- * - If the user is successfully deleted, the user will be signed out.
- * - We need to reauthenticate the user before deleting the account to prevent unauthorized deletion.
- * #### For a user to be able to delete their account, they must not be OWNER or have any organization pending to be deleted.
- * @returns {useDeleteCuttinboardAccountType} The delete operation status and error.
- */
-export const useDeleteCuttinboardAccount =
-  (): useDeleteCuttinboardAccountType => {
-    const [deleting, setDeleting] = useState(false);
-    const [error, setError] = useState<Error | null>(null);
+  const deleteAccount = async (password: string) => {
+    if (!Auth.currentUser || !Auth.currentUser.email) {
+      throw new Error("There is no user logged in");
+    }
 
-    const deleteAccount = async (password: string) => {
-      if (!Auth.currentUser || !Auth.currentUser.email) {
-        throw new Error("There is no user logged in");
-      }
+    try {
       setDeleting(true);
       setError(null);
-      try {
-        // Check if have an organization
-        const org = await getDoc(
-          doc(Firestore, "Organizations", Auth.currentUser.uid)
+      // Check if user is the owner of an organization
+      const org = await getDoc(
+        doc(Firestore, "Organizations", Auth.currentUser.uid)
+      );
+      if (org.exists()) {
+        throw new Error(
+          "You can't delete your account because you are an Owner."
         );
-        if (org.exists()) {
-          throw new Error(
-            "You can't delete your account because you are an Owner."
-          );
-        }
-        const credential = EmailAuthProvider.credential(
-          Auth.currentUser.email,
-          password
-        );
-        await reauthenticateWithCredential(Auth.currentUser, credential);
-        await deleteUser(Auth.currentUser);
-      } catch (error) {
-        setError(error);
       }
+      const credential = EmailAuthProvider.credential(
+        Auth.currentUser.email,
+        password
+      );
+      await reauthenticateWithCredential(Auth.currentUser, credential);
+      await deleteUser(Auth.currentUser);
+    } catch (error) {
+      setError(error);
+    } finally {
       setDeleting(false);
-    };
-
-    return { deleteAccount, deleting, error };
+    }
   };
+
+  return { deleteAccount, deleting, error };
+};

@@ -210,22 +210,26 @@ export function ScheduleProvider({ children, onError }: ScheduleProviderProps) {
 
   // Initialize EmployeeShifts Collection with schedule settings
   const employeeShiftsCollection = useMemo(() => {
-    let initializedCollection: EmployeeShifts[] = [];
-
     if (
       loading ||
       shiftsCollectionLoading ||
       scheduleDocumentLoading ||
       !employeeShiftsCollectionRaw
     ) {
-      return initializedCollection;
+      return [];
     }
 
+    // We initialize the collection with the default values
+    let initializedCollection = employeeShiftsCollectionRaw.map((shift) => {
+      shift.calculateWageData();
+      return shift;
+    });
+
     if (scheduleSettingsData) {
-      const { ot_day, ot_week } = scheduleSettingsData;
-      if (ot_week.enabled) {
-        const { hours, multiplier } = ot_week;
-        initializedCollection = employeeShiftsCollectionRaw?.map((shift) => {
+      // We check if the overtime settings are enabled
+      if (scheduleSettingsData.ot_week.enabled) {
+        const { hours, multiplier } = scheduleSettingsData.ot_week;
+        initializedCollection = employeeShiftsCollectionRaw.map((shift) => {
           shift.calculateWageData({
             mode: "weekly",
             hoursLimit: hours,
@@ -233,9 +237,9 @@ export function ScheduleProvider({ children, onError }: ScheduleProviderProps) {
           });
           return shift;
         });
-      } else if (ot_day.enabled) {
-        const { hours, multiplier } = ot_day;
-        initializedCollection = employeeShiftsCollectionRaw?.map((shift) => {
+      } else if (scheduleSettingsData.ot_day.enabled) {
+        const { hours, multiplier } = scheduleSettingsData.ot_day;
+        initializedCollection = employeeShiftsCollectionRaw.map((shift) => {
           shift.calculateWageData({
             mode: "daily",
             hoursLimit: hours,
@@ -243,18 +247,9 @@ export function ScheduleProvider({ children, onError }: ScheduleProviderProps) {
           });
           return shift;
         });
-      } else {
-        initializedCollection = employeeShiftsCollectionRaw?.map((shift) => {
-          shift.calculateWageData();
-          return shift;
-        });
       }
-    } else {
-      initializedCollection = employeeShiftsCollectionRaw?.map((shift) => {
-        shift.calculateWageData();
-        return shift;
-      });
     }
+
     return initializedCollection;
   }, [scheduleSettingsData, employeeShiftsCollectionRaw]);
 
@@ -263,9 +258,13 @@ export function ScheduleProvider({ children, onError }: ScheduleProviderProps) {
     const weekNo = Number.parseInt(weekId.split("-")[1]);
     const firstDayWeek = weekToDate(year, weekNo, 1);
     const weekDays: Date[] = [];
+
+    // Push the first day of the week to the array
     weekDays.push(firstDayWeek);
-    for (let index = 1; index < 7; index++) {
-      weekDays.push(dayjs(firstDayWeek).add(index, "days").toDate());
+
+    // Push the remaining days of the week to the array
+    for (let dayIndex = 1; dayIndex < 7; dayIndex++) {
+      weekDays.push(dayjs(firstDayWeek).add(dayIndex, "days").toDate());
     }
     return weekDays;
   }, [weekId]);
@@ -351,21 +350,25 @@ export function ScheduleProvider({ children, onError }: ScheduleProviderProps) {
         return;
       }
       let notiRecipients: string[] = [];
-      if (notificationRecipients === "all") {
-        // Get all employees
-        notiRecipients = getEmployees.map((e) => e.id);
-      }
-      if (notificationRecipients === "all_scheduled") {
-        // Get all employees that have shifts
-        notiRecipients = employeeShiftsCollection
-          .filter((e) => e.shiftsArray.length > 0)
-          .map((shift) => shift.employeeId);
-      }
-      if (notificationRecipients === "changed") {
-        // Get all employees that have shifts and have changed shifts from the last published schedule
-        notiRecipients = employeeShiftsCollection
-          .filter((empShiftDoc) => empShiftDoc.haveChanges)
-          .map((shift) => shift.employeeId);
+      switch (notificationRecipients) {
+        case "all":
+          // Get all employees
+          notiRecipients = getEmployees.map((e) => e.id);
+          break;
+        case "all_scheduled":
+          // Get all employees that have shifts
+          notiRecipients = employeeShiftsCollection
+            .filter((e) => e.shiftsArray.length > 0)
+            .map((shift) => shift.employeeId);
+          break;
+        case "changed":
+          // Get all employees that have shifts and have changed shifts from the last published schedule
+          notiRecipients = employeeShiftsCollection
+            .filter((empShiftDoc) => empShiftDoc.haveChanges)
+            .map((shift) => shift.employeeId);
+          break;
+        default:
+          break;
       }
       try {
         // Publish the schedule
@@ -374,8 +377,7 @@ export function ScheduleProvider({ children, onError }: ScheduleProviderProps) {
           // Update the shifts document
           shiftsDoc.batchPublish(batch)
         );
-        const year = Number.parseInt(weekId.split("-")[2]);
-        const weekNumber = Number.parseInt(weekId.split("-")[1]);
+        const [, weekNumber, year] = weekId.split("-").map(Number.parseInt);
         // Update the schedule document
         batch.set(
           doc(
@@ -505,6 +507,21 @@ export function ScheduleProvider({ children, onError }: ScheduleProviderProps) {
     [employeeShiftsCollection]
   );
 
+  /**
+   * This function is used to clone shifts from a target week to the current week for a given list of employees.
+   * It first retrieves the shifts for the target week from the database and then creates new shifts for the current week by adjusting the dates of the retrieved shifts.
+   * Finally, it updates the shifts for the current week in the database using a batch write.
+   * 
+   * Retrieve the target year and week number from the targetWeekId string
+Calculate the first day of the target week using the weekToDate function
+Calculate the number of weeks difference between the first day of the target week and the first day of the current week
+Chunk the list of employees into groups of 10 and retrieve their shifts for the target week from the database
+For each retrieved target week shift:
+Check if the shift exists in the current week and if it is not being deleted or has pending updates
+Adjust the shift start and end dates using the weeks difference calculated in step 3
+Create a new shift for the current week using the adjusted dates
+Update the shifts for the current week in the database using a batch write.
+   */
   const cloneWeek = useCallback(
     async (targetWeekId: string, employees: string[]) => {
       const targetYear = Number.parseInt(targetWeekId.split("-")[2]);

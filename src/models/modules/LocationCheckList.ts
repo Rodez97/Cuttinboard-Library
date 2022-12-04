@@ -15,6 +15,9 @@ import { isEmpty } from "lodash";
 import { Auth } from "../../firebase";
 import { PrimaryFirestore } from "../PrimaryFirestore";
 
+/**
+ * Tasks are the basic unit of work in the checklist.
+ */
 export type Task = {
   name: string;
   status: boolean;
@@ -22,6 +25,9 @@ export type Task = {
   order: number;
 };
 
+/**
+ * A checklist is a list of tasks that can be completed.
+ */
 export type Checklist = {
   name: string;
   description?: string;
@@ -31,6 +37,9 @@ export type Checklist = {
   order: number;
 };
 
+/**
+ * A Checklist group is a group of checklists linked to a location.
+ */
 export interface IChecklistGroup {
   locationId: string;
   checklists?: {
@@ -42,13 +51,28 @@ export interface IChecklistGroup {
  * ChecklistGroup is a class that represents checklists grouped in a Firestore Document.
  */
 export class ChecklistGroup implements IChecklistGroup, PrimaryFirestore {
+  /**
+   * The ID of the location this checklist group is linked to.
+   */
   public readonly locationId: string;
+  /**
+   * A record of all the checklists in this group.
+   */
   public readonly checklists?: {
     [key: string]: Checklist;
   };
+  /**
+   * The ID of the document in Firestore.
+   */
   public readonly id: string;
+  /**
+   * The Firestore document reference of this checklist group.
+   */
   public readonly docRef: DocumentReference<DocumentData>;
 
+  /**
+   * Convert a Firestore document snapshot to a ChecklistGroup object.
+   */
   public static Converter: FirestoreDataConverter<ChecklistGroup> = {
     toFirestore(object: WithFieldValue<ChecklistGroup>): DocumentData {
       const { docRef, id, ...objectToSave } = object;
@@ -64,6 +88,11 @@ export class ChecklistGroup implements IChecklistGroup, PrimaryFirestore {
     },
   };
 
+  /**
+   * Create a new ChecklistGroup class instance.
+   * @param data The data to create the checklist group with.
+   * @param firestoreBase The Firestore document reference and ID of the checklist group.
+   */
   constructor(
     { locationId, checklists }: IChecklistGroup,
     { id, docRef }: PrimaryFirestore

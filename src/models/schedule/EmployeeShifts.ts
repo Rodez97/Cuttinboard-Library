@@ -29,7 +29,7 @@ dayjs.extend(duration);
 dayjs.extend(isBetween);
 
 /**
- * @interface IEmployeeShifts - The interface for the EmployeeShifts class
+ * The interface for the EmployeeShifts class
  */
 export interface IEmployeeShifts {
   /**
@@ -54,42 +54,98 @@ export interface IEmployeeShifts {
   locationId: string;
 }
 
+/**
+ * Wage and hour data for an employee for a given ISO week day number.
+ */
 export type WageDataByDay = {
+  /**
+   * ISO week day number
+   */
   [weekday: number]: {
+    /**
+     * Number of hours worked without overtime
+     */
     normalHours: number;
+    /**
+     * Number of overtime hours worked
+     */
     overtimeHours: number;
+    /**
+     * The sum of the normal and overtime hours
+     */
     totalHours: number;
+    /**
+     * The total wage for normal hours
+     */
     normalWage: number;
+    /**
+     * The wage for overtime hours
+     */
     overtimeWage: number;
+    /**
+     * The total wage for the day
+     * - normalWage + overtimeWage
+     */
     totalWage: number;
+    /**
+     * Number of shifts for the day
+     */
     totalShifts: number;
+    /**
+     * How many people were scheduled for the day
+     */
     people: number;
   };
 };
 
 /**
- * EmployeeShifts is a collection of shifts for a given employee and week.
- * @date 6/11/2022 - 23:38:09
- *
- * @export
- * @class EmployeeShifts
- * @typedef {EmployeeShifts}
- * @implements {IEmployeeShifts}
- * @implements {PrimaryFirestore}
- * @implements {FirebaseSignature}
+ * EmployeeShifts is a Firestore document that contains the shifts for an employee for a given week.
  */
 export class EmployeeShifts
   implements IEmployeeShifts, PrimaryFirestore, FirebaseSignature
 {
+  /**
+   * Record of shifts by day number.
+   * - Key is the ISO week day number
+   * - Value is an array of shifts for that day
+   */
   public readonly shifts?: Record<string, Shift> = {};
+  /**
+   * The id of the employee linked to the shifts
+   */
   public readonly employeeId: string;
+  /**
+   * The id of the week linked to the shifts
+   * @see {@link WEEKFORMAT}
+   */
   public readonly weekId: string;
+  /**
+   * The id of the employee shifts document
+   */
   public readonly id: string;
+  /**
+   * The document reference for the employee shifts document
+   */
   public readonly docRef: DocumentReference<DocumentData>;
+  /**
+   * Timestamp of when the employee shifts document was created
+   */
   public readonly createdAt: Timestamp;
+  /**
+   * Id of the user that created the employee shifts document
+   */
   public readonly createdBy: string;
+  /**
+   * Timestamp of when the employee shifts document was last updated
+   */
   public readonly updatedAt: Timestamp;
+  /**
+   * ID of the location linked to the employee shifts
+   */
   public readonly locationId: string;
+  /**
+   * Calculated the wage data for the employee shifts
+   */
   private _wageData: WageDataByDay;
 
   /**
@@ -110,6 +166,12 @@ export class EmployeeShifts
     },
   };
 
+  /**
+   * Get the collection reference for the employee shifts for the current location
+   * - the location data is stored in the __globalThis__ *(globalThis.locationData)*
+   * @param weekId The weekId for the week to get the employee shifts for.
+   * @see {@link WEEKFORMAT}
+   */
   public static Reference = (weekId: string) =>
     globalThis.locationData
       ? query(
@@ -124,6 +186,13 @@ export class EmployeeShifts
         ).withConverter(EmployeeShifts.Converter)
       : null;
 
+  /**
+   * Create a new instance of EmployeeShifts.
+   * @param data The data to create the employee shifts with
+   * @param firestoreBase The id and docRef for the employee shifts
+   * @remarks
+   * - We need to convert the shifts objects to a Shift class instance before we can use them.
+   */
   constructor(
     {
       shifts,
@@ -172,6 +241,14 @@ export class EmployeeShifts
     );
   }
 
+  /**
+   * Get the wage data for the employee shifts
+   * - This is calculated from the shifts
+   * @remarks
+   * - This is a getter so that it is only calculated when it is needed.
+   * - If the wageData is already calculated, it will return the cached value.
+   * - If the wageData is not calculated, it will calculate it and cache it.
+   */
   public get wageData(): WageDataByDay {
     if (this._wageData) {
       // If the wage data is already calculated, return it
@@ -217,10 +294,16 @@ export class EmployeeShifts
     return this._wageData;
   }
 
+  /**
+   * Private method to update the wage data for the employee shifts
+   */
   private set wageData(value: WageDataByDay) {
     this._wageData = value;
   }
 
+  /**
+   * Get the total summary of the wage data for the employee shifts
+   */
   public get summary(): WageDataByDay[0] {
     const wageData = this.wageData;
     const summary = Object.values(wageData).reduce<WageDataByDay[0]>(
@@ -268,11 +351,23 @@ export class EmployeeShifts
    *
    * - If this functions in not called, the wage data will be the default value without overtime
    *
+   * @param args - The overtime settings for the location
+   *
    */
   public calculateWageData(
     args: {
+      /**
+       * The mode of overtime calculation
+       */
       mode: "weekly" | "daily";
+      /**
+       * The number of hours after which overtime is calculated
+       * - Depending on the mode, this is either the number of hours in a day or a week
+       */
       hoursLimit: number;
+      /**
+       * The multiplier for the overtime wage
+       */
       multiplier: number;
     } | null = null
   ) {
@@ -410,16 +505,11 @@ export class EmployeeShifts
   }
 
   /**
-   * Creates a new shift and adds it to the schedule
-   * @date 6/11/2022 - 23:11:52
-   *
-   * @public
-   * @async
-   * @param {IShift} shift - The shift to add
-   * @param {Date[]} dates - The dates to add the shift to
-   * @param {number[]} applyToWeekDays - The weekdays to apply the shift to
-   * @param {string} id - The id of the shift
-   * @returns {Promise<void>} - A promise that resolves when the shift is added
+   * Creates a new shift and adds it to the schedule.
+   * @param shift - The shift to add
+   * @param dates - The dates to add the shift to
+   * @param applyToWeekDays - The weekdays to apply the shift to
+   * @param id - The id of the shift
    */
   public async createShift(
     shift: IShift,
@@ -473,10 +563,15 @@ export class EmployeeShifts
 
   /**
    * Publishes all shifts in the schedule
-   * @date 6/11/2022 - 23:09:43
-   *
-   * @public
-   * @param {WriteBatch} batch - Firestore batch
+   * @param batch - Firestore batch
+   * @remarks
+   * It is recommended to use a batch to publish multiple schedules at once
+   * @example
+   * ```typescript
+   * const batch = writeBatch(firestore);
+   * await schedule.batchPublish(batch);
+   * await batch.commit();
+   * ```
    */
   public batchPublish(batch: WriteBatch) {
     // If there are no shifts, return
@@ -527,10 +622,15 @@ export class EmployeeShifts
 
   /**
    * Unpublish all shifts in the schedule
-   * @date 6/11/2022 - 23:07:32
-   *
-   * @public
-   * @param {WriteBatch} batch - Firestore batch
+   * @param batch - Firestore batch
+   * @remarks
+   * It is recommended to use a batch to unpublish multiple schedules at once
+   * @example
+   * ```typescript
+   * const batch = writeBatch(firestore);
+   * await schedule.batchUnpublish(batch);
+   * await batch.commit();
+   * ```
    */
   public batchUnpublish(batch: WriteBatch) {
     // If there are no shifts, return
@@ -560,12 +660,9 @@ export class EmployeeShifts
 
   /**
    * Check if a new shift start or end time overlaps with an existing shift
-   * @date 6/11/2022 - 23:05:18
-   *
-   * @param {dayjs.Dayjs} start - The start time of the new shift
-   * @param {dayjs.Dayjs} end - The end time of the new shift
-   * @param {string} shiftId - The id of the shift to ignore
-   * @returns {boolean} true if there is an overlap
+   * @param start - The start time of the new shift
+   * @param end - The end time of the new shift
+   * @param shiftId - The id of the shift to ignore
    */
   public checkForOverlappingShifts = (
     start: dayjs.Dayjs,
@@ -604,10 +701,7 @@ export class EmployeeShifts
 
   /**
    * Calculate the overtime rate of pay
-   * @date 6/11/2022 - 23:00:15
-   *
-   * @param {number} multiplier Multiplier for the wage
-   * @returns {number} The overtime rate of pay
+   * @param multiplier Multiplier for the wage
    */
   public getOvertimeRateOfPay = (multiplier: number) => {
     // Check if there are any shifts

@@ -14,6 +14,9 @@ import {
 import { Auth } from "../../firebase";
 import { PrimaryFirestore } from "../PrimaryFirestore";
 
+/**
+ * Base interface implemented by Note class.
+ */
 export interface INote {
   title?: string;
   content: string;
@@ -29,14 +32,64 @@ export interface INote {
   };
 }
 
+/**
+ * A class that represents a note in the database.
+ * - A note is a document that can be attached to a Notes board.
+ */
 export class Note implements INote, PrimaryFirestore {
+  /**
+   * The title of the note.
+   */
   public readonly title?: string;
+  /**
+   * The content of the note.
+   * - This is the main body of the note.
+   * - This is the only required field.
+   */
   public readonly content: string;
+  /**
+   * The id of the note.
+   */
   public readonly id: string;
+  /**
+   * The document reference of the note.
+   */
   public readonly docRef: DocumentReference<DocumentData>;
-  public readonly author: { id: string; name: string; at: Timestamp };
+  /**
+   * The author of the note.
+   */
+  public readonly author: {
+    /**
+     * The id of the author.
+     */
+    id: string;
+    /**
+     * The full name of the author.
+     */
+    name: string;
+    /**
+     * The timestamp of when the note was created.
+     */
+    at: Timestamp;
+  };
+  /**
+   * The data associated with the last update to the note.
+   */
   public readonly updated?:
-    | { id: string; name: string; at: Timestamp }
+    | {
+        /**
+         * The id of the user who last updated the note.
+         */
+        id: string;
+        /**
+         * The full name of the user who last updated the note.
+         */
+        name: string;
+        /**
+         * The timestamp of when the note was last updated.
+         */
+        at: Timestamp;
+      }
     | undefined;
 
   /**
@@ -77,6 +130,9 @@ export class Note implements INote, PrimaryFirestore {
     );
   };
 
+  /**
+   * Convert a QueryDocumentSnapshot to a Note object instance
+   */
   public static Converter: FirestoreDataConverter<Note> = {
     toFirestore(object: Note): DocumentData {
       const { docRef, id, ...objectToSave } = object;
@@ -92,6 +148,11 @@ export class Note implements INote, PrimaryFirestore {
     },
   };
 
+  /**
+   * Create a new Note object instance
+   * @param data The data to create the note with
+   * @param firestoreBase The id and docRef of the note
+   */
   constructor(
     { title, content, author, updated }: INote,
     { id, docRef }: PrimaryFirestore
@@ -104,10 +165,17 @@ export class Note implements INote, PrimaryFirestore {
     this.updated = updated;
   }
 
+  /**
+   * The creation date of the note
+   */
   public get createdAt() {
     return this.author.at.toDate();
   }
 
+  /**
+   * Update the note in the database
+   * @param updates The updates to make to the note
+   */
   public async update(updates: Partial<{ title: string; content: string }>) {
     if (!Auth.currentUser || !Auth.currentUser.displayName) {
       throw new Error("You must be logged in to update a note.");
