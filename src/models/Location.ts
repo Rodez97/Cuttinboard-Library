@@ -16,8 +16,8 @@ import {
 import { ref } from "firebase/storage";
 import { FirebaseSignature } from "./FirebaseSignature";
 import { PrimaryFirestore } from "./PrimaryFirestore";
-import { Auth, Firestore, Storage } from "./../firebase";
-import { Employee } from "./Employee";
+import { AUTH, FIRESTORE, STORAGE } from "../utils/firebase";
+import { Employee } from "../employee/Employee";
 
 /**
  * The interface implemented by Location classes.
@@ -204,7 +204,7 @@ export class Location
   /**
    * Firestore data converter for the Location class.
    */
-  public static Converter = {
+  public static firestoreConverter = {
     toFirestore(object: Location): DocumentData {
       const { docRef, id, ...objectToSave } = object;
       return objectToSave;
@@ -279,7 +279,7 @@ export class Location
    */
   public get storageRef() {
     return ref(
-      Storage,
+      STORAGE,
       `organizations/${this.organizationId}/locations/${this.id}`
     );
   }
@@ -290,11 +290,11 @@ export class Location
   public get employeesRef() {
     return query(
       collection(
-        Firestore,
+        FIRESTORE,
         "Organizations",
         this.organizationId,
         "employees"
-      ).withConverter(Employee.Converter),
+      ).withConverter(Employee.firestoreConverter),
       orderByFirestore(`locations.${this.id}`)
     );
   }
@@ -365,7 +365,7 @@ export class Location
    */
   public async ownerJoin(join?: boolean) {
     const empDocRef = doc(
-      Firestore,
+      FIRESTORE,
       "Organizations",
       this.organizationId,
       "employees",
@@ -387,18 +387,18 @@ export class Location
    * @param join True to join the location, false to leave the location.
    */
   public async supervisorJoin(join?: boolean) {
-    if (!this.supervisors || !Auth.currentUser) {
+    if (!this.supervisors || !AUTH.currentUser) {
       throw new Error("User is not logged in.");
     }
-    if (!this.supervisors.includes(Auth.currentUser.uid)) {
+    if (!this.supervisors.includes(AUTH.currentUser.uid)) {
       throw new Error("User is not a supervisor of this location.");
     }
     const empDocRef = doc(
-      Firestore,
+      FIRESTORE,
       "Organizations",
       this.organizationId,
       "employees",
-      Auth.currentUser.uid
+      AUTH.currentUser.uid
     );
     await setDoc(
       empDocRef,

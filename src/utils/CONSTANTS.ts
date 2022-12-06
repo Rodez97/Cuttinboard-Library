@@ -13,7 +13,7 @@ export const SHIFTFORMAT: "DD-MM-YYYY HH:mm" = "DD-MM-YYYY HH:mm" as const;
 /**
  * An array of default restaurant positions to help the user choose a position
  */
-export const Positions = [
+export const POSITIONS = [
   "Back of House",
   "Baker",
   "Barista",

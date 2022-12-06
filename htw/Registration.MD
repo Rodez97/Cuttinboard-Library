@@ -18,12 +18,6 @@ This system allows Cuttinboard to gather detailed information about each user, i
 
 ```mermaid
 sequenceDiagram
-    participant User as User
-    participant Client as Client
-    participant CloudFunction as Cloud Function
-    participant FirebaseAuth as Firebase Auth
-    participant Firestore as Firestore
-
     User ->> Client: Provide first name, last name, email, password
     Client ->> CloudFunction: Call Cloud Function
     CloudFunction ->> FirebaseAuth: Create account in Firebase Auth

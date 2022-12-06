@@ -1,6 +1,6 @@
 {
   "name": "@cuttinboard-solutions/cuttinboard-library",
-  "version": "1.9.7",
+  "version": "2.0.2",
   "description": "Shared Code Library for Cuttinboard App",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -19,27 +19,58 @@
   ],
   "exports": {
     ".": "./dist/index.js",
+    "./account": "./dist/account/index.js",
+    "./billing": "./dist/billing/index.js",
+    "./boards": "./dist/boards/index.js",
+    "./chats": "./dist/chats/index.js",
+    "./checklist": "./dist/checklist/index.js",
+    "./employee": "./dist/employee/index.js",
+    "./schedule": "./dist/schedule/index.js",
     "./services": "./dist/services/index.js",
-    "./models": "./dist/models/index.js",
-    "./utils": "./dist/utils/index.js",
-    "./firebase": "./dist/firebase.js"
+    "./user_metadata": "./dist/user_metadata/index.js",
+    "./utensils": "./dist/utensils/index.js",
+    "./utils": "./dist/utils/index.js"
   },
   "typesVersions": {
     "*": {
       "*": [
         "dist/index.d.ts"
       ],
-      "services": [
-        "dist/services/index.d.ts"
+      "account": [
+        "dist/account/index.d.ts"
+      ],
+      "billing": [
+        "dist/billing/index.d.ts"
+      ],
+      "boards": [
+        "dist/boards/index.d.ts"
+      ],
+      "chats": [
+        "dist/chats/index.d.ts"
+      ],
+      "checklist": [
+        "dist/checklist/index.d.ts"
+      ],
+      "employee": [
+        "dist/employee/index.d.ts"
       ],
       "models": [
         "dist/models/index.d.ts"
       ],
+      "schedule": [
+        "dist/schedule/index.d.ts"
+      ],
+      "services": [
+        "dist/services/index.d.ts"
+      ],
+      "user_metadata": [
+        "dist/user_metadata/index.d.ts"
+      ],
+      "utensils": [
+        "dist/utensils/index.d.ts"
+      ],
       "utils": [
         "dist/utils/index.d.ts"
-      ],
-      "firebase": [
-        "dist/firebase.d.ts"
       ]
     }
   },
@@ -85,7 +116,9 @@
     "jsdoc-to-markdown": "^8.0.0",
     "mermaid": "^9.2.2",
     "typedoc": "^0.23.21",
+    "typedoc-plugin-markdown": "^3.14.0",
     "typedoc-plugin-mermaid": "^1.9.0",
+    "typedoc-plugin-missing-exports": "^1.0.0",
     "typescript": "^4.9.3"
   }
 }

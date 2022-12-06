@@ -3,3 +3,10 @@ node_modules
 src
 tsconfig.json 
 package-lock.json
+.eslintrc.json
+.gitignore
+README.md
+jsdoc2md.json
+typedoc.json
+htw
+docs

@@ -1,12 +1,6 @@
-export * from "./Auth";
-export * from "./ConversationMessages";
-export * from "./Conversations";
-export * from "./Cuttinboard";
-export * from "./Board";
-export * from "./DMs";
-export * from "./Location";
-export * from "./Schedule";
-export * from "./useEmployeesList";
-export * from "./useAddEmployee";
-export * from "./useListReducer";
-export * from "./DirectMessages";
+// @index('./*.{tsx,ts}', f => `export * from '${f.path}'`)
+export * from "./CuttinboardProvider";
+export * from "./LocationProvider";
+export * from "./useCuttinboard";
+export * from "./useCuttinboardLocation";
+// @endindex

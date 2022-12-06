@@ -1,15 +1,17 @@
 import { DocumentData, DocumentReference } from "@firebase/firestore";
 
 /**
- * The basic information about a firestore document.
+ * The basic information about a Firestore document.
  */
 export type PrimaryFirestore = {
   /**
-   * The id of the document.
+   * The ID of the document in the Firestore database.
+   * - This is usually the same as the ID of the object in the database.
    */
   id: string;
+
   /**
-   * The reference to the document.
+   * A reference to the document in the Firestore database.
    */
   docRef: DocumentReference<DocumentData>;
 };

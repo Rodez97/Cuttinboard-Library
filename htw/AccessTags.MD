@@ -1,6 +1,6 @@
-# How Access tags are used in a Board:
+# Access Tags on Cuttinboard
 
-When working with Firestore queries to get the boards a user belongs to, we encountered problems when performing operations to update the members of a board caused by the constant changes of the members of a location, so we needed to create a system that could allow us to get all the data (Board) that we need without having to make a lot of queries to the database.
+Cuttinboard uses a tags system to manage access to boards on the platform. There are three types of boards: public boards, which can be accessed by anyone within a location; "by position" boards, which can be accessed by employees with a certain position within a location; and private boards, which can only be accessed by specific members.
 
 ---
 
@@ -10,12 +10,9 @@ When working with Firestore queries to get the boards a user belongs to, we enco
 
 ## Public Boards
 
-Public boards are boards that can be accessed by anyone within the location, which means that we do not have to store the members of the board and instead we can use a generic tag that will allow us to get all the public boards based on the location ID.
+Public boards are boards that can be accessed by anyone within a location. To manage access to these boards, Cuttinboard stores the location ID and a `pl_public` tag in the board document's `accessTags` attribute. The `accessTags` attribute is always an array of strings.
 
-> **Public Tag**: `pl_public`
-
-- We only need to store the locationId and the public tag in the board document.
-- The **accessTags** attribute is always an array of strings.
+Here is an example of a board document for a public board:
 
 ```json
 {
@@ -24,7 +21,7 @@ Public boards are boards that can be accessed by anyone within the location, whi
 }
 ```
 
-> Note that there are no members in this board; the hosts are stored only in the "hosts" attribute, as we already know that they are members of the board.
+> Note that there are no members in this board; the hosts are stored only in the `hosts` attribute, as we already know that they are members of the board.
 
 ---
 
@@ -32,14 +29,11 @@ Public boards are boards that can be accessed by anyone within the location, whi
 
 ## "By Position" Boards
 
-Boards linked to a position are boards that can be accessed by any employee with the position within the location, which means that we do not have to store the members of the board and instead we need to store the position in the accessTags array.
+Boards linked to a position are boards that can be accessed by any employee with the position within the location. To manage access to these boards, Cuttinboard stores the position in the `accessTags` array.
 
-**IMPORTANT:**
-Because these kinds of boards are linked to a position, we do not know the members in the first instance, so we need to include the hosts as special tags next to the position in the accessTags array.
+Because these kinds of boards are linked to a position, we do not know the members in the first instance, so we need to include the hosts as special tags next to the position in the `accessTags` array. The special tags are always prefixed with `hostId_` followed by the host id. For example: `hostId_1234567890`.
 
-> The special tags are always prefixed with `hostId_` followed by the host id. Example: **_`hostId_1234567890`_**.
-
-- In the next example we have a board that is linked to the position `baker` and the hosts are _Andres with Id `abcd1234567890`_ and _Danilo with Id `efgh0987654321`_.
+Here is an example of a board document for a "by position" board:
 
 ```json
 {
@@ -48,7 +42,7 @@ Because these kinds of boards are linked to a position, we do not know the membe
 }
 ```
 
-> Note that there are no members on this board, but we need to include the hosts as special tags alongside the position in the access tag array, as a host does not necessarily have the position.
+> Note that there are no members on this board, but we need to include the hosts as special tags alongside the position in the `accessTags` array, as a host does not necessarily have the position.
 
 ---
 
@@ -56,12 +50,11 @@ Because these kinds of boards are linked to a position, we do not know the membe
 
 ## Private Boards
 
-Private boards are boards that can only be accessed by the members of the board, which means that we need to store the members of the board in the accessTags array.
+Private boards are boards that can only be accessed by the members of the board. To manage access to these boards, Cuttinboard stores the members of the board in the `accessTags` array.
 
-**IMPORTANT:**
-For this kind of board, we need to include the hosts in both the hosts array and the members array, since we query the data based on the accessTags attribute, which is used as the "members" list in private boards.
+For private boards, we need to include the hosts in both the `hosts` array and the `accessTags` array, since we query the data based on the `accessTags` attribute, which is used as the "members" list in private boards.
 
-- In the next example we have a private board with 2 members: _Andres with Id `abcd1234567890`_ and _Danilo with Id `efgh0987654321`_, in addition we have a host: _Cristian with Id `ijkl0987654321`_.
+Here is an example of a board document for a private board:
 
 ```json
 {
@@ -71,4 +64,8 @@ For this kind of board, we need to include the hosts in both the hosts array and
 }
 ```
 
-> We have members in private boards, and we use the accessTags attribute to designate "members" including the hosts.
+> We have members in private boards, and we use the `accessTags` attribute to designate "members" including the hosts.
+
+---
+
+### **By using this system, Cuttinboard is able to retrieve all the data needed for a board without having to make multiple queries to the database.**
