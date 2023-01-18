@@ -1,22 +1,30 @@
 import {
   addDoc,
-  CollectionReference,
+  collection,
+  collectionGroup,
+  FirestoreError,
   query,
   serverTimestamp,
   where,
+  WithFieldValue,
 } from "firebase/firestore";
 import React, { ReactNode, useMemo, useState } from "react";
-import { useCollectionData } from "react-firebase-hooks/firestore";
-import { PrivacyLevel, RoleAccessLevels } from "..";
+import {
+  FirebaseSignature,
+  FIRESTORE,
+  PrivacyLevel,
+  RoleAccessLevels,
+} from "..";
 import { Board, IBoard } from "./Board";
 import { useCuttinboardLocation } from "../services/useCuttinboardLocation";
 import { useCuttinboard } from "../services/useCuttinboard";
+import { useBoardsData } from "./useMultipleQueryListener";
 
 export interface IBoardProvider {
   /**
    * The reference to the board collection
    */
-  baseRef: CollectionReference;
+  boardName: string;
   /**
    * The Children to render.
    * - Can be a function.
@@ -38,7 +46,7 @@ export interface IBoardProvider {
         /**
          * The error if there is one
          */
-        error?: Error;
+        error?: Error | FirestoreError | null | undefined;
         /**
          * The boards that are available
          */
@@ -77,7 +85,12 @@ export interface IBoardContext {
    * });
    * ```
    */
-  addNewBoard: (newBoardData: Omit<IBoard, "locationId">) => Promise<string>;
+  addNewBoard: (newBoardData: {
+    name: string;
+    description?: string;
+    position?: string;
+    privacyLevel: PrivacyLevel;
+  }) => Promise<string>;
   /**
    * The list of boards
    */
@@ -93,7 +106,7 @@ export interface IBoardContext {
   /**
    * The error if there is one
    */
-  error?: Error;
+  error?: Error | FirestoreError | null | undefined;
 }
 
 /**
@@ -108,23 +121,30 @@ export const BoardContext = React.createContext<IBoardContext>(
  * @param props The props for the board provider component.
  * @returns A React Component that provides the board context.
  */
-export function BoardProvider({ children, baseRef }: IBoardProvider) {
+export function BoardProvider({ children, boardName }: IBoardProvider) {
   const [selectedBoardId, selectBoard] = useState("");
   const { user } = useCuttinboard();
-  const { locationAccessKey, location } = useCuttinboardLocation();
-  const [boards, loading, error] = useCollectionData<Board>(
-    (locationAccessKey.role <= RoleAccessLevels.GENERAL_MANAGER
-      ? query(baseRef, where(`locationId`, "==", location.id))
-      : query(
-          baseRef,
-          where(`locationId`, "==", location.id),
-          where(`accessTags`, "array-contains-any", [
-            user.uid,
-            `hostId_${user.uid}`,
-            "pl_public",
-            ...(locationAccessKey.pos ?? []),
-          ])
-        )
+  const { location, positions, role } = useCuttinboardLocation();
+  const [boards, loading, error] = useBoardsData(
+    role,
+    query(
+      collectionGroup(FIRESTORE, boardName),
+      where(`parentId`, "in", [location.id, location.organizationId])
+    ).withConverter(Board.firestoreConverter),
+    collection(
+      FIRESTORE,
+      "Organizations",
+      location.organizationId,
+      boardName
+    ).withConverter(Board.firestoreConverter),
+    query(
+      collection(FIRESTORE, "Locations", location.id, boardName),
+      where(`accessTags`, "array-contains-any", [
+        user.uid,
+        `hostId_${user.uid}`,
+        "pl_public",
+        ...positions,
+      ])
     ).withConverter(Board.firestoreConverter)
   );
 
@@ -142,19 +162,44 @@ export function BoardProvider({ children, baseRef }: IBoardProvider) {
   /**
    * {@inheritdoc IBoardProviderContext.addNewBoard}
    */
-  const addNewBoard = async (
-    newBoardData: Omit<IBoard, "locationId">
-  ): Promise<string> => {
-    const elementToAdd = {
-      ...newBoardData,
+  const addNewBoard = async ({
+    name,
+    description,
+    position,
+    privacyLevel,
+  }: {
+    name: string;
+    description?: string;
+    position?: string;
+    privacyLevel: PrivacyLevel;
+  }): Promise<string> => {
+    const firestoreRef = collection(
+      FIRESTORE,
+      "Locations",
+      location.id,
+      boardName
+    );
+    const elementToAdd: WithFieldValue<IBoard & FirebaseSignature> = {
+      name,
+      description,
+      privacyLevel,
       createdAt: serverTimestamp(),
       createdBy: user.uid,
-      locationId: location.id,
+      parentId: location.id,
     };
-    if (newBoardData.privacyLevel === PrivacyLevel.PUBLIC) {
+    if (privacyLevel === PrivacyLevel.PUBLIC) {
       elementToAdd.accessTags = ["pl_public"];
     }
-    const newModuleRef = await addDoc(baseRef, elementToAdd);
+    if (privacyLevel === PrivacyLevel.POSITIONS) {
+      if (position) {
+        elementToAdd.accessTags = [position];
+      } else {
+        throw new Error(
+          "You must provide a position when creating a board with a privacy level of positions."
+        );
+      }
+    }
+    const newModuleRef = await addDoc(firestoreRef, elementToAdd);
     return newModuleRef.id;
   };
 
@@ -162,17 +207,17 @@ export function BoardProvider({ children, baseRef }: IBoardProvider) {
    * {@inheritdoc IBoardProviderContext.canManageBoard}
    */
   const canManageBoard = useMemo(() => {
-    if (locationAccessKey.role <= RoleAccessLevels.GENERAL_MANAGER) {
+    if (role === RoleAccessLevels.OWNER) {
+      return true;
+    }
+    if (role <= RoleAccessLevels.GENERAL_MANAGER) {
       return true;
     }
     if (!selectedBoard) {
       return false;
     }
-    return Boolean(
-      locationAccessKey.role <= RoleAccessLevels.MANAGER &&
-        selectedBoard.amIhost
-    );
-  }, [user.uid, selectedBoard, locationAccessKey]);
+    return selectedBoard.amIhost;
+  }, [user.uid, selectedBoard, role]);
 
   return (
     <BoardContext.Provider

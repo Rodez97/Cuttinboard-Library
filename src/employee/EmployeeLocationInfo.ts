@@ -1,10 +1,10 @@
 import { FieldValue, Timestamp } from "firebase/firestore";
-import { LocationKey } from "../account/LocationKey";
+import { RoleAccessLevels } from "../utils";
 
 /**
  * This information is used to identify an employee's location.
  */
-export type EmployeeLocationInfo = LocationKey & {
+export type EmployeeLocationInfo = {
   /**
    * Record of the hourly wages for the employee for specific positions.
    * - The key is the position.
@@ -32,4 +32,14 @@ export type EmployeeLocationInfo = LocationKey & {
    * Documents related to this employee uploaded by their managers at this location.
    */
   employeeDocuments?: Record<string, string>;
+
+  /**
+   * The role of the employee in the location.
+   */
+  role: RoleAccessLevels;
+
+  /**
+   * The positions of the employee in the location.
+   */
+  pos?: string[];
 };

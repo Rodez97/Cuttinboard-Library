@@ -1,6 +1,6 @@
 {
   "name": "@cuttinboard-solutions/cuttinboard-library",
-  "version": "2.0.2",
+  "version": "3.3.7",
   "description": "Shared Code Library for Cuttinboard App",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -86,16 +86,20 @@
   "homepage": "hhttps://github.com/Cuttinboard-Solutions/Cuttinboard-Library",
   "peerDependencies": {
     "@types/lodash": ">=4.14",
-    "@types/react": ">=18.0.25",
+    "@types/react": ">=18.0.0",
     "dayjs": ">=1.11.6",
     "dayjs-recur": ">=1.0.1",
-    "firebase": ">=9.14.0",
+    "firebase": ">=9.0.0",
     "lodash": ">=4.17.21",
-    "react": ">=18.2.0",
-    "react-dom": ">=18.2.0",
+    "match-sorter": ">=6.3.1",
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0",
     "react-firebase-hooks": ">=5.1.1",
     "rrule": ">=2.7.1",
-    "typescript": ">=4.9.3"
+    "rxfire": ">=6.0.3",
+    "rxjs": ">=7.8.0",
+    "typescript": ">=4.9.3",
+    "date-fns": ">=2.29.3"
   },
   "publishConfig": {
     "registry": "https://npm.pkg.github.com/"
@@ -118,7 +122,6 @@
     "typedoc": "^0.23.21",
     "typedoc-plugin-markdown": "^3.14.0",
     "typedoc-plugin-mermaid": "^1.9.0",
-    "typedoc-plugin-missing-exports": "^1.0.0",
-    "typescript": "^4.9.3"
+    "typedoc-plugin-missing-exports": "^1.0.0"
   }
 }

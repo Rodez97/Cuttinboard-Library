@@ -41,4 +41,14 @@ export type Organization = {
     | "past_due"
     | "canceled"
     | "unpaid";
+
+  /**
+   * If the organization is had more than one location in the past.
+   */
+  hadMultipleLocations?: boolean;
+
+  storageUsed: number;
+  limits: {
+    storage: string;
+  };
 };

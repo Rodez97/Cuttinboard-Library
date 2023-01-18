@@ -5,6 +5,7 @@ import {
   setDoc,
   Timestamp,
   deleteField,
+  updateDoc,
 } from "firebase/firestore";
 import isoWeek from "dayjs/plugin/isoWeek";
 import advancedFormat from "dayjs/plugin/advancedFormat";
@@ -344,11 +345,9 @@ export class Shift implements IShift, PrimaryFirestore, FirebaseSignature {
    */
   public async editShift(pendingUpdate: Partial<IShift>) {
     // Add pending update to shift
-    await setDoc(
-      this.docRef,
-      { shifts: { [this.id]: { pendingUpdate } } },
-      { mergeFields: [`shifts.${this.id}.pendingUpdate`] }
-    );
+    await updateDoc(this.docRef, {
+      [`shifts.${this.id}.pendingUpdate`]: pendingUpdate,
+    });
   }
 
   /**

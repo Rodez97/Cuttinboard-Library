@@ -40,3 +40,23 @@ export const POSITIONS = [
   "Steward",
   "Barback",
 ];
+
+/**
+ * The Stripe product ID.
+ */
+export const STRIPE_PRODUCT_ID = "prod_MINsulkDhsnMys";
+
+/**
+ * The Stripe price ID.
+ */
+export const STRIPE_PRICE_ID = "price_1LzJiRCYVoOESVglTGNse4Wr";
+
+/**
+ * Maximum number of documents that can be uploaded by the user.
+ */
+export const MAX_DOCUMENTS = 20;
+
+/**
+ * Maximum file size of a document that can be uploaded by the user.
+ */
+export const MAX_FILE_SIZE = 1024 * 1024 * 8; // 8MB

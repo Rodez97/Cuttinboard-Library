@@ -1,135 +1,59 @@
-import { DatabaseReference } from "firebase/database";
 import { unionBy } from "lodash";
 import { Reducer, useReducer } from "react";
-import { IMessage, Message } from "./Message";
-
-// Define the state type for the messages array
-export type MessagesState = {
-  error?: Error;
-  loading: boolean;
-  messages: Message[];
-};
+import { Message } from "./Message";
 
 type Action =
   | {
-      type: "SET_VALUE";
-      rawMessages:
-        | { message: IMessage; id: string; ref: DatabaseReference }[]
-        | null;
-    }
-  | {
       type: "ADD_MESSAGE";
-      newMessageData: {
-        message: IMessage;
-        id: string;
-        ref: DatabaseReference;
-      } | null;
+      newMessageData: Message | null;
     }
   | {
       type: "UPDATE_MESSAGE";
-      message: { message: IMessage; id: string } | null;
+      message: Message | null;
     }
   | {
       type: "REMOVE_MESSAGE";
       messageId: string;
     }
-  | { type: "EMPTY" }
-  | { type: "ERROR"; error: Error }
   | { type: "RESET" }
   | {
       type: "APPEND_OLDER";
       oldMessages: Message[] | null;
     };
 
-const initialState: MessagesState = {
-  loading: true,
-  messages: [],
-};
+const initialState: Message[] = [];
 
 // Implement the reducer function
-const messagesReducer: Reducer<MessagesState, Action> = (
-  state: MessagesState = initialState,
+const messagesReducer: Reducer<Message[], Action> = (
+  state: Message[] = initialState,
   action: Action
-): MessagesState => {
+): Message[] => {
   switch (action.type) {
     case "ADD_MESSAGE":
       if (!action.newMessageData) {
         return state;
       }
-      return {
-        ...state,
-        error: undefined,
-        messages: addMessage(state.messages, action.newMessageData),
-      };
+      return addMessage(state, action.newMessageData);
     case "UPDATE_MESSAGE":
       if (!action.message) {
         return state;
       }
-      return {
-        ...state,
-        error: undefined,
-        messages: updateMessage(state.messages, action.message),
-      };
+      return updateMessage(state, action.message);
     case "APPEND_OLDER":
       if (!action.oldMessages) {
         return state;
       }
-      return {
-        ...state,
-        error: undefined,
-        messages: appendOlder(state.messages, action.oldMessages),
-      };
-    case "ERROR":
-      return {
-        ...state,
-        error: action.error,
-        loading: false,
-        messages: [],
-      };
+      return appendOlder(state, action.oldMessages);
     case "REMOVE_MESSAGE":
-      return {
-        ...state,
-        error: undefined,
-        messages: removeMessage(state.messages, action.messageId),
-      };
+      return removeMessage(state, action.messageId);
     case "RESET":
       return initialState;
-    case "SET_VALUE":
-      return {
-        ...state,
-        error: undefined,
-        loading: false,
-        messages: setValue(action.rawMessages),
-      };
-    case "EMPTY":
-      return {
-        ...state,
-        loading: false,
-        messages: [],
-      };
     default:
       return state;
   }
 };
 
-const setValue = (
-  snapshots: { message: IMessage; id: string; ref: DatabaseReference }[] | null
-): Message[] => {
-  if (!snapshots) {
-    return [];
-  }
-
-  return snapshots.map(
-    (snapshot) => new Message(snapshot.message, snapshot.id, snapshot.ref)
-  );
-};
-
-const addMessage = (
-  currentState: Message[],
-  message: { message: IMessage; id: string; ref: DatabaseReference }
-): Message[] => {
-  const createMessage = new Message(message.message, message.id, message.ref);
-
+const addMessage = (currentState: Message[], message: Message): Message[] => {
   // Check if the message already exists in the current state
   const exists = currentState.some(({ id }) => id === message.id);
 
@@ -138,17 +62,18 @@ const addMessage = (
     return updateMessage(currentState, message);
   }
 
-  return currentState ? [...currentState, createMessage] : [createMessage];
+  return currentState ? [...currentState, message] : [message];
 };
 
 const updateMessage = (
   currentState: Message[],
-  messageData: { message: IMessage; id: string }
+  messageData: Message
 ): Message[] => {
+  if (!currentState) {
+    return [];
+  }
   return currentState.map((message) =>
-    message.id === messageData.id
-      ? new Message(messageData.message, messageData.id, message.messageRef)
-      : message
+    message.id === messageData.id ? messageData : message
   );
 };
 

@@ -1,22 +1,25 @@
-import { doc } from "firebase/firestore";
-import React, { createContext, ReactNode, useEffect, useState } from "react";
-import { useDocumentData } from "react-firebase-hooks/firestore";
-import { LocationKey } from "../account/LocationKey";
-import { OrganizationKey } from "../account/OrganizationKey";
+import React, { createContext, ReactElement, ReactNode } from "react";
 import { Location } from "../models/Location";
 import { RoleAccessLevels } from "../utils/RoleAccessLevels";
-import { FIRESTORE } from "../utils/firebase";
+import { useLocationData } from "./useLocationData";
+import { Employee } from "../employee";
+import { IOrganizationKey } from "../account";
 
-export interface ILocationContext {
-  location: Location;
+interface StateType {
   isOwner: boolean;
+  isAdmin: boolean;
   isGeneralManager: boolean;
   isManager: boolean;
-  isAdmin: boolean;
   availablePositions: RoleAccessLevels[];
-  locationAccessKey: LocationKey;
+  positions: string[];
+  role: RoleAccessLevels;
+}
+
+export interface ILocationContext extends Omit<StateType, "initializing"> {
+  location: Location;
+  employees: Employee[];
   loading: boolean;
-  error?: Error;
+  error?: Error | null;
 }
 
 export const LocationContext = createContext<ILocationContext>(
@@ -27,113 +30,78 @@ export const LocationContext = createContext<ILocationContext>(
  * Props del Provider principal de la App
  */
 export interface ILocationProvider {
-  children: ReactNode | ((location: Location) => JSX.Element);
-  organizationKey: OrganizationKey;
-  locationId: string;
-  ErrorComponent: (error: Error) => JSX.Element;
-  LoadingComponent: (loading: boolean) => JSX.Element;
+  children: ReactNode | ((context: ILocationContext) => JSX.Element);
+  ErrorRenderer?: (error: Error) => JSX.Element;
+  LoadingRenderer?: ReactElement;
+  onLocationLoaded: (location: Location) => void;
+  MissingLocationRenderer: () => JSX.Element;
+  organizationKey: IOrganizationKey;
 }
-
-type StateType = {
-  initializing: boolean;
-  isOwner: boolean;
-  isAdmin: boolean;
-  isGeneralManager: boolean;
-  isManager: boolean;
-  availablePositions: RoleAccessLevels[];
-  locationAccessKey: LocationKey;
-  error?: Error;
-};
 
 export const LocationProvider = ({
   children,
+  ErrorRenderer,
+  LoadingRenderer,
+  onLocationLoaded,
+  MissingLocationRenderer,
   organizationKey,
-  locationId,
-  ErrorComponent,
-  LoadingComponent,
 }: ILocationProvider) => {
-  const [state, setState] = useState<StateType>({
-    initializing: true,
-    isOwner: false,
-    isAdmin: false,
-    isGeneralManager: false,
-    isManager: false,
-    availablePositions: [],
-    locationAccessKey: {} as LocationKey,
-  });
-  const [location, loading, error] = useDocumentData<Location>(
-    doc(FIRESTORE, "Locations", locationId).withConverter(
-      Location.firestoreConverter
-    )
+  const { location, employees, loading, error } = useLocationData(
+    organizationKey.locId,
+    {
+      onLocationLoaded,
+    }
   );
 
-  useEffect(() => {
-    if (location) {
-      // If the location exist and is loaded, we check if the user has access to it
-      const locKey = organizationKey.getLocationKey(locationId);
-      if (!locKey) {
-        // If the user doesn't have access to the location, we set the error
-        setState({
-          ...state,
-          initializing: false,
-          error: new Error("We couldn't find your location key"),
-        });
-        // Set global variable
-        globalThis.locationData = undefined;
-      } else {
-        // If the user has access to the location, we set the location access key
-        setState({
-          initializing: false,
-          isOwner: organizationKey.role === RoleAccessLevels.OWNER,
-          isAdmin: organizationKey.role === RoleAccessLevels.ADMIN,
-          isGeneralManager: locKey.role === RoleAccessLevels.GENERAL_MANAGER,
-          locationAccessKey: locKey,
-          isManager: locKey.role === RoleAccessLevels.MANAGER,
-          availablePositions: Object.values(RoleAccessLevels).filter(
-            (role) => role > locKey.role
-          ) as RoleAccessLevels[],
-          error: undefined,
-        });
-        globalThis.locationData = {
-          id: locationId,
-          name: location.name,
-          role: locKey.role,
-          organizationId: location.organizationId,
-        };
-      }
-    } else if (!loading) {
-      // If the location doesn't exist, we set the error
-      setState({
-        ...state,
-        initializing: false,
-        error: new Error("We couldn't find your location"),
-      });
-      globalThis.locationData = undefined;
-    }
-  }, [locationId, organizationKey, loading, error]);
-
-  if (state.initializing) {
-    return LoadingComponent(state.initializing);
+  if (loading && LoadingRenderer) {
+    return LoadingRenderer;
   }
 
-  if (state.error) {
-    return ErrorComponent(state.error);
+  if (error && ErrorRenderer) {
+    return ErrorRenderer(error);
   }
 
   if (!location) {
-    return ErrorComponent(new Error("We couldn't find your location"));
+    return MissingLocationRenderer();
   }
 
   return (
     <LocationContext.Provider
       value={{
         location,
-        ...state,
+        employees,
         loading,
         error,
+        isOwner: organizationKey.role === RoleAccessLevels.OWNER,
+        isAdmin: organizationKey.role === RoleAccessLevels.ADMIN,
+        isGeneralManager:
+          organizationKey.role === RoleAccessLevels.GENERAL_MANAGER,
+        isManager: organizationKey.role === RoleAccessLevels.MANAGER,
+        availablePositions: Object.values(RoleAccessLevels).filter(
+          (role) => role > organizationKey.role
+        ) as RoleAccessLevels[],
+        positions: organizationKey.pos ?? [],
+        role: organizationKey.role,
       }}
     >
-      {typeof children === "function" ? children(location) : children}
+      {typeof children === "function"
+        ? children({
+            location,
+            employees,
+            loading,
+            error,
+            isOwner: organizationKey.role === RoleAccessLevels.OWNER,
+            isAdmin: organizationKey.role === RoleAccessLevels.ADMIN,
+            isGeneralManager:
+              organizationKey.role === RoleAccessLevels.GENERAL_MANAGER,
+            isManager: organizationKey.role === RoleAccessLevels.MANAGER,
+            availablePositions: Object.values(RoleAccessLevels).filter(
+              (role) => role > organizationKey.role
+            ) as RoleAccessLevels[],
+            positions: organizationKey.pos ?? [],
+            role: organizationKey.role,
+          })
+        : children}
     </LocationContext.Provider>
   );
 };

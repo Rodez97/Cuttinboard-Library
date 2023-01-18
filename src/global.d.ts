@@ -9,5 +9,5 @@ type locationData = {
 
 declare global {
   /* eslint-disable no-var */
-  var locationData: locationData | undefined;
+  var locationData: locationData;
 }

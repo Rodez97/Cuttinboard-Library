@@ -9,9 +9,10 @@ import {
   arrayRemove,
   FirestoreDataConverter,
 } from "firebase/firestore";
-import { AUTH } from "../utils/firebase";
+import { AUTH, DATABASE } from "../utils/firebase";
 import { PrimaryFirestore } from "../models";
 import { Recipient } from "./types";
+import { ref, set } from "firebase/database";
 
 /**
  * Chat interface implemented by the Chat class.
@@ -102,17 +103,24 @@ export class Chat implements IChat, PrimaryFirestore {
    * - If we don't have a recent message, we can use the createdAt timestamp.
    */
   public get getOrderTime(): Date {
-    return (this.recentMessage ?? this.createdAt).toDate();
+    if (this.recentMessage) {
+      return this.recentMessage.toDate();
+    } else if (this.createdAt) {
+      return this.createdAt.toDate();
+    } else {
+      // This should never happen.
+      return new Date();
+    }
   }
 
   /**
    * Check if the current user has muted this chat.
    */
   public get isMuted(): boolean {
-    if (!AUTH.currentUser) {
+    if (!AUTH.currentUser || !this.muted) {
       return false;
     }
-    return this.muted.indexOf(AUTH.currentUser.uid) !== -1;
+    return this.muted.includes(AUTH.currentUser.uid);
   }
 
   /**
@@ -161,5 +169,9 @@ export class Chat implements IChat, PrimaryFirestore {
         muted: arrayUnion(AUTH.currentUser.uid),
       });
     }
+    await set(
+      ref(DATABASE, `dmInfo/${this.id}/muted/${AUTH.currentUser.uid}`),
+      !this.isMuted
+    );
   }
 }

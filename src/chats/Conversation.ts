@@ -7,10 +7,10 @@ import {
   DocumentData,
   DocumentReference,
   Timestamp,
-  PartialWithFieldValue,
   deleteDoc,
   FieldValue,
   FirestoreDataConverter,
+  WithFieldValue,
 } from "firebase/firestore";
 import { AUTH } from "../utils/firebase";
 import { FirebaseSignature, PrimaryFirestore } from "../models";
@@ -22,13 +22,14 @@ import { Employee } from "../employee";
  */
 export interface IConversation {
   muted?: string[];
-  members?: string[];
   name: string;
   description?: string;
   hosts?: string[];
   locationId: string;
   privacyLevel: PrivacyLevel;
   position?: string;
+  organizationId: string;
+  members?: string[];
 }
 
 /**
@@ -50,10 +51,6 @@ export class Conversation
    * The muted array contains the ids of users who have muted this chat.
    */
   public readonly muted?: string[];
-  /**
-   * The members is an array of the ids of the users in the chat.
-   */
-  public readonly members?: string[];
   /**
    * The name of the chat.
    */
@@ -87,11 +84,15 @@ export class Conversation
    */
   public readonly createdBy: string;
 
+  public readonly organizationId: string;
+
+  public readonly members?: string[];
+
   /**
    * Convert a queryDocumentSnapshot to a Conversation class.
    */
   public static firestoreConverter: FirestoreDataConverter<Conversation> = {
-    toFirestore(object: Conversation): DocumentData {
+    toFirestore(object: WithFieldValue<Conversation>): DocumentData {
       const { docRef, id, ...objectToSave } = object;
       return objectToSave;
     },
@@ -121,14 +122,14 @@ export class Conversation
       locationId,
       privacyLevel,
       muted,
-      createdAt: createdAt,
+      createdAt,
       createdBy,
-      members,
       position,
+      organizationId,
+      members,
     } = data;
     const { id, docRef } = firestoreBase;
     this.muted = muted;
-    this.members = members;
     this.name = name;
     this.description = description;
     this.hosts = hosts;
@@ -139,6 +140,8 @@ export class Conversation
     this.createdAt = createdAt;
     this.createdBy = createdBy;
     this.position = position;
+    this.organizationId = organizationId;
+    this.members = members;
   }
 
   /**
@@ -183,14 +186,22 @@ export class Conversation
    * Change the muted status of the current user by adding or removing their id from the muted array.
    */
   public async toggleMuteChat(): Promise<void> {
+    // Check if the user is logged in
     if (!AUTH.currentUser) {
       throw new Error("You must be logged in to mute a chat.");
     }
+
+    if (!this.iAmMember) {
+      throw new Error("You must be a member of the chat to mute it.");
+    }
+
     if (this.isMuted) {
+      // If the chat is currently muted, update the chat document to remove the current user's UID from the "muted" array field
       await updateDoc(this.docRef, {
         muted: arrayRemove(AUTH.currentUser.uid),
       });
     } else {
+      // If the chat is not currently muted, update the chat document to add the current user's UID to the "muted" array field
       await updateDoc(this.docRef, {
         muted: arrayUnion(AUTH.currentUser.uid),
       });
@@ -199,47 +210,61 @@ export class Conversation
 
   /**
    * Adds a host to the conversation.
-   * - The host is also added to the members array.
+   * @param newHost An object representing the host to be added.
    */
-  public addHost = async (newHost: Employee): Promise<void> =>
+  public addHost = async (newHost: Employee): Promise<void> => {
     await updateDoc(this.docRef, {
-      members: arrayUnion(newHost.id),
       hosts: arrayUnion(newHost.id),
+      members: arrayUnion(newHost.id),
     });
+  };
 
   /**
    * Removes a host from the conversation.
-   * - If the host meets the membership requirements, they will remain a member.
+   * @param host An object representing the host to be removed.
    */
   public async removeHost(host: Employee): Promise<void> {
-    const hostUpdate: { members?: FieldValue; hosts: FieldValue } = {
+    // Initialize an object to store updates to the conversation document
+    const conversationUpdates: {
+      // Set the hosts property to an array with the host's ID removed
+      hosts: FieldValue;
+      // Initialize the accessTags and muted properties to undefined
+      members?: FieldValue;
+      muted?: FieldValue;
+    } = {
       hosts: arrayRemove(host.id),
     };
-    if (this.privacyLevel === PrivacyLevel.POSITIONS) {
-      // Check if the host also has the position
-      const hasPosition = this.position && host.hasAnyPosition([this.position]);
 
-      if (!hasPosition) {
-        // If not, remove from members
-        hostUpdate.members = arrayRemove(host.id);
-      }
+    if (
+      (this.privacyLevel === PrivacyLevel.POSITIONS &&
+        this.position &&
+        !host.hasAnyPosition([this.position])) ||
+      this.privacyLevel === PrivacyLevel.PRIVATE
+    ) {
+      conversationUpdates.members = arrayRemove(host.id);
+      conversationUpdates.muted = arrayRemove(host.id);
     }
-    if (this.privacyLevel === PrivacyLevel.PRIVATE) {
-      hostUpdate.members = arrayRemove(host.id);
-    }
-    await updateDoc(this.docRef, hostUpdate);
+
+    await updateDoc(this.docRef, conversationUpdates);
   }
 
   /**
    * Adds a member to the conversation.
-   * - We can only add members if the conversation is private.
+   *
+   * @param newMembers An array of Employee objects representing the new members to add to the conversation.
+   * @throws {Error} If the conversation is not private.
    */
-  public async addMembers(addedEmployees: Employee[]): Promise<void> {
+  public async addMembers(newMembers: Employee[]): Promise<void> {
+    // Check that the conversation is private
     if (this.privacyLevel !== PrivacyLevel.PRIVATE) {
-      // If the conversation is not private, we don't need to add members
-      throw new Error("Cannot add members to a non-private conversation");
+      throw new Error(
+        "Cannot add members to a non-private conversation. This conversation's privacy level is: " +
+          this.privacyLevel
+      );
     }
-    const members = addedEmployees.map((employee) => employee.id);
+
+    const members: string[] = newMembers.map((member) => member.id);
+
     await updateDoc(this.docRef, {
       members: arrayUnion(...members),
     });
@@ -247,15 +272,22 @@ export class Conversation
 
   /**
    * Removes a member from the conversation.
-   * - We can only remove members if the conversation is private.
+   *
+   * @param member The Employee object representing the member to remove from the conversation.
+   * @throws {Error} If the conversation is not private.
    */
-  public async removeMember(memberId: string): Promise<void> {
+  public async removeMember(member: Employee): Promise<void> {
+    // Check that the conversation is private
     if (this.privacyLevel !== PrivacyLevel.PRIVATE) {
-      // If the conversation is not private, we don't need to remove members
-      throw new Error("Cannot remove members from a non-private conversation");
+      throw new Error(
+        "Cannot remove members from a non-private conversation. This conversation's privacy level is: " +
+          this.privacyLevel
+      );
     }
+
     await updateDoc(this.docRef, {
-      members: arrayRemove(memberId),
+      members: arrayRemove(member.id),
+      muted: arrayRemove(member.id),
     });
   }
 
@@ -268,9 +300,7 @@ export class Conversation
    * - position
    */
   public async update(
-    updates: PartialWithFieldValue<
-      Pick<IConversation, "name" | "description" | "position">
-    >
+    updates: Partial<Pick<IConversation, "name" | "description">>
   ): Promise<void> {
     await updateDoc(this.docRef, updates);
   }

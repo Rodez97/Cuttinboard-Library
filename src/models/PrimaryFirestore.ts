@@ -1,4 +1,4 @@
-import { DocumentData, DocumentReference } from "@firebase/firestore";
+import { DocumentData, DocumentReference } from "firebase/firestore";
 
 /**
  * The basic information about a Firestore document.

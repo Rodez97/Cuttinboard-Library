@@ -8,16 +8,18 @@ import {
   arrayRemove,
   query,
   collection,
-  orderBy as orderByFirestore,
   Timestamp,
   doc,
-  deleteField,
+  PartialWithFieldValue,
+  where,
+  writeBatch,
 } from "firebase/firestore";
 import { ref } from "firebase/storage";
 import { FirebaseSignature } from "./FirebaseSignature";
 import { PrimaryFirestore } from "./PrimaryFirestore";
 import { AUTH, FIRESTORE, STORAGE } from "../utils/firebase";
 import { Employee } from "../employee/Employee";
+import { IScheduleSettings, ScheduleSettings } from "../schedule";
 
 /**
  * The interface implemented by Location classes.
@@ -54,8 +56,9 @@ export interface ILocation {
   subItemId: string;
   members: string[];
   supervisors?: string[];
-  settings?: {
+  settings: {
     positions?: string[];
+    schedule: ScheduleSettings;
   };
 }
 
@@ -194,11 +197,15 @@ export class Location
   /**
    * Settings is used to store simple data that is used by the location.
    */
-  public readonly settings?: {
+  public readonly settings: {
     /**
      * Custom positions for the location added by the user.
      */
     readonly positions?: string[];
+    /**
+     * The schedule settings for the location.
+     * */
+    readonly schedule: ScheduleSettings;
   };
 
   /**
@@ -263,8 +270,22 @@ export class Location
     this.phoneNumber = phoneNumber;
     this.intId = intId;
     this.members = members;
-    this.settings = settings;
     this.supervisors = supervisors;
+
+    if (settings) {
+      const { positions, schedule } = settings;
+      this.settings = {
+        positions,
+        schedule: schedule
+          ? new ScheduleSettings(schedule)
+          : ScheduleSettings.default,
+      };
+    } else {
+      this.settings = {
+        positions: [],
+        schedule: ScheduleSettings.default,
+      };
+    }
   }
 
   /**
@@ -284,6 +305,14 @@ export class Location
     );
   }
 
+  public get scheduleSettings() {
+    if (this.settings?.schedule) {
+      return this.settings.schedule;
+    } else {
+      return ScheduleSettings.default;
+    }
+  }
+
   /**
    * Gets the employees reference for the location in firestore.
    */
@@ -295,7 +324,7 @@ export class Location
         this.organizationId,
         "employees"
       ).withConverter(Employee.firestoreConverter),
-      orderByFirestore(`locations.${this.id}`)
+      where("locationsList", "array-contains", this.id)
     );
   }
 
@@ -371,15 +400,16 @@ export class Location
       "employees",
       this.organizationId
     );
-    await setDoc(
-      empDocRef,
-      {
-        locations: {
-          [this.id]: join ? true : deleteField(),
-        },
-      },
-      { merge: true }
-    );
+    const batch = writeBatch(FIRESTORE);
+    batch.update(empDocRef, {
+      locationsList: join ? arrayUnion(this.id) : arrayRemove(this.id),
+    });
+    batch.update(this.docRef, {
+      members: join
+        ? arrayUnion(this.organizationId)
+        : arrayRemove(this.organizationId),
+    });
+    await batch.commit();
   }
 
   /**
@@ -400,13 +430,27 @@ export class Location
       "employees",
       AUTH.currentUser.uid
     );
+    const batch = writeBatch(FIRESTORE);
+    batch.update(empDocRef, {
+      locationsList: join ? arrayUnion(this.id) : arrayRemove(this.id),
+    });
+    batch.update(this.docRef, {
+      members: join
+        ? arrayUnion(AUTH.currentUser.uid)
+        : arrayRemove(AUTH.currentUser.uid),
+    });
+    await batch.commit();
+  }
+
+  /**
+   * Updates the schedule settings for the location.
+   */
+  public async updateScheduleSettings(
+    newSettings: PartialWithFieldValue<IScheduleSettings>
+  ) {
     await setDoc(
-      empDocRef,
-      {
-        locations: {
-          [this.id]: join ? true : deleteField(),
-        },
-      },
+      this.docRef,
+      { settings: { schedule: newSettings } },
       { merge: true }
     );
   }

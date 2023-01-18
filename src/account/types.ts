@@ -1,7 +1,6 @@
 import { Timestamp } from "firebase/firestore";
 import { RoleAccessLevels } from "../utils";
 import { ICuttinboardUser } from "./CuttinboardUser";
-import { ILocationKey } from "./LocationKey";
 
 /**
  * Emergency Contact is an additional contact that can be added to a user's profile.
@@ -11,12 +10,6 @@ export type EmergencyContact = {
   name?: string;
   phoneNumber: string;
 };
-
-/**
- * A *[key - value]* pair of locationId and LocationKey
- * - This is used to store the different locations that an employee has access to, and their role in each location.
- */
-export type LocationsKeyRing = Record<string, ILocationKey>;
 
 /**
  * The role of the employee in the organization.

@@ -7,8 +7,8 @@ export * from "./DirectMessageChatProvider";
 export * from "./Message";
 export * from "./MessagesProvider";
 export * from "./types";
-export * from "./useBaseMessaging";
 export * from "./useDirectMessageChat";
 export * from "./useMessages";
 export * from "./useMessagesReducer";
+export * from "./usePresence";
 // @endindex

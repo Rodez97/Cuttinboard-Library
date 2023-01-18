@@ -4,15 +4,15 @@ import {
   Timestamp,
   QueryDocumentSnapshot,
   SnapshotOptions,
-  deleteDoc,
   setDoc,
   updateDoc,
   deleteField,
   FirestoreDataConverter,
   WithFieldValue,
   PartialWithFieldValue,
+  arrayRemove,
 } from "firebase/firestore";
-import { intersection, isEmpty, orderBy } from "lodash";
+import { intersection, orderBy } from "lodash";
 import { BaseUser, EmergencyContact } from "../account";
 import { RoleAccessLevels } from "../utils/RoleAccessLevels";
 import { EmployeeLocationInfo } from "./EmployeeLocationInfo";
@@ -40,11 +40,16 @@ export interface IEmployee extends BaseUser {
    * - The value is either a boolean indicating whether the employee works at the location,
    *   or an object containing additional details about the employee's work at the location.
    */
-  locations?: { [locationId: string]: boolean | EmployeeLocationInfo };
+  locations?: { [locationId: string]: EmployeeLocationInfo };
   /**
    * A list of location IDs where the employee is a supervisor.
    */
   supervisingLocations?: string[];
+
+  /**
+   * The ID of the locations that the employee is currently working at.
+   */
+  locationsList?: string[];
 }
 
 /**
@@ -114,7 +119,7 @@ export class Employee
    * {@inheritDoc IEmployee.locations}
    */
   public readonly locations?: {
-    [locationId: string]: boolean | EmployeeLocationInfo;
+    [locationId: string]: EmployeeLocationInfo;
   };
   /**
    * {@inheritDoc BaseUser.preferredName}
@@ -133,9 +138,9 @@ export class Employee
    */
   public readonly supervisingLocations?: string[];
   /**
-   * The id of the location that the user is currently working at.
+   * The id of the locations that the user is currently working at.
    */
-  public readonly locationId?: string;
+  public readonly locationsList?: string[];
 
   public static firestoreConverter: FirestoreDataConverter<Employee> = {
     toFirestore(object: WithFieldValue<Employee>): DocumentData {
@@ -176,9 +181,9 @@ export class Employee
       contactComments,
       supervisingLocations,
       avatar,
+      locationsList,
     }: IEmployee & FirebaseSignature,
-    { id, docRef }: PrimaryFirestore,
-    locationId?: string
+    { id, docRef }: PrimaryFirestore
   ) {
     this.id = id;
     this.docRef = docRef;
@@ -198,11 +203,7 @@ export class Employee
     this.contactComments = contactComments;
     this.supervisingLocations = supervisingLocations;
     this.avatar = avatar;
-    if (locationId) {
-      this.locationId = locationId;
-    } else if (globalThis.locationData) {
-      this.locationId = globalThis.locationData.id;
-    }
+    this.locationsList = locationsList;
   }
 
   /**
@@ -218,15 +219,11 @@ export class Employee
    * - For organization level roles, it will return an empty array.
    */
   public get positions() {
-    if (!this.locationId) {
+    if (!globalThis.locationData.id || this.role !== "employee") {
       return [];
     }
-    const selectedLoc = this.locations?.[this.locationId];
-    if (
-      this.role === "employee" &&
-      selectedLoc != null &&
-      typeof selectedLoc !== "boolean"
-    ) {
+    const selectedLoc = this.locations?.[globalThis.locationData.id];
+    if (selectedLoc) {
       return orderBy(selectedLoc.pos ?? []);
     }
     return [];
@@ -238,15 +235,11 @@ export class Employee
    * - For organization level roles, it will return an empty string.
    */
   public get mainPosition() {
-    if (!this.locationId) {
+    if (!globalThis.locationData.id || this.role !== "employee") {
       return "";
     }
-    const selectedLoc = this.locations?.[this.locationId];
-    if (
-      this.role === "employee" &&
-      selectedLoc != null &&
-      typeof selectedLoc !== "boolean"
-    ) {
+    const selectedLoc = this.locations?.[globalThis.locationData.id];
+    if (selectedLoc) {
       return selectedLoc.mainPosition ?? "";
     }
     return "";
@@ -258,14 +251,14 @@ export class Employee
    * - For organization level roles, it will return the role.
    */
   public get locationRole() {
-    if (!this.locationId) {
+    if (!globalThis.locationData.id) {
       return null;
     }
     if (this.role !== "employee") {
       return this.role;
     }
-    const selectedLoc = this.locations?.[this.locationId];
-    if (selectedLoc != null && typeof selectedLoc !== "boolean") {
+    const selectedLoc = this.locations?.[globalThis.locationData.id];
+    if (selectedLoc) {
       return selectedLoc.role;
     }
     return RoleAccessLevels.STAFF;
@@ -275,18 +268,10 @@ export class Employee
    * Gets all the location data for the employee for the current location.
    */
   public get locationData() {
-    if (!this.locationId) {
+    if (!globalThis.locationData.id || this.role !== "employee") {
       return null;
     }
-    const selectedLoc = this.locations?.[this.locationId];
-    if (
-      this.role === "employee" &&
-      selectedLoc != null &&
-      typeof selectedLoc !== "boolean"
-    ) {
-      return selectedLoc;
-    }
-    return null;
+    return this.locations?.[globalThis.locationData.id];
   }
 
   /**
@@ -294,14 +279,14 @@ export class Employee
    * @param position The position to check.
    */
   public getHourlyWage(position: string) {
-    if (!this.locationId) {
+    if (!globalThis.locationData.id) {
       return 0;
     }
     if (this.role !== "employee") {
       return 0;
     }
-    const selectedLoc = this.locations?.[this.locationId];
-    if (selectedLoc != null && typeof selectedLoc !== "boolean") {
+    const selectedLoc = this.locations?.[globalThis.locationData.id];
+    if (selectedLoc) {
       return selectedLoc.wagePerPosition?.[position] ?? 0;
     }
     return 0;
@@ -322,24 +307,13 @@ export class Employee
    * - For employee level roles, it will remove the employee from the location, but if it is the last location, it will remove the employee from the organization.
    */
   public async delete() {
-    if (!this.locationId) {
+    if (!globalThis.locationData.id) {
       return;
     }
-    const selectedLoc = this.locations?.[this.locationId];
-    const locationsCount = this.locations
-      ? Object.keys(this.locations).length
-      : 0;
-    if (
-      this.role === "employee" &&
-      locationsCount === 1 &&
-      !isEmpty(selectedLoc)
-    ) {
-      await deleteDoc(this.docRef);
-    } else {
-      await updateDoc(this.docRef, {
-        locations: { [this.locationId]: deleteField() },
-      });
-    }
+    await updateDoc(this.docRef, {
+      [`locations.${globalThis.locationData.id}`]: deleteField(),
+      locationsList: arrayRemove(globalThis.locationData.id),
+    });
   }
 
   /**
@@ -349,13 +323,13 @@ export class Employee
   public async update(
     locationData: PartialWithFieldValue<EmployeeLocationInfo>
   ) {
-    if (!this.locationId) {
+    if (!globalThis.locationData.id) {
       return;
     }
     await setDoc(
       this.docRef,
       {
-        locations: { [this.locationId]: locationData },
+        locations: { [globalThis.locationData.id]: locationData },
       },
       { merge: true }
     );

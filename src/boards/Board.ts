@@ -6,7 +6,6 @@ import {
   SnapshotOptions,
   collection,
   updateDoc,
-  PartialWithFieldValue,
   deleteDoc,
   FieldValue,
   arrayUnion,
@@ -26,9 +25,10 @@ export interface IBoard {
   name: string;
   description?: string;
   hosts?: string[];
-  locationId: string;
+  parentId: string;
   privacyLevel: PrivacyLevel;
   accessTags?: string[];
+  global?: boolean;
 }
 
 /**
@@ -50,7 +50,7 @@ export class Board implements IBoard, PrimaryFirestore, FirebaseSignature {
   /**
    * The id of the location this board is in.
    */
-  public readonly locationId: string;
+  public readonly parentId: string;
   /**
    * The privacy level of the board.
    * @see PrivacyLevel
@@ -78,6 +78,8 @@ export class Board implements IBoard, PrimaryFirestore, FirebaseSignature {
    */
   public readonly createdBy: string;
 
+  public readonly global?: boolean;
+
   public static firestoreConverter: FirestoreDataConverter<Board> = {
     toFirestore(object: Board): DocumentData {
       const { docRef, id, ...objectToSave } = object;
@@ -103,24 +105,26 @@ export class Board implements IBoard, PrimaryFirestore, FirebaseSignature {
       name,
       description,
       hosts,
-      locationId,
+      parentId,
       privacyLevel,
       accessTags,
-      createdAt: createdAt,
+      createdAt,
       createdBy,
+      global,
     }: IBoard & FirebaseSignature,
     { id, docRef }: PrimaryFirestore
   ) {
     this.name = name;
     this.description = description;
     this.hosts = hosts;
-    this.locationId = locationId;
+    this.parentId = parentId;
     this.privacyLevel = privacyLevel;
     this.accessTags = accessTags;
     this.id = id;
     this.docRef = docRef;
     this.createdAt = createdAt;
     this.createdBy = createdBy;
+    this.global = global;
   }
 
   /**
@@ -168,16 +172,29 @@ export class Board implements IBoard, PrimaryFirestore, FirebaseSignature {
 
   /**
    * Updates the board with the given data.
-   * @param updates The data to update.
+   * @param data The data to update.
    * @remarks
    * This method will only update the name, description, and access tags.
    */
-  public async update(
-    updates: PartialWithFieldValue<
-      Pick<IBoard, "name" | "description" | "accessTags">
-    >
-  ) {
-    await updateDoc(this.docRef, updates);
+  public async update({
+    position,
+    ...data
+  }: {
+    name?: string;
+    description?: string;
+    position?: string;
+  }) {
+    if (
+      this.privacyLevel === PrivacyLevel.POSITIONS &&
+      position &&
+      position !== this.position
+    ) {
+      const accessTags = this.hosts?.map((host) => `hostId_${host}`) ?? [];
+      accessTags.push(position);
+      await updateDoc(this.docRef, { ...data, accessTags });
+    } else {
+      await updateDoc(this.docRef, data);
+    }
   }
 
   /**

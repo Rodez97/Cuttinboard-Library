@@ -10,7 +10,7 @@ import {
   updateDoc,
 } from "firebase/firestore";
 import { Timestamp } from "firebase/firestore";
-import { deleteObject, getDownloadURL, ref } from "firebase/storage";
+import { getDownloadURL, ref } from "firebase/storage";
 import { FirebaseSignature } from "../models/FirebaseSignature";
 import { PrimaryFirestore } from "../models/PrimaryFirestore";
 
@@ -144,8 +144,6 @@ export class Cuttinboard_File
    * Deletes this file from storage and firestore
    */
   public async delete() {
-    // Delete the file from storage
-    await deleteObject(this.fileRef);
     // Delete the file from firestore
     await deleteDoc(this.docRef);
   }

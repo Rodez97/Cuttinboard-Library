@@ -1,4 +1,12 @@
-import { collection, doc, query, where, setDoc } from "@firebase/firestore";
+import {
+  collection,
+  doc,
+  query,
+  where,
+  setDoc,
+  QueryDocumentSnapshot,
+  documentId,
+} from "firebase/firestore";
 import React, {
   createContext,
   ReactElement,
@@ -7,10 +15,6 @@ import React, {
   useMemo,
   useState,
 } from "react";
-import {
-  useCollectionData,
-  useDocumentData,
-} from "react-firebase-hooks/firestore";
 import { FIRESTORE } from "../utils/firebase";
 import dayjs from "dayjs";
 import isoWeek from "dayjs/plugin/isoWeek";
@@ -21,7 +25,6 @@ import { chunk, compact, isEmpty, uniq } from "lodash";
 import {
   getDocs,
   PartialWithFieldValue,
-  QueryDocumentSnapshot,
   serverTimestamp,
   WithFieldValue,
   writeBatch,
@@ -35,30 +38,25 @@ import {
 import { FirebaseSignature } from "models";
 import { WEEKFORMAT } from "../utils";
 import { useCuttinboard } from "../services/useCuttinboard";
-import { weekToDate } from "./weekToDate";
-import { ScheduleSettings } from "./ScheduleSettings";
+import { createShiftElement, parseWeekId } from "./helpers";
 import { ScheduleDoc } from "./ScheduleDoc";
 import { WeekSummary } from "./WeekSummary";
 import { IShift, Shift } from "./Shift";
+import { ScheduleSettings } from "./ScheduleSettings";
+import { useCuttinboardLocation } from "../services";
+import { useScheduleData } from "./useScheduleData";
 dayjs.extend(isoWeek);
 dayjs.extend(advancedFormat);
 dayjs.extend(customParseFormat);
 dayjs.extend(duration);
-
-const ScheduleFormDataConverter = {
-  toFirestore: (data: ScheduleSettings) => data,
-  fromFirestore: (
-    snapshot: QueryDocumentSnapshot<ScheduleSettings>
-  ): ScheduleSettings => snapshot.data(),
-};
 
 export interface IScheduleContext {
   weekId: string;
   setWeekId: React.Dispatch<React.SetStateAction<string>>;
   scheduleDocument?: ScheduleDoc;
   employeeShiftsCollection: EmployeeShifts[];
-  scheduleSettingsData?: ScheduleSettings;
-  weekDays: Date[];
+  scheduleSettingsData: ScheduleSettings;
+  weekDays: dayjs.Dayjs[];
   weekSummary: WeekSummary;
   publish: (
     notificationRecipients: "all" | "all_scheduled" | "changed" | "none"
@@ -69,7 +67,7 @@ export interface IScheduleContext {
   setPosition: React.Dispatch<React.SetStateAction<string>>;
   createShift: (
     shift: IShift,
-    dates: Date[],
+    dates: dayjs.Dayjs[],
     applyToWeekDays: number[],
     id: string,
     employeeId: string
@@ -105,113 +103,22 @@ export function ScheduleProvider({
 }: IScheduleProvider) {
   const [weekId, setWeekId] = useState(dayjs().format(WEEKFORMAT));
   const { user } = useCuttinboard();
+  const { location } = useCuttinboardLocation();
   const { getEmployees } = useEmployeesList();
   const [searchQuery, setSearchQuery] = useState("");
   const [position, setPosition] = useState<string>("");
-  const [scheduleDocument, scheduleDocumentLoading, sdError] =
-    useDocumentData<ScheduleDoc>(
-      globalThis.locationData
-        ? doc(
-            FIRESTORE,
-            "Organizations",
-            globalThis.locationData.organizationId,
-            "scheduleDocs",
-            `${weekId}_${globalThis.locationData.id}`
-          ).withConverter(ScheduleDoc.firestoreConverter)
-        : null,
-      {
-        initialValue: globalThis.locationData
-          ? ScheduleDoc.createDefaultScheduleDoc(weekId)
-          : undefined,
-      }
-    );
-  const [employeeShiftsCollectionRaw, shiftsCollectionLoading, scError] =
-    useCollectionData<EmployeeShifts>(
-      globalThis.locationData
-        ? query(
-            collection(
-              FIRESTORE,
-              "Organizations",
-              globalThis.locationData.organizationId,
-              "shifts"
-            ),
-            where("weekId", "==", weekId),
-            where("locationId", "==", globalThis.locationData.id)
-          ).withConverter(EmployeeShifts.Converter)
-        : null
-    );
-  // Get Schedule Settings from Firestore
-  const [scheduleSettingsData, loading, error] =
-    useDocumentData<ScheduleSettings>(
-      globalThis.locationData
-        ? doc(
-            FIRESTORE,
-            "Organizations",
-            globalThis.locationData.organizationId,
-            "settings",
-            `schedule_${globalThis.locationData.id}`
-          ).withConverter(ScheduleFormDataConverter)
-        : null
-    );
-
-  // Initialize EmployeeShifts Collection with schedule settings
-  const employeeShiftsCollection = useMemo(() => {
-    if (
-      loading ||
-      shiftsCollectionLoading ||
-      scheduleDocumentLoading ||
-      !employeeShiftsCollectionRaw
-    ) {
-      return [];
-    }
-
-    // We initialize the collection with the default values
-    let initializedCollection = employeeShiftsCollectionRaw.map((shift) => {
-      shift.calculateWageData();
-      return shift;
-    });
-
-    if (scheduleSettingsData) {
-      // We check if the overtime settings are enabled
-      if (scheduleSettingsData.ot_week.enabled) {
-        const { hours, multiplier } = scheduleSettingsData.ot_week;
-        initializedCollection = employeeShiftsCollectionRaw.map((shift) => {
-          shift.calculateWageData({
-            mode: "weekly",
-            hoursLimit: hours,
-            multiplier,
-          });
-          return shift;
-        });
-      } else if (scheduleSettingsData.ot_day.enabled) {
-        const { hours, multiplier } = scheduleSettingsData.ot_day;
-        initializedCollection = employeeShiftsCollectionRaw.map((shift) => {
-          shift.calculateWageData({
-            mode: "daily",
-            hoursLimit: hours,
-            multiplier,
-          });
-          return shift;
-        });
-      }
-    }
-
-    return initializedCollection;
-  }, [scheduleSettingsData, employeeShiftsCollectionRaw]);
+  const [scheduleDocument, employeeShiftsCollection, loading] =
+    useScheduleData(weekId);
 
   const weekDays = useMemo(() => {
-    const year = Number.parseInt(weekId.split("-")[2]);
-    const weekNo = Number.parseInt(weekId.split("-")[1]);
-    const firstDayWeek = weekToDate(year, weekNo, 1);
-    const weekDays: Date[] = [];
-
-    // Push the first day of the week to the array
-    weekDays.push(firstDayWeek);
+    const { start } = parseWeekId(weekId);
+    const weekDays: dayjs.Dayjs[] = [];
 
     // Push the remaining days of the week to the array
-    for (let dayIndex = 1; dayIndex < 7; dayIndex++) {
-      weekDays.push(dayjs(firstDayWeek).add(dayIndex, "days").toDate());
+    for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
+      weekDays.push(start.add(dayIndex, "day"));
     }
+
     return weekDays;
   }, [weekId]);
 
@@ -295,9 +202,6 @@ export function ScheduleProvider({
       if (!employeeShiftsCollection || !employeeShiftsCollection.length) {
         throw new Error("No shifts to publish");
       }
-      if (!globalThis.locationData) {
-        throw new Error("No location data");
-      }
       let notiRecipients: string[] = [];
       switch (notificationRecipients) {
         case "all":
@@ -325,21 +229,21 @@ export function ScheduleProvider({
         // Update the shifts document
         shiftsDoc.batchPublish(batch)
       );
-      const [, weekNumber, year] = weekId.split("-").map(Number.parseInt);
       // Update the schedule document
       batch.set(
         doc(
           FIRESTORE,
-          "Organizations",
-          globalThis.locationData.organizationId,
+          "Locations",
+          globalThis.locationData.id,
           "scheduleDocs",
-          `${weekId}_${globalThis.locationData.id}`
+          weekId
         ),
         {
           weekId,
           locationId: globalThis.locationData.id,
-          year,
-          weekNumber,
+          organizationId: globalThis.locationData.organizationId,
+          year: weekDays[0].year(),
+          weekNumber: weekDays[0].isoWeekYear(),
           notificationRecipients: uniq(notiRecipients),
           updatedAt: serverTimestamp(),
           scheduleSummary: weekSummary,
@@ -357,69 +261,39 @@ export function ScheduleProvider({
   const createShift = useCallback(
     async (
       shift: IShift,
-      dates: Date[],
+      dates: dayjs.Dayjs[],
       applyToWeekDays: number[],
       id: string,
       employeeId: string
     ) => {
-      const locationId = globalThis.locationData?.id;
-      if (!locationId || !globalThis.locationData) {
-        throw new Error("No location data");
-      }
+      const locationId = globalThis.locationData.id;
       // Get the EmployeeShiftsDoc by id
       const employeeShiftDoc = employeeShiftsCollection.find(
-        (empShiftDoc) =>
-          empShiftDoc.id === `${weekId}_${employeeId}_${locationId}`
+        (empShiftDoc) => empShiftDoc.id === `${weekId}_${employeeId}`
       );
       if (employeeShiftDoc && !isEmpty(employeeShiftDoc)) {
-        await employeeShiftDoc.createShift(shift, dates, applyToWeekDays, id);
-        return;
+        return employeeShiftDoc.createShift(shift, dates, applyToWeekDays, id);
       }
 
       const initializeEmpShiftDoc: PartialWithFieldValue<
         IEmployeeShifts & FirebaseSignature
       > = {
-        shifts: {},
+        shifts: createShiftElement(shift, dates, applyToWeekDays, id),
         employeeId,
         weekId,
         updatedAt: serverTimestamp(),
         locationId,
       };
-      const { start, end, ...rest } = shift;
-      const baseStart = Shift.toDate(start);
-      const baseEnd = Shift.toDate(end);
-      for (const day of applyToWeekDays) {
-        const column = dates.find((c) => dayjs(c).isoWeekday() === day);
-        const newStart = dayjs(column)
-          .hour(baseStart.hour())
-          .minute(baseStart.minute());
-        const newEnd = dayjs(column)
-          .hour(baseEnd.hour())
-          .minute(baseEnd.minute());
-        // If end time is before start time, add a day to the end time
-        const end = newEnd.isBefore(newStart) ? newEnd.add(1, "day") : newEnd;
-        const newShift: WithFieldValue<IShift & FirebaseSignature> = {
-          ...rest,
-          start: Shift.toString(newStart.toDate()),
-          end: Shift.toString(end.toDate()),
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-          createdBy: user.uid,
-          status: "draft",
-        };
-        initializeEmpShiftDoc.shifts = {
-          ...initializeEmpShiftDoc.shifts,
-          [`${day}-${id}`]: newShift,
-        };
-      }
+
       const shiftRef = doc(
         FIRESTORE,
-        "Organizations",
-        globalThis.locationData?.organizationId,
+        "Locations",
+        locationId,
         "shifts",
-        `${weekId}_${employeeId}_${locationId}`
+        `${weekId}_${employeeId}`
       );
-      await setDoc(shiftRef, initializeEmpShiftDoc);
+
+      await setDoc(shiftRef, initializeEmpShiftDoc, { merge: true });
     },
     [employeeShiftsCollection]
   );
@@ -441,38 +315,43 @@ Update the shifts for the current week in the database using a batch write.
    */
   const cloneWeek = useCallback(
     async (targetWeekId: string, employees: string[]) => {
-      if (!globalThis.locationData) {
-        throw new Error("No location data");
+      if (employees.length === 0) {
+        // No employees selected
+        return;
       }
 
-      const targetYear = Number.parseInt(targetWeekId.split("-")[2]);
-      const targetWeekNo = Number.parseInt(targetWeekId.split("-")[1]);
-      const firstDayTargetWeek = weekToDate(targetYear, targetWeekNo, 1);
-      const weeksDiff = Math.abs(
-        dayjs(firstDayTargetWeek).diff(weekDays[0], "weeks")
-      );
-      const allQueries = chunk(employees, 10).map((employeesChunk) => {
-        if (!globalThis.locationData) {
-          return; // Handle the error or return a default value here
-        }
+      const { start } = parseWeekId(targetWeekId);
 
+      // Calculate the number of weeks difference between the first day of the target week and the first day of the current week
+      const weeksDiff = Math.abs(dayjs(start).diff(weekDays[0], "weeks"));
+
+      // Get the shifts for the target week for the given employees
+      const allQueries = chunk(employees, 10).map((employeesChunk) => {
+        const docIds = employeesChunk.map(
+          (empId) => `${targetWeekId}_${empId}`
+        );
         return getDocs(
           query(
             collection(
               FIRESTORE,
-              "Organizations",
-              globalThis.locationData.organizationId,
+              "Locations",
+              globalThis.locationData.id,
               "shifts"
             ),
-            where("weekId", "==", targetWeekId),
-            where("employeeId", "in", employeesChunk),
-            where("locationId", "==", globalThis.locationData.id)
+            where(documentId(), "in", docIds)
           ).withConverter(EmployeeShifts.Converter)
         );
       });
-
       const exeQueries = await Promise.all(compact(allQueries));
-      const queriesDocs = exeQueries.flatMap((q) => q.docs);
+      const queriesDocs = new Array<
+        QueryDocumentSnapshot<EmployeeShifts>
+      >().concat(...exeQueries.map((q) => q.docs));
+
+      if (queriesDocs.length === 0) {
+        // No shifts found
+        return;
+      }
+
       // ----------------------------------------------------------------
       const batch = writeBatch(FIRESTORE);
 
@@ -483,11 +362,13 @@ Update the shifts for the current week in the database using a batch write.
           WithFieldValue<IShift & FirebaseSignature>
         > = {};
 
-        if (isEmpty(targetWeekDoc.shifts)) {
+        if (targetWeekDoc.shiftsArray.length === 0) {
+          // No shifts found
           continue;
         }
 
-        const existentDoc = employeeShiftsCollection.find(
+        // Check if the shift exists in the current week and if it is not being deleted or has pending updates
+        const currentWeekShifts = employeeShiftsCollection.find(
           (d) => d.employeeId === targetWeekDoc.employeeId
         );
 
@@ -495,7 +376,7 @@ Update the shifts for the current week in the database using a batch write.
           .filter(
             (shift) =>
               shift.status === "published" && // Only clone published shifts
-              isEmpty(existentDoc?.shifts?.[shift.id]) && // Only clone if the shift doesn't exist
+              isEmpty(currentWeekShifts?.shifts?.[shift.id]) && // Only clone if the shift doesn't exist
               !shift.deleting && // Only clone if the shift is not being deleted
               !shift.hasPendingUpdates // Only clone if the shift doesn't have pending updates
           )
@@ -519,19 +400,19 @@ Update the shifts for the current week in the database using a batch write.
           continue;
         }
 
-        if (existentDoc) {
+        if (currentWeekShifts) {
           batch.set(
-            existentDoc.docRef,
+            currentWeekShifts.docRef,
             { shifts, updatedAt: serverTimestamp() },
             { merge: true }
           );
         } else {
           const shiftRef = doc(
             FIRESTORE,
-            "Organizations",
-            globalThis.locationData.organizationId,
+            "Locations",
+            globalThis.locationData.id,
             "shifts",
-            `${weekId}_${targetWeekDoc.employeeId}_${globalThis.locationData.id}`
+            `${weekId}_${targetWeekDoc.employeeId}`
           );
           batch.set(
             shiftRef,
@@ -560,7 +441,11 @@ Update the shifts for the current week in the database using a batch write.
     let deleted = 0;
     let pendingUpdates = 0;
 
-    for (const { shiftsArray } of employeeShiftsCollection ?? []) {
+    if (!employeeShiftsCollection?.length) {
+      return { newOrDraft, deleted, pendingUpdates, total: 0 };
+    }
+
+    for (const { shiftsArray } of employeeShiftsCollection) {
       if (!shiftsArray?.length) {
         continue;
       }
@@ -580,6 +465,7 @@ Update the shifts for the current week in the database using a batch write.
         }
       }
     }
+
     return {
       newOrDraft,
       deleted,
@@ -588,20 +474,12 @@ Update the shifts for the current week in the database using a batch write.
     };
   }, [employeeShiftsCollection]);
 
-  if (scheduleDocumentLoading || shiftsCollectionLoading || loading) {
+  if (loading) {
     return LoadingRenderer();
   }
 
-  if (sdError) {
-    return ErrorRenderer(sdError);
-  }
-
-  if (scError) {
-    return ErrorRenderer(scError);
-  }
-
-  if (error) {
-    return ErrorRenderer(error);
+  if (!location.settings.schedule) {
+    return ErrorRenderer(new Error("No schedule settings"));
   }
 
   return (
@@ -621,7 +499,7 @@ Update the shifts for the current week in the database using a batch write.
         createShift,
         updates: updatesCount,
         cloneWeek,
-        scheduleSettingsData,
+        scheduleSettingsData: location.settings.schedule,
       }}
     >
       {typeof children === "function"

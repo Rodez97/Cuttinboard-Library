@@ -24,6 +24,8 @@ import dayjs from "dayjs";
 import isoWeek from "dayjs/plugin/isoWeek";
 import duration from "dayjs/plugin/duration";
 import isBetween from "dayjs/plugin/isBetween";
+import { createShiftElement } from "./helpers";
+import { areIntervalsOverlapping } from "date-fns";
 dayjs.extend(isoWeek);
 dayjs.extend(duration);
 dayjs.extend(isBetween);
@@ -177,12 +179,11 @@ export class EmployeeShifts
       ? query(
           collection(
             FIRESTORE,
-            "Organizations",
-            globalThis.locationData.organizationId,
+            "Locations",
+            globalThis.locationData.id,
             "shifts"
           ),
-          where("weekId", "==", weekId),
-          where("locationId", "==", globalThis.locationData.id)
+          where("weekId", "==", weekId)
         ).withConverter(EmployeeShifts.Converter)
       : null;
 
@@ -397,6 +398,17 @@ export class EmployeeShifts
                 : 0),
             0
           );
+        } else {
+          // if the mode is daily, calculate the accumulated hours
+          accumulatedHours = this.shiftsArray.reduce(
+            (acc, s) =>
+              acc +
+              (s.getStartDayjsDate.isSame(shift.getStartDayjsDate, "day") &&
+              s.getStartDayjsDate.isBefore(shift.getStartDayjsDate)
+                ? s.shiftDuration.totalHours
+                : 0),
+            0
+          );
         }
         shift.calculateHourlyWage(
           accumulatedHours,
@@ -452,7 +464,7 @@ export class EmployeeShifts
    */
   public async createShift(
     shift: IShift,
-    dates: Date[],
+    dates: dayjs.Dayjs[],
     applyToWeekDays: number[],
     id: string
   ): Promise<void> {
@@ -461,41 +473,11 @@ export class EmployeeShifts
     }
 
     // New shift record
-    let newShifts: Record<
+    const newShifts: Record<
       string,
       WithFieldValue<IShift & FirebaseSignature>
-    > = {};
+    > = createShiftElement(shift, dates, applyToWeekDays, id);
 
-    const { start, end, ...rest } = shift;
-    const baseStart = Shift.toDate(start);
-    const baseEnd = Shift.toDate(end);
-    // Create a new shift for each date
-    for (const isoWeekDay of applyToWeekDays) {
-      const shiftId = `${isoWeekDay}-${id}`;
-      const column = dates.find((c) => dayjs(c).isoWeekday() === isoWeekDay);
-      // Adjust the start and end dates to the correct weekday
-      const newStart = dayjs(column)
-        .hour(baseStart.hour())
-        .minute(baseStart.minute());
-      const newEnd = dayjs(column)
-        .hour(baseEnd.hour())
-        .minute(baseEnd.minute());
-      // If end time is before start time, add a day to the end time
-      const end = newEnd.isBefore(newStart) ? newEnd.add(1, "day") : newEnd;
-      // Create the new shift
-      newShifts = {
-        ...newShifts,
-        [shiftId]: {
-          ...rest,
-          start: Shift.toString(newStart.toDate()),
-          end: Shift.toString(end.toDate()),
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-          createdBy: AUTH.currentUser.uid,
-          status: "draft",
-        },
-      };
-    }
     // Add the new shifts to the schedule
     await setDoc(this.docRef, { shifts: newShifts }, { merge: true });
   }
@@ -560,44 +542,6 @@ export class EmployeeShifts
   }
 
   /**
-   * Unpublish all shifts in the schedule
-   * @param batch - Firestore batch
-   * @remarks
-   * It is recommended to use a batch to unpublish multiple schedules at once
-   * @example
-   * ```typescript
-   * const batch = writeBatch(firestore);
-   * await schedule.batchUnpublish(batch);
-   * await batch.commit();
-   * ```
-   */
-  public batchUnpublish(batch: WriteBatch) {
-    // If there are no shifts, return
-    if (!this.shifts || isEmpty(this.shifts)) {
-      return;
-    }
-
-    // Create a record of shifts to update
-    let shiftsUpdates: Record<string, { status: "draft" }> = {};
-
-    // Loop through each shift
-    Object.keys(this.shifts).forEach((id) => {
-      // Add the shift to the record of shifts to update
-      shiftsUpdates = { ...shiftsUpdates, [id]: { status: "draft" } };
-    });
-
-    // Add the shifts to the batch
-    batch.set(
-      this.docRef,
-      {
-        updatedAt: serverTimestamp(),
-        shifts: shiftsUpdates,
-      },
-      { merge: true }
-    );
-  }
-
-  /**
    * Check if a new shift start or end time overlaps with an existing shift
    * @param start - The start time of the new shift
    * @param end - The end time of the new shift
@@ -620,20 +564,12 @@ export class EmployeeShifts
         return false;
       }
 
-      // Check if the new shift start or end time overlaps with an existing shift
-      return (
-        start.isBetween(
-          shift.getStartDayjsDate,
-          shift.getEndDayjsDate,
-          null,
-          "[]"
-        ) ||
-        end.isBetween(
-          shift.getStartDayjsDate,
-          shift.getEndDayjsDate,
-          null,
-          "[]"
-        )
+      return areIntervalsOverlapping(
+        { start: start.toDate(), end: end.toDate() },
+        {
+          start: shift.getStartDayjsDate.toDate(),
+          end: shift.getEndDayjsDate.toDate(),
+        }
       );
     });
   };

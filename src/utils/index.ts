@@ -4,4 +4,5 @@ export * from "./CONSTANTS";
 export * from "./firebase";
 export * from "./PrivacyLevel";
 export * from "./RoleAccessLevels";
+export * from "./useDisclose";
 // @endindex

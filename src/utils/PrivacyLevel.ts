@@ -41,3 +41,20 @@ export enum PrivacyLevel {
    */
   PRIVATE = 0,
 }
+
+/**
+ * Converts a `PrivacyLevel` enum value to a string.
+ *
+ * @param privacyLevel The `PrivacyLevel` value to convert.
+ * @returns The string representation of the `PrivacyLevel` value.
+ */
+export function privacyLevelToString(privacyLevel: PrivacyLevel): string {
+  switch (privacyLevel) {
+    case PrivacyLevel.PUBLIC:
+      return "PUBLIC";
+    case PrivacyLevel.POSITIONS:
+      return "POSITIONS";
+    case PrivacyLevel.PRIVATE:
+      return "PRIVATE";
+  }
+}

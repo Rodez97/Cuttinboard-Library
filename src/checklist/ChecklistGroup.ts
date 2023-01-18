@@ -7,13 +7,13 @@ import {
   SnapshotOptions,
   setDoc,
   deleteField,
-  PartialWithFieldValue,
   serverTimestamp,
+  FieldValue,
 } from "firebase/firestore";
 import { isEmpty } from "lodash";
 import { AUTH } from "../utils/firebase";
 import { PrimaryFirestore } from "../models/PrimaryFirestore";
-import { Checklist, Task } from "./types";
+import { Checklist, IChecklist } from "./Checklist";
 
 /**
  * A Checklist group is a group of checklists linked to a location.
@@ -21,7 +21,7 @@ import { Checklist, Task } from "./types";
 export interface IChecklistGroup {
   locationId: string;
   checklists?: {
-    [key: string]: Checklist;
+    [key: string]: IChecklist;
   };
 }
 
@@ -36,9 +36,11 @@ export class ChecklistGroup implements IChecklistGroup, PrimaryFirestore {
   /**
    * A record of all the checklists in this group.
    */
-  public readonly checklists?: {
-    [key: string]: Checklist;
-  };
+  private _checklists?:
+    | {
+        [key: string]: IChecklist;
+      }
+    | undefined;
   /**
    * The ID of the document in Firestore.
    */
@@ -76,172 +78,64 @@ export class ChecklistGroup implements IChecklistGroup, PrimaryFirestore {
     { id, docRef }: PrimaryFirestore
   ) {
     this.locationId = locationId;
-    this.checklists = checklists;
+    this._checklists = checklists;
     this.id = id;
     this.docRef = docRef;
+  }
+
+  public get checklists():
+    | {
+        [key: string]: IChecklist;
+      }
+    | undefined {
+    return this._checklists;
+  }
+
+  private set checklists(
+    value:
+      | {
+          [key: string]: IChecklist;
+        }
+      | undefined
+  ) {
+    this._checklists = value;
+  }
+
+  public get checklistsArray() {
+    if (!this.checklists) {
+      return [];
+    }
+    return Object.entries(this.checklists)
+      .map(([key, task]) => {
+        return new Checklist(task, key, this.docRef);
+      })
+      .sort((a, b) => {
+        return a.order - b.order;
+      });
   }
 
   /**
    * Get a summary of the completion status of all the tasks in the checklists of this group.
    */
   public get summary() {
+    // Initialize the summary object with zero values
     const summary = {
       total: 0,
       completed: 0,
     };
 
-    if (!this.checklists || isEmpty(this.checklists)) {
-      // If there are no sections, return the summary
+    // If there are no tasks, return the empty summary object
+    if (this.checklistsArray.length === 0) {
       return summary;
     }
 
-    for (const sectionKey in this.checklists) {
-      const section = this.checklists[sectionKey];
-      if (!section.tasks || isEmpty(section.tasks)) {
-        // If there are no tasks in the section, skip it
-        continue;
-      }
-      for (const taskKey in section.tasks) {
-        const task = section.tasks[taskKey];
-        summary.total++;
-        if (task.status) {
-          summary.completed++;
-        }
-      }
-    }
+    // Loop through the tasks and increment the total and completed counters
+    this.checklistsArray.forEach((checklist) => {
+      summary.total += checklist.summary.total;
+      summary.completed += checklist.summary.completed;
+    });
+
     return summary;
-  }
-
-  /**
-   * Get a summary of the completion status of a specific checklist in this group.
-   * @param sectionKey The key of the checklist to get the summary of.
-   */
-  public getChecklistSummary(sectionKey: string) {
-    const summary = {
-      total: 0,
-      completed: 0,
-    };
-
-    if (!this.checklists || isEmpty(this.checklists)) {
-      // If there are no sections, return the summary
-      return summary;
-    }
-
-    const section = this.checklists[sectionKey];
-    if (isEmpty(section.tasks)) {
-      // If there are no tasks in the section, skip it
-      return summary;
-    }
-    for (const taskKey in section.tasks) {
-      const task = section.tasks[taskKey];
-      summary.total++;
-      if (task.status) {
-        summary.completed++;
-      }
-    }
-    return summary;
-  }
-
-  /**
-   * Update the status of a task.
-   * @param checklistKey The key of the checklist that contains the task.
-   * @param taskKey The key of the task to update.
-   * @param status The new status of the task.
-   */
-  public async changeTaskStatus(
-    checklistKey: string,
-    taskKey: string,
-    status: boolean
-  ) {
-    // Check if the task exists
-    if (!this.checklists?.[checklistKey]?.tasks?.[taskKey]) {
-      throw new Error("There is no task with this ID");
-    }
-
-    await setDoc(
-      this.docRef,
-      {
-        checklists: {
-          [checklistKey]: {
-            tasks: {
-              [taskKey]: {
-                status,
-              },
-            },
-          },
-        },
-      },
-      { merge: true }
-    );
-  }
-
-  /**
-   * Add a new task to a checklist.
-   * @param checklistKey The key of the checklist to add the task to.
-   * @param taskKey The key of the task to add.
-   * @param task The task to add.
-   */
-  public async addTask(checklistKey: string, taskKey: string, task: string) {
-    // Check if the task exists
-    if (this.checklists?.[checklistKey]?.tasks?.[taskKey]) {
-      throw new Error("There is already a task with this ID");
-    }
-
-    // Get the order of the last task
-    const allTasks = this.checklists?.[checklistKey]?.tasks;
-    const lastTaskOrder = allTasks
-      ? Object.values(allTasks)
-          .map((task) => task.order)
-          .sort((a, b) => b - a)[0]
-      : 0;
-    const newTaskOrder = lastTaskOrder + 1;
-
-    const newTask = {
-      order: newTaskOrder,
-      name: task,
-      status: false,
-      createdAt: serverTimestamp(),
-    };
-
-    await setDoc(
-      this.docRef,
-      {
-        checklists: {
-          [checklistKey]: {
-            tasks: {
-              [taskKey]: newTask,
-            },
-          },
-        },
-      },
-      { merge: true }
-    );
-  }
-
-  /**
-   * Delete a task from a checklist.
-   * @param sectionKey The key of the checklist to delete the task from.
-   * @param taskKey The key of the task to delete.
-   */
-  public async removeTask(sectionKey: string, taskKey: string) {
-    // Check if the task exists
-    if (!this.checklists?.[sectionKey]?.tasks?.[taskKey]) {
-      throw new Error("There is no task with this ID");
-    }
-
-    await setDoc(
-      this.docRef,
-      {
-        checklists: {
-          [sectionKey]: {
-            tasks: {
-              [taskKey]: deleteField(),
-            },
-          },
-        },
-      },
-      { merge: true }
-    );
   }
 
   /**
@@ -292,13 +186,35 @@ export class ChecklistGroup implements IChecklistGroup, PrimaryFirestore {
     if (!this.checklists?.[checklistKey]) {
       throw new Error("There is no section with this ID");
     }
+    let updatedChecklists: Record<string, { order: number } | FieldValue> = {
+      [checklistKey]: deleteField(),
+    };
+
+    // Create a copy of the objects array
+    const updatedOrder = [...this.checklistsArray];
+
+    // Find the index of the object to delete
+    const index = updatedOrder.findIndex(
+      (checklist) => checklist.id === checklistKey
+    );
+
+    // Remove the object at the specified index
+    updatedOrder.splice(index, 1);
+
+    // Update the order attribute of the remaining objects in the array
+    updatedOrder.forEach((checklist, index) => {
+      updatedChecklists = {
+        ...updatedChecklists,
+        [checklist.id]: {
+          order: index + 1,
+        },
+      };
+    });
 
     await setDoc(
       this.docRef,
       {
-        checklists: {
-          [checklistKey]: deleteField(),
-        },
+        checklists: updatedChecklists,
       },
       { merge: true }
     );
@@ -306,15 +222,15 @@ export class ChecklistGroup implements IChecklistGroup, PrimaryFirestore {
 
   /**
    * Add a new checklist to this group.
-   * @param sectionKey The key of the checklist to add.
+   * @param newChecklistKey The key of the checklist to add.
    * @param newTask If provided, a new task will be added to the checklist in the same operation.
    */
   public async addChecklist(
-    sectionKey: string,
+    newChecklistKey: string,
     newTask?: { id: string; name: string }
   ) {
     // Check if the section exists
-    if (this.checklists?.[sectionKey]) {
+    if (this.checklists?.[newChecklistKey]) {
       throw new Error("There is already a checklist with this ID");
     }
 
@@ -322,21 +238,13 @@ export class ChecklistGroup implements IChecklistGroup, PrimaryFirestore {
       throw new Error("You must be logged in to add a section");
     }
 
-    // Get the order of the last section
-    const allSections = this.checklists;
-    const lastSectionOrder =
-      (allSections
-        ? Object.values(allSections)
-            .map((section) => section.order)
-            .sort((a, b) => b - a)[0]
-        : 0) ?? 1;
-    const newSectionOrder = lastSectionOrder + 1;
+    const order = this.checklistsArray.length + 1;
 
     const newSection = {
-      name: `Task Block #${newSectionOrder}`,
+      name: `Task List #${order}`,
       createdAt: serverTimestamp(),
       createdBy: AUTH.currentUser.uid,
-      order: newSectionOrder,
+      order,
       tasks: newTask
         ? {
             [newTask.id]: {
@@ -353,7 +261,7 @@ export class ChecklistGroup implements IChecklistGroup, PrimaryFirestore {
       this.docRef,
       {
         checklists: {
-          [sectionKey]: newSection,
+          [newChecklistKey]: newSection,
         },
       },
       { merge: true }
@@ -361,56 +269,52 @@ export class ChecklistGroup implements IChecklistGroup, PrimaryFirestore {
   }
 
   /**
-   * Update a specific task in a checklist.
-   * @param checklistKey The key of the checklist to update.
-   * @param taskKey The key of the task to update.
-   * @param task The new task data.
+   * Reorder the checklists in this group.
+   * @param checklistKey The key of the checklist to move.
    */
-  public async updateTask(
-    checklistKey: string,
-    taskKey: string,
-    task: PartialWithFieldValue<Task>
-  ) {
+  public async reorderChecklists(checklistKey: string, toIndex: number) {
     // Check if the task exists
-    if (!this.checklists?.[checklistKey]?.tasks?.[taskKey]) {
+    if (!this.checklists?.[checklistKey]) {
       throw new Error("There is no task with this ID");
     }
+    let updatedChecklists: Record<string, { order: number }> = {};
 
-    await setDoc(
-      this.docRef,
-      {
-        checklists: {
-          [checklistKey]: {
-            tasks: {
-              [taskKey]: task,
-            },
-          },
-        },
-      },
-      { merge: true }
+    // Create a copy of the objects array
+    const updatedOrder = [...this.checklistsArray];
+
+    // Find the index of the object to delete
+    const fromIndex = updatedOrder.findIndex(
+      (checklist) => checklist.id === checklistKey
     );
-  }
 
-  /**
-   * Update a specific checklist.
-   * @param checklistKey The key of the checklist to update.
-   * @param checklist The new checklist data.
-   */
-  public async updateChecklist(
-    checklistKey: string,
-    checklist: PartialWithFieldValue<Omit<Checklist, "tasks">>
-  ) {
-    // Check if the section exists
-    if (!this.checklists?.[checklistKey]) {
-      throw new Error("There is no section with this ID");
-    }
+    // Swap the objects at the specified indices
+    const [removedObject] = updatedOrder.splice(fromIndex, 1);
+    updatedOrder.splice(toIndex, 0, removedObject);
+
+    // Update the order attribute of the moved objects and the other objects in the array
+    updatedOrder.forEach((checklist, index) => {
+      const newOrder = index + 1;
+      updatedChecklists = {
+        ...updatedChecklists,
+        [checklist.id]: {
+          order: newOrder,
+        },
+      };
+      if (this.checklists?.[checklist.id]) {
+        this.checklists = {
+          ...this.checklists,
+          [checklist.id]: {
+            ...this.checklists[checklist.id],
+            order: newOrder,
+          },
+        };
+      }
+    });
 
     await setDoc(
       this.docRef,
       {
-        checklists: {
-          [checklistKey]: checklist,
-        },
+        checklists: updatedChecklists,
       },
       { merge: true }
     );

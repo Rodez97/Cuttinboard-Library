@@ -8,7 +8,7 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { AUTH, FIRESTORE } from "../utils/firebase";
-import { weekToDate } from "./weekToDate";
+import { weekToDate } from "./helpers";
 import { FirebaseSignature, PrimaryFirestore } from "../models";
 import { WageDataByDay } from "./EmployeeShifts";
 import { WeekSummary } from "./WeekSummary";
@@ -19,6 +19,7 @@ import { WeekSummary } from "./WeekSummary";
 export interface IScheduleDoc {
   weekId: string;
   locationId: string;
+  organizationId: string;
   year: number;
   weekNumber: number;
   notificationRecipients?: string[];
@@ -72,9 +73,8 @@ export class ScheduleDoc
   public readonly scheduleSummary: WeekSummary;
   /**
    * The id of the document.
-   * - The format is `${weekId}_${locationId}`
    * @see WEEKFORMAT
-   * @example "W-23-2022_zxcv1234567654321"
+   * @example "W-23-2022"
    */
   public readonly id: string;
   /**
@@ -89,6 +89,8 @@ export class ScheduleDoc
    * The id of the user who created this document.
    */
   public readonly createdBy: string;
+
+  public readonly organizationId: string;
 
   /**
    * Firestore data converter for ScheduleDoc.
@@ -112,13 +114,11 @@ export class ScheduleDoc
    * Creates a Default ScheduleDoc for a given week.
    */
   public static createDefaultScheduleDoc(weekId: string): ScheduleDoc {
-    if (!globalThis.locationData) {
-      throw new Error("locationData is not defined.");
-    }
     if (!AUTH.currentUser) {
       throw new Error("You must be logged in to create a schedule.");
     }
     const locationId = globalThis.locationData.id;
+    const organizationId = globalThis.locationData.organizationId;
     const weekData = weekId.split("-");
     const year = Number(weekData[2]);
     const weekNumber = Number(weekData[1]);
@@ -126,6 +126,7 @@ export class ScheduleDoc
       {
         weekId,
         locationId,
+        organizationId,
         year,
         weekNumber,
         updatedAt: Timestamp.now(),
@@ -148,14 +149,8 @@ export class ScheduleDoc
         },
       },
       {
-        id: `${weekId}_${globalThis.locationData.id}`,
-        docRef: doc(
-          FIRESTORE,
-          "Organizations",
-          globalThis.locationData.organizationId,
-          "scheduleDocs",
-          `${weekId}_${globalThis.locationData.id}`
-        ),
+        id: `${weekId}_${locationId}`,
+        docRef: doc(FIRESTORE, "Locations", locationId, "scheduleDocs", weekId),
       }
     );
   }
@@ -169,6 +164,7 @@ export class ScheduleDoc
     {
       weekId,
       locationId,
+      organizationId,
       year,
       weekNumber,
       notificationRecipients,
@@ -182,6 +178,7 @@ export class ScheduleDoc
   ) {
     this.weekId = weekId;
     this.locationId = locationId;
+    this.organizationId = organizationId;
     this.year = year;
     this.weekNumber = weekNumber;
     this.notificationRecipients = notificationRecipients;
@@ -198,8 +195,8 @@ export class ScheduleDoc
    * Get the first day of the week.
    */
   public get getWeekStart(): Date {
-    const firstDayWeek = weekToDate(this.year, this.weekNumber, 1);
-    return firstDayWeek;
+    const firstDayWeek = weekToDate(this.year, this.weekNumber);
+    return firstDayWeek.toDate();
   }
 
   /**

@@ -1,8 +1,4 @@
-import {
-  DocumentData,
-  DocumentReference,
-  Timestamp,
-} from "@firebase/firestore";
+import { DocumentData, DocumentReference, Timestamp } from "firebase/firestore";
 import { SubscriptionItem } from "./SubscriptionItem";
 
 export interface Subscription {

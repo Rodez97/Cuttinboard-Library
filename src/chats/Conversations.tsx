@@ -1,7 +1,6 @@
 import {
   addDoc,
   collection,
-  FirestoreError,
   PartialWithFieldValue,
   query,
   serverTimestamp,
@@ -20,7 +19,6 @@ import { RoleAccessLevels } from "../utils/RoleAccessLevels";
 import { PrivacyLevel } from "../utils/PrivacyLevel";
 import { DATABASE, FIRESTORE } from "../utils/firebase";
 import { useCuttinboardLocation } from "../services/useCuttinboardLocation";
-import { useEmployeesList } from "../employee/useEmployeesList";
 import {
   ref,
   serverTimestamp as dbServerTimestamp,
@@ -28,8 +26,8 @@ import {
 } from "firebase/database";
 import { useCuttinboard } from "../services/useCuttinboard";
 import { FirebaseSignature, PrimaryFirestore } from "../models";
-import { uniq } from "lodash";
 import { Conversation, IConversation } from "./Conversation";
+import { useEmployeesList } from "../employee";
 
 /**
  * The `ConversationsContextProps` interface defines the shape of the
@@ -69,17 +67,8 @@ export interface IConversationsContextProps {
    * @param newConvData The data for the new conversation.
    */
   addConversation: (
-    newConvData: Omit<IConversation, "locationId">
+    newConvData: Omit<IConversation, "locationId" | "organizationId">
   ) => Promise<string>;
-  /**
-   * A callback function that updates the active conversation with the given updates.
-   * @param updates The updates to apply to the active conversation.
-   */
-  modifyConversation: (
-    updates: PartialWithFieldValue<
-      Pick<IConversation, "name" | "description" | "position">
-    >
-  ) => Promise<void>;
   /**
    * A boolean value indicating whether the component is currently loading data.
    */
@@ -124,11 +113,6 @@ interface ConversationsProviderProps {
          */
         activeConversation?: Conversation;
       }) => JSX.Element);
-  /**
-   * A callback function that is called when an error occurs
-   * while loading or updating conversations.
-   */
-  onError: (error: Error | FirestoreError) => void;
 }
 
 /**
@@ -138,31 +122,16 @@ interface ConversationsProviderProps {
  */
 export function ConversationsProvider({
   children,
-  onError,
 }: ConversationsProviderProps) {
   const [activeConversationId, setActiveConversationId] = useState("");
   const { user } = useCuttinboard();
+  const { location, role } = useCuttinboardLocation();
   const { getEmployees } = useEmployeesList();
-  const { location, locationAccessKey } = useCuttinboardLocation();
   const [allConversations, loading, error] = useCollectionData<Conversation>(
-    (locationAccessKey.role <= RoleAccessLevels.GENERAL_MANAGER
-      ? query(
-          collection(
-            FIRESTORE,
-            "Organizations",
-            location.organizationId,
-            "conversations"
-          ),
-          where("locationId", "==", location.id)
-        )
+    (role <= RoleAccessLevels.GENERAL_MANAGER
+      ? collection(FIRESTORE, "Locations", location.id, "conversations")
       : query(
-          collection(
-            FIRESTORE,
-            "Organizations",
-            location.organizationId,
-            "conversations"
-          ),
-          where("locationId", "==", location.id),
+          collection(FIRESTORE, "Locations", location.id, "conversations"),
           where(`members`, "array-contains", user.uid)
         )
     ).withConverter(Conversation.firestoreConverter)
@@ -182,7 +151,7 @@ export function ConversationsProvider({
    * {@inheritDoc IConversationsContextProps.canManage}
    */
   const canManage = useMemo(() => {
-    if (locationAccessKey.role <= RoleAccessLevels.GENERAL_MANAGER) {
+    if (role <= RoleAccessLevels.GENERAL_MANAGER) {
       // General managers can manage all conversations
       return true;
     }
@@ -191,11 +160,8 @@ export function ConversationsProvider({
       return false;
     }
     // If the user is a manager and hosts the conversation, can manage it.
-    return Boolean(
-      activeConversation.iAmHost &&
-        locationAccessKey.role <= RoleAccessLevels.MANAGER
-    );
-  }, [user.uid, activeConversation, locationAccessKey]);
+    return activeConversation.iAmHost;
+  }, [user.uid, activeConversation, role]);
 
   /**
    * {@inheritDoc IConversationsContextProps.canUse}
@@ -205,13 +171,15 @@ export function ConversationsProvider({
       return false;
     }
     return activeConversation.iAmMember;
-  }, [user.uid, activeConversation, location, locationAccessKey]);
+  }, [user.uid, activeConversation, location, role]);
 
   /**
    * {@inheritDoc IConversationsContextProps.addConversation}
    */
   const addConversation = useCallback(
-    async (newConvData: Omit<IConversation, "locationId">) => {
+    async (
+      newConvData: Omit<IConversation, "locationId" | "organizationId">
+    ) => {
       const newConversationToAdd: PartialWithFieldValue<
         IConversation & PrimaryFirestore & FirebaseSignature
       > = {
@@ -219,103 +187,46 @@ export function ConversationsProvider({
         createdAt: serverTimestamp(),
         createdBy: user.uid,
         locationId: location.id,
+        organizationId: location.organizationId,
       };
-      // Determine which employees should be added to the conversation members list.
-      let members: string[] = [];
       if (newConvData.privacyLevel === PrivacyLevel.PUBLIC) {
-        // If the conversation is public, add all employees to the members list.
-        members = getEmployees.map(({ id }) => id);
-      } else if (
-        newConvData.privacyLevel === PrivacyLevel.POSITIONS &&
-        newConvData.position
-      ) {
-        // If the conversation is position-based, add only employees with the specified position to the members list.
-        members = getEmployees
-          .filter((emp) =>
-            newConvData.position
-              ? emp.hasAnyPosition([newConvData.position])
-              : false
-          )
-          .map(({ id }) => id);
+        newConversationToAdd.members = getEmployees.map(({ id }) => id);
       }
-      // Add the members to the element to add.
-      newConversationToAdd.members = members;
 
-      try {
-        // Add the new conversation to the database.
-        const newConvRef = await addDoc(
-          collection(
-            FIRESTORE,
-            "Organizations",
-            location.organizationId,
-            "conversations"
-          ),
-          newConversationToAdd
-        );
-        // Create and add the first message to the conversation, which is the conversation creation message itself.
-        await set(
-          ref(
-            DATABASE,
-            `conversationMessages/${location.organizationId}/${location.id}/${newConvRef.id}/firstMessage`
-          ),
-          {
-            createdAt: dbServerTimestamp(),
-            message: "START",
-            systemType: "start",
-            type: "system",
-          }
-        );
-        return newConvRef.id;
-      } catch (error) {
-        onError(error);
-        throw error;
+      if (newConvData.privacyLevel === PrivacyLevel.POSITIONS) {
+        const position = newConvData.position;
+        if (!position) {
+          throw new Error(
+            "Cannot create a conversation with privacy level 'positions' without a position."
+          );
+        } else {
+          newConversationToAdd.members = getEmployees
+            .filter((employee) => employee.hasAnyPosition([position]))
+            .map(({ id }) => id);
+        }
       }
+
+      // Add the new conversation to the database.
+      const newConvRef = await addDoc(
+        collection(FIRESTORE, "Locations", location.id, "conversations"),
+        newConversationToAdd
+      );
+      // Create and add the first message to the conversation, which is the conversation creation message itself.
+      await set(
+        ref(
+          DATABASE,
+          `conversationMessages/${location.organizationId}/${location.id}/${newConvRef.id}/firstMessage`
+        ),
+        {
+          createdAt: dbServerTimestamp(),
+          message: "START",
+          systemType: "start",
+          type: "system",
+        }
+      );
+      return newConvRef.id;
     },
-    [location, getEmployees]
-  );
-
-  /**
-   * {@inheritDoc IConversationsContextProps.modifyConversation}
-   */
-  const modifyConversation = useCallback(
-    async (
-      updates: PartialWithFieldValue<
-        Pick<IConversation, "name" | "description" | "position">
-      >
-    ) => {
-      if (!activeConversation) {
-        return;
-      }
-
-      if (
-        activeConversation.privacyLevel !== PrivacyLevel.POSITIONS || // If the conversation is not position based, we don't need to update the members list
-        !updates.position || // If the position is not being updated, we don't need to update the members list
-        updates.position === activeConversation.position // If the position is not being changed, we don't need to update the members list
-      ) {
-        await activeConversation.update(updates);
-        return;
-      }
-
-      const elementToUpdate: PartialWithFieldValue<
-        Pick<IConversation, "name" | "description" | "position" | "members">
-      > = updates;
-
-      // If the conversation is position based, we need to add all the employees with that position to the members list
-      elementToUpdate.members = getEmployees
-        .filter((emp) => emp.hasAnyPosition([updates.position as string]))
-        .map(({ id }) => id);
-
-      if (activeConversation.hosts && activeConversation.hosts?.length > 0) {
-        // If the conversation has hosts, we need to add them to the members list
-        elementToUpdate.members = uniq([
-          ...elementToUpdate.members,
-          ...activeConversation.hosts,
-        ]);
-      }
-
-      await activeConversation.update(elementToUpdate);
-    },
-    [location, getEmployees, activeConversation]
+    [location]
   );
 
   return (
@@ -330,7 +241,6 @@ export function ConversationsProvider({
         addConversation,
         loading,
         error,
-        modifyConversation,
       }}
     >
       {typeof children === "function"

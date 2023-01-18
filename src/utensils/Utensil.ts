@@ -137,8 +137,8 @@ export class Utensil implements IUtensil, PrimaryFirestore, FirebaseSignature {
     await addDoc(
       collection(
         FIRESTORE,
-        "Organizations",
-        globalThis.locationData.organizationId,
+        "Locations",
+        globalThis.locationData.id,
         "utensils"
       ),
       newUtensil

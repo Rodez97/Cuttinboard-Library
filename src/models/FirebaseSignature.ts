@@ -1,4 +1,4 @@
-import { FieldValue, Timestamp } from "@firebase/firestore";
+import { FieldValue, Timestamp } from "firebase/firestore";
 
 /**
  * The basic information about a firestore document creation.

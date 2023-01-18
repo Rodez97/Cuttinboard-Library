@@ -244,6 +244,13 @@ export class Message implements IMessage {
     };
   }
 
+  public getSeenDBPath() {
+    if (!AUTH.currentUser) {
+      throw new Error("User is not authenticated");
+    }
+    return `${this.messageRef.toString()}/seenBy/${AUTH.currentUser.uid}`;
+  }
+
   /**
    * Deletes the message
    */

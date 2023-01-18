@@ -12,6 +12,10 @@ import { PrimaryFirestore } from "../models/PrimaryFirestore";
 import { Frequency, RRule } from "rrule";
 import dayjs from "dayjs";
 import { RecurrenceObject } from "./types";
+import timezone from "dayjs/plugin/timezone";
+import utc from "dayjs/plugin/utc";
+dayjs.extend(timezone);
+dayjs.extend(utc);
 
 /**
  * The RecurringTask interface implemented by the RecurringTask class.
@@ -20,6 +24,7 @@ export interface IRecurringTask {
   name: string;
   description?: string;
   recurrence: string;
+  completed?: string;
 }
 
 /**
@@ -41,13 +46,22 @@ export class RecurringTask implements IRecurringTask {
   public readonly recurrence: string;
 
   /**
+   * The date the task was last completed as a string (Day.js.format()) or undefined if it has not been completed yet.
+   * - The format is "YYYY-MM-DD"
+   * @see https://jakubroztocil.github.io/rrule/
+   * @see https://day.js.org/docs/en/display/format
+   */
+  public readonly completed?: string;
+
+  /**
    * Creates a new RecurringTask class instance.
    * @param data RecurringTask data
    */
-  constructor({ name, description, recurrence }: IRecurringTask) {
+  constructor({ name, description, recurrence, completed }: IRecurringTask) {
     this.name = name;
     this.description = description;
     this.recurrence = recurrence;
+    this.completed = completed;
   }
 
   /**
@@ -55,44 +69,56 @@ export class RecurringTask implements IRecurringTask {
    * @param param Recurrence Object
    */
   public static getRRuleFromObject({
-    every,
+    interval,
     unit,
     startingOn,
-    weekDays,
+    byweekday,
     onDay,
-    dailyType,
   }: RecurrenceObject): RRule {
     let recurrenceRule: RRule;
-    if (unit === Frequency.DAILY) {
-      if (dailyType === "every") {
-        // Every X days
+
+    let dtstart: Date;
+    if (startingOn) {
+      // Check if the startingOn date is in UTC or local time
+      const isUTC = dayjs(startingOn).isUTC();
+      if (isUTC) {
+        dtstart = startingOn;
+      } else {
+        // Convert to UTC
+        dtstart = dayjs(startingOn).utc().toDate();
+      }
+    } else {
+      dtstart = dayjs().utc().toDate();
+    }
+
+    switch (unit) {
+      case Frequency.DAILY:
         recurrenceRule = new RRule({
           freq: RRule.DAILY,
-          dtstart: startingOn,
-          interval: every,
+          dtstart,
+          interval,
         });
-      } else {
-        recurrenceRule = RRule.fromText("Every weekday");
-      }
-    } else if (unit === Frequency.WEEKLY) {
-      // Every X weeks on Y days
-      recurrenceRule = new RRule({
-        freq: RRule.WEEKLY,
-        dtstart: startingOn,
-        interval: every,
-        byweekday: weekDays,
-      });
-    } else if (unit === Frequency.MONTHLY) {
-      // Every X months on Y day
-      recurrenceRule = new RRule({
-        freq: RRule.MONTHLY,
-        dtstart: startingOn,
-        interval: every,
-        bymonthday: onDay ? [onDay] : undefined,
-      });
-    } else {
-      throw new Error("Invalid unit");
+        break;
+      case Frequency.WEEKLY:
+        recurrenceRule = new RRule({
+          freq: RRule.WEEKLY,
+          interval,
+          byweekday,
+          dtstart,
+        });
+        break;
+      case Frequency.MONTHLY:
+        recurrenceRule = new RRule({
+          freq: RRule.MONTHLY,
+          interval: interval,
+          bymonthday: onDay ? [onDay] : undefined,
+          dtstart,
+        });
+        break;
+      default:
+        throw new Error("Invalid unit");
     }
+
     return recurrenceRule;
   }
 
@@ -102,19 +128,12 @@ export class RecurringTask implements IRecurringTask {
    */
   public static getRRuleObjectFromRule(rule: RRule): RecurrenceObject {
     const { freq, interval, byweekday, bymonthday, dtstart } = rule.options;
-    const unit = freq;
-    const every = interval;
-    const startingOn = dtstart;
-    const weekDays = Array.isArray(byweekday) ? byweekday : [byweekday];
-    const onDay = Array.isArray(bymonthday) ? bymonthday[0] : bymonthday;
-    const dailyType = weekDays?.length ? "weekDays" : "every";
     return {
-      every,
-      unit,
-      startingOn,
-      weekDays,
-      onDay,
-      dailyType,
+      interval,
+      unit: freq,
+      startingOn: dtstart,
+      byweekday: Array.isArray(byweekday) ? byweekday : [byweekday],
+      onDay: Array.isArray(bymonthday) ? bymonthday[0] : bymonthday,
     };
   }
 
@@ -129,34 +148,36 @@ export class RecurringTask implements IRecurringTask {
     // Return a default rule
     return new RRule({
       freq: RRule.DAILY,
-      dtstart: new Date(),
+      dtstart: dayjs().utc().toDate(),
       interval: 1,
     });
-  }
-
-  /**
-   * Checks if a given date matches the recurrence rule
-   * @param date Date to check
-   */
-  public matchesDate(date: Date): boolean {
-    const rule = this.recurrenceRule;
-    return rule.between(date, date).length > 0;
-  }
-
-  /**
-   * Checks if the task is due today
-   */
-  public get isToday(): boolean {
-    const today = dayjs().startOf("day");
-    const nextOccurrence = this.recurrenceRule.after(today.toDate(), true);
-    return nextOccurrence && dayjs(nextOccurrence).isSame(today, "day");
   }
 
   /**
    * Get the next occurrence of the task
    */
   public get nextOccurrence(): Date {
-    return this.recurrenceRule.after(new Date());
+    const todayUTC = dayjs().utc().startOf("day").toDate(); // today in UTC
+    const nextOccurrence = this.recurrenceRule.after(todayUTC, true);
+    return nextOccurrence;
+  }
+
+  /**
+   * Checks if the task is due today
+   */
+  public get isToday(): boolean {
+    const todayUTC = dayjs().utc();
+    const nextOccurUTC = dayjs(this.nextOccurrence).utc();
+    return nextOccurUTC.isSame(todayUTC, "day");
+  }
+
+  /**
+   * Task completion status
+   */
+  public get isCompleted(): boolean {
+    return Boolean(
+      this.completed && this.completed === dayjs().format("YYYY-MM-DD")
+    );
   }
 }
 
@@ -291,4 +312,29 @@ export class RecurringTaskDoc implements IRecurringTaskDoc, PrimaryFirestore {
    */
   public updatePeriodicTask = async (task: IRecurringTask, id: string) =>
     await setDoc(this.docRef, { tasks: { [id]: task } }, { merge: true });
+
+  /**
+   * Changes the task completion status
+   */
+  public async toggleCompleted(taskId: string): Promise<void> {
+    const task = this.tasks?.[taskId];
+    if (!task) {
+      throw new Error("Task not found");
+    }
+    const completionStatus = task.isCompleted
+      ? deleteField()
+      : dayjs().format("YYYY-MM-DD");
+
+    await setDoc(
+      this.docRef,
+      {
+        tasks: {
+          [taskId]: {
+            completed: completionStatus,
+          },
+        },
+      },
+      { merge: true }
+    );
+  }
 }
