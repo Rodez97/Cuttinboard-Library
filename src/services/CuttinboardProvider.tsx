@@ -202,16 +202,18 @@ export const CuttinboardProvider = ({
     [user, organizationKey]
   );
 
-  if (loading || initializing) {
-    return LoadingComponent;
-  }
-
   if (mainError) {
     return ErrorComponent(mainError);
   }
 
   if (error) {
     return ErrorComponent(error);
+  }
+
+  if (loading || initializing) {
+    console.log("Loading", { loading, initializing });
+
+    return LoadingComponent;
   }
 
   if (!user) {

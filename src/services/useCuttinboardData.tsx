@@ -58,6 +58,9 @@ export function useCuttinboardData(options: {
           setRefreshTime(0);
           setNotifications(new Notifications());
           options.onUserChanged(null);
+          if (loading) {
+            setLoading(false);
+          }
           return;
         }
 

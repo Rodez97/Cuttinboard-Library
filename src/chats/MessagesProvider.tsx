@@ -7,9 +7,8 @@ import React, {
   useState,
 } from "react";
 import { useCuttinboard } from "../services";
-import { DATABASE, FIRESTORE } from "../utils";
-import { Message } from "./Message";
-import { Attachment, Sender } from "./types";
+import { DATABASE } from "../utils";
+import { IMessage, Message } from "./Message";
 import {
   endBefore,
   get,
@@ -18,51 +17,30 @@ import {
   push,
   query,
   ref as RTDBRef,
-  set,
 } from "firebase/database";
-import useListReducer from "./useMessagesReducer";
-import { fromRef, ListenEvent } from "rxfire/database";
-import { composeMessage } from "./composeMessage";
-import { doc, serverTimestamp, updateDoc } from "firebase/firestore";
-import { merge } from "rxjs";
-import { DebouncedFunc, throttle } from "lodash";
+import { useListReducer } from "./useMessagesReducer";
+import { fromRef, ListenEvent, QueryChange } from "rxfire/database";
+import { map, merge, tap } from "rxjs";
+import { debounce, DebouncedFunc } from "lodash";
 import { usePresence } from "./usePresence";
+import { useChatPaths } from "./useChatPaths";
+import {
+  MessageProviderMessagingType,
+  Sender,
+  SubmitMessageParams,
+} from "./types";
 
 /**
  * The props for the Direct Messages context.
  */
 export interface IMessagesContext {
-  /**
-   * A function that fetches previous messages from the current conversation.
-   */
   fetchPreviousMessages: () => Promise<void>;
-  throttledFetchMore: DebouncedFunc<() => Promise<void>>;
-  /**
-   * An array of `Message` objects representing all of the messages in the current conversation.
-   */
-  allMessages: Message[];
-  /**
-   * A boolean indicating whether there are no more messages to fetch in the current conversation.
-   */
-  hasNoMoreMessages: boolean;
-  /**
-   * A function that submits a new message to the current conversation.
-   * @param messageText - The text of the message.
-   * @param replyTargetMessage - The message that the new message is replying to, or null if it is not a reply.
-   * @param attachment - An optional attachment for the message.
-   * @returns A promise that resolves when the message has been submitted.
-   */
-  submitMessage: (
-    messageText: string,
-    replyTargetMessage: Message | null,
-    uploadAttachment?: ((messageId: string) => Promise<Attachment>) | undefined
-  ) => Promise<void>;
-  /**
-   * A function that returns the file path for a given attachment file name.
-   * @param fileName - The name of the attachment file.
-   * @returns The file path for the attachment.
-   */
-  getAttachmentFilePath: (fileName: string) => string;
+  fetchPreviousMessagesWithDebounce: DebouncedFunc<() => Promise<void>>;
+  sortedMessages: Message[];
+  messages: Record<string, Message>;
+  noMoreMessages: boolean;
+  submitMessage: (params: SubmitMessageParams) => void;
+  getAttachmentPath: (fileName: string) => string;
 }
 
 export const MessagesContext = React.createContext<IMessagesContext>(
@@ -74,181 +52,211 @@ export const MessagesContext = React.createContext<IMessagesContext>(
  */
 export function MessagesProvider({
   children,
-  chatId,
-  type,
+  messagingType,
   LoadingRenderer,
   onNewMessage,
+  batchSize = 12,
+  initialLoadSize = 40,
 }: {
   /**
    * The children of the component.
    */
   children: ReactNode;
   /**
-   * The ID of the chat that the context is for.
-   */
-  chatId: string;
-  /**
    * The type of the chat that the context is for.
    */
-  type: "dm" | "conversation";
+  messagingType: MessageProviderMessagingType;
   LoadingRenderer: ReactElement;
-  onNewMessage?: (message: Message) => void;
+  onNewMessage: (message: Message) => void;
+  batchSize: number;
+  initialLoadSize: number;
 }) {
   const { user } = useCuttinboard();
+  const { messagesPath, usersPath, storagePath } = useChatPaths({
+    messagingType,
+    user,
+  });
   const [messages, dispatch] = useListReducer();
-  const [hasNoMoreMessages, setHasNoMoreMessages] = useState(false);
+  const [noMoreMessages, setNoMoreMessages] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [chatPath, setChatPath] = useState<string>();
-  usePresence(
-    chatId
-      ? type === "dm"
-        ? `dmInfo/${chatId}/membersList/${user.uid}`
-        : `conversations/${globalThis.locationData.organizationId}/${globalThis.locationData.id}/${chatId}/access/members/${user.uid}`
-      : null
+
+  usePresence({ usersPath });
+
+  const sortedMessages = useMemo(
+    () =>
+      Object.values(messages).sort((a, b) => {
+        return b.createdAt - a.createdAt;
+      }),
+    [messages]
   );
-
-  useEffect(() => {
-    if (!chatId) {
-      return;
-    }
-    setLoading(true);
-    const path =
-      type === "dm"
-        ? `directMessages/${chatId}`
-        : `conversationMessages/${globalThis.locationData.organizationId}/${globalThis.locationData.id}/${chatId}`;
-
-    const baseRef = RTDBRef(DATABASE, path);
-
-    const realtimeQuery = query(
-      baseRef,
-      limitToLast(50),
-      orderByChild("createdAt")
-    );
-
-    const deleted$ = fromRef(baseRef, ListenEvent.removed);
-
-    const added$ = fromRef(realtimeQuery, ListenEvent.added);
-
-    const updated$ = fromRef(realtimeQuery, ListenEvent.changed);
-
-    const subscription = merge(deleted$, added$, updated$).subscribe(
-      ({ event, snapshot }) => {
-        const { key, ref } = snapshot;
-        const message = snapshot.val();
-        if (key === null) {
-          return;
-        }
-
-        switch (event) {
-          case ListenEvent.added:
-            {
-              const newMessageData = new Message(message, key, ref);
-              dispatch({
-                type: "ADD_MESSAGE",
-                newMessageData,
-              });
-              if (onNewMessage) {
-                onNewMessage(newMessageData);
-              }
-            }
-            break;
-          case ListenEvent.changed:
-            dispatch({
-              type: "UPDATE_MESSAGE",
-              message: new Message(message, key, ref),
-            });
-            break;
-          case ListenEvent.removed:
-            dispatch({
-              type: "REMOVE_MESSAGE",
-              messageId: key,
-            });
-            break;
-          default:
-            break;
-        }
-
-        setTimeout(() => {
-          setLoading(false);
-        }, 250);
-      }
-    );
-
-    setChatPath(path);
-
-    return () => {
-      subscription.unsubscribe();
-      // Reset messages
-      dispatch({ type: "RESET" });
-      setHasNoMoreMessages(false);
-    };
-  }, [chatId, type]);
-
-  const orderMessages = useMemo(() => {
-    return messages.sort((a, b) => {
-      return b.createdAt - a.createdAt;
-    });
-  }, [messages]);
 
   const fetchPreviousMessages = useCallback(async () => {
     // Return early if there are no more messages to fetch or if all messages have been fetched
-    if (orderMessages.length === 0 || hasNoMoreMessages) {
+    if (sortedMessages.length === 0 || noMoreMessages) {
       return;
     }
 
-    // Get the first message in the message list
+    // Get the latest message in the message list
     const { createdAt, ...firstMessage } =
-      orderMessages[orderMessages.length - 1];
+      sortedMessages[sortedMessages.length - 1];
 
-    // Check if the first message is a system message with type "start"
-    if (firstMessage.type === "system" && firstMessage.systemType === "start") {
+    // Check if the latest message is a system message with type "start"
+    if (firstMessage.systemType === "start") {
       // Set the "noMoreMessages" flag to true to indicate that all messages have been fetched
-      setHasNoMoreMessages(true);
+      setNoMoreMessages(true);
       return;
     }
 
     // Query the database for older messages in the chat
     const chatsRef = query(
-      RTDBRef(DATABASE, chatPath),
+      RTDBRef(DATABASE, messagesPath),
       orderByChild("createdAt"),
       endBefore(createdAt),
-      limitToLast(50)
+      limitToLast(batchSize)
     );
 
     // Listen for the query results and append the older messages to the message list
     const oldMessagesSnapshot = await get(chatsRef);
-    const oldMessages: Message[] = [];
+    const oldMessages: Record<string, Message> = {};
 
     oldMessagesSnapshot.forEach((oldMessage) => {
       if (oldMessage.key !== null) {
-        oldMessages.push(
-          new Message(oldMessage.val(), oldMessage.key, oldMessage.ref)
+        oldMessages[oldMessage.key] = new Message(
+          oldMessage.val(),
+          oldMessage.key,
+          oldMessage.ref
         );
       }
     });
 
+    if (oldMessagesSnapshot.size === 0) {
+      setNoMoreMessages(true);
+      return;
+    }
+
     dispatch({
-      type: "APPEND_OLDER",
+      type: "append_older",
       oldMessages,
     });
 
-    // If the number of messages returned is less than 20, then we know that all messages have been fetched
-    if (oldMessages.length < 50) {
-      setHasNoMoreMessages(true);
+    // If the number of messages returned is less than `batchSize`, then we know that all messages have been fetched
+    if (oldMessagesSnapshot.size < batchSize) {
+      setNoMoreMessages(true);
     }
-  }, [hasNoMoreMessages, orderMessages, dispatch, chatPath]);
+  }, [noMoreMessages, sortedMessages, dispatch, messagesPath]);
 
-  const throttledFetchMore = useMemo(
-    () => throttle(fetchPreviousMessages, 300),
-    [fetchPreviousMessages]
+  const fetchPreviousMessagesWithDebounce = useMemo(
+    () => debounce(fetchPreviousMessages, 300),
+    []
   );
 
+  useEffect(() => {
+    setLoading(true);
+
+    const baseRef = RTDBRef(DATABASE, messagesPath);
+
+    const realtimeQuery = query(
+      baseRef,
+      limitToLast(initialLoadSize),
+      orderByChild("createdAt")
+    );
+
+    const mapToMessage = map<
+      QueryChange,
+      | {
+          message: Message;
+          event: ListenEvent.added | ListenEvent.changed;
+        }
+      | {
+          messageId: string;
+          event: ListenEvent.removed;
+        }
+      | null
+    >(({ snapshot, event }) => {
+      const { key, ref } = snapshot;
+      const message = snapshot.val();
+      if (key === null || message === null) {
+        return null;
+      }
+      switch (event) {
+        case ListenEvent.added:
+        case ListenEvent.changed:
+          return { message: new Message(message, key, ref), event };
+        case ListenEvent.removed:
+          return { messageId: key, event };
+        default:
+          return null;
+      }
+    });
+
+    const deleted$ = fromRef(baseRef, ListenEvent.removed).pipe(mapToMessage);
+
+    const added$ = fromRef(realtimeQuery, ListenEvent.added).pipe(
+      mapToMessage,
+      tap((AddedMessage) => {
+        if (AddedMessage && AddedMessage.event === ListenEvent.added) {
+          const { message } = AddedMessage;
+          onNewMessage(message);
+        }
+      })
+    );
+
+    const updated$ = fromRef(realtimeQuery, ListenEvent.changed).pipe(
+      mapToMessage
+    );
+
+    const subscription = merge(deleted$, added$, updated$).subscribe({
+      next: (subData) => {
+        loading && setLoading(false);
+        if (subData === null) {
+          return;
+        }
+
+        const { event } = subData;
+
+        switch (event) {
+          case ListenEvent.added:
+          case ListenEvent.changed:
+            {
+              dispatch({
+                type: event,
+                message: subData.message,
+              });
+            }
+            break;
+          case ListenEvent.removed:
+            {
+              dispatch({
+                type: event,
+                messageId: subData.messageId,
+              });
+            }
+            break;
+          default:
+            break;
+        }
+      },
+      error: (error) => {
+        loading && setLoading(false);
+        console.error(error);
+      },
+    });
+
+    return () => {
+      subscription.unsubscribe();
+      // Reset messages
+      dispatch({ type: "reset" });
+      setNoMoreMessages(false);
+      fetchPreviousMessagesWithDebounce.cancel();
+    };
+  }, [messagesPath]);
+
   const submitMessage = useCallback(
-    async (
-      messageText: string,
-      replyTargetMessage: Message | null,
-      uploadAttachment?: (messageId: string) => Promise<Attachment>
-    ) => {
+    ({
+      messageText,
+      replyTargetMessage,
+      uploadAttachment,
+    }: SubmitMessageParams) => {
       if (!user.displayName) {
         throw new Error("User must have a display name to send messages");
       }
@@ -257,67 +265,63 @@ export function MessagesProvider({
       const sender: Sender = {
         id: user.uid,
         name: user.displayName,
+        avatar: user.photoURL,
       };
 
       // Create a new object to store the message data
-      const msg = composeMessage(sender, messageText, replyTargetMessage);
+      const msg: IMessage = {
+        sender,
+        text: messageText && messageText.trim(),
+        createdAt: new Date().getTime(),
+        replyTarget:
+          replyTargetMessage && replyTargetMessage.toReplyData
+            ? replyTargetMessage.toReplyData
+            : undefined,
+      };
 
-      if (type === "dm") {
+      if (messagingType.type === "dm") {
         msg.seenBy = { [user.uid]: true };
       } else {
+        if (!globalThis.locationData) {
+          throw new Error("Location data is not defined");
+        }
         msg.locationName = globalThis.locationData.name;
       }
 
-      const reference = push(RTDBRef(DATABASE, chatPath));
+      const reference = push(RTDBRef(DATABASE, messagesPath));
 
       // Ensure that the key is set before uploading the attachment
       if (!reference.key) {
         throw new Error("Message ID must be set before uploading attachment");
       }
 
-      // Check if there is an attachment
-      if (uploadAttachment) {
-        // Upload the attachment to the storage bucket
-        const attachment = await uploadAttachment(reference.key);
-        msg.type = "attachment";
-        msg.attachment = attachment;
+      const message = new Message(
+        msg,
+        reference.key,
+        reference.ref,
+        messagingType.type === "dm"
+          ? {
+              uploadAttachment,
+              isDM: true,
+              dmId: messagingType.chatId,
+            }
+          : {
+              uploadAttachment,
+              isDM: false,
+            }
+      );
 
-        // Use destructuring assignment to extract the mime type from the attachment object
-        const { mimeType } = attachment;
-
-        // Use a switch statement to determine the type of the message based on the attachment's mime type
-        switch (true) {
-          case mimeType.includes("image"):
-            msg.contentType = "image";
-            break;
-          case mimeType.includes("video"):
-            msg.contentType = "video";
-            break;
-          case mimeType.includes("audio"):
-            msg.contentType = "audio";
-            break;
-          default:
-            msg.contentType = "file";
-            break;
-        }
-      }
-
-      await set(reference, msg);
-      if (type === "dm") {
-        await updateDoc(doc(FIRESTORE, "DirectMessages", chatId), {
-          recentMessage: serverTimestamp(),
-        });
-      }
+      dispatch({
+        type: ListenEvent.added,
+        message,
+      });
     },
-    [chatPath, type, chatId]
+    [user, messagingType, messagesPath, dispatch]
   );
 
   const getAttachmentFilePath = useCallback(
-    (fileName: string) =>
-      type === "dm"
-        ? `directMessages/${chatId}/${fileName}`
-        : `organizations/${globalThis.locationData.organizationId}/locations/${globalThis.locationData.id}/conversationMessages/${chatId}/${fileName}`,
-    [chatId, type]
+    (fileName: string) => `${storagePath}/${fileName}`,
+    [storagePath]
   );
 
   if (loading) {
@@ -328,11 +332,12 @@ export function MessagesProvider({
     <MessagesContext.Provider
       value={{
         fetchPreviousMessages,
-        allMessages: orderMessages,
-        hasNoMoreMessages,
+        sortedMessages,
+        noMoreMessages,
         submitMessage,
-        getAttachmentFilePath,
-        throttledFetchMore,
+        getAttachmentPath: getAttachmentFilePath,
+        fetchPreviousMessagesWithDebounce,
+        messages,
       }}
     >
       {children}

@@ -2,28 +2,26 @@ import { ref, set, onDisconnect } from "firebase/database";
 import { useEffect } from "react";
 import { DATABASE } from "../utils";
 
-export function usePresence(
-  accessPath: string | null | undefined,
-  options?: {
-    disconnected?: () => void;
-    connected?: () => void;
-  }
-) {
+export function usePresence({ usersPath }: { usersPath: string }) {
   useEffect(() => {
-    if (!accessPath) {
-      return;
-    }
-    const reference = ref(DATABASE, accessPath);
-    set(reference, true);
-    options?.connected?.();
+    const reference = ref(DATABASE, usersPath);
+
+    set(reference, true).catch((error) => {
+      console.error(`Error setting presence: ${error}`);
+    });
 
     const od = onDisconnect(reference);
-    od.set(false);
+    od.set(false).catch((error) => {
+      console.error(`Error setting onDisconnect: ${error}`);
+    });
 
     return () => {
-      od.cancel();
-      set(reference, false);
-      options?.disconnected?.();
+      od.cancel().catch((error) => {
+        console.error(`Error canceling onDisconnect: ${error}`);
+      });
+      set(reference, false).catch((error) => {
+        console.error(`Error resetting presence: ${error}`);
+      });
     };
-  }, [accessPath]);
+  }, [usersPath]);
 }

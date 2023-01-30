@@ -11,8 +11,8 @@ import {
 } from "firebase/firestore";
 import { AUTH, DATABASE } from "../utils/firebase";
 import { PrimaryFirestore } from "../models";
-import { Recipient } from "./types";
 import { ref, set } from "firebase/database";
+import { Recipient } from "./types";
 
 /**
  * Chat interface implemented by the Chat class.
@@ -20,9 +20,7 @@ import { ref, set } from "firebase/database";
 export interface IChat {
   muted?: string[];
   createdAt: Timestamp;
-  members: {
-    [memberId: string]: { fullName: string; avatar?: string };
-  };
+  members: Record<string, Omit<Recipient, "id">>;
   membersList: string[];
   recentMessage?: Timestamp;
 }
@@ -133,7 +131,7 @@ export class Chat implements IChat, PrimaryFirestore {
       // If there is no current user, we can't get the recipient.
       return {
         id: "",
-        fullName: "Unknown User",
+        name: "Unknown User",
       };
     }
     const myId = AUTH.currentUser.uid;
@@ -142,7 +140,7 @@ export class Chat implements IChat, PrimaryFirestore {
       // This should never happen.
       return {
         id: "",
-        fullName: "Unknown User",
+        name: "Unknown User",
       };
     }
     return {

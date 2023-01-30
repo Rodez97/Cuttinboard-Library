@@ -1,30 +1,37 @@
-import { DatabaseReference, remove, update } from "firebase/database";
+import {
+  DatabaseReference,
+  remove,
+  set,
+  update,
+  serverTimestamp as DBServerTimestamp,
+} from "firebase/database";
 import dayjs from "dayjs";
-import { isEmpty, pickBy } from "lodash";
+import { isEmpty, isFunction, isUndefined, omitBy, pickBy } from "lodash";
 import {
   Attachment,
-  MessageContentType,
+  AttachmentStatus,
+  MessageConstructorOptions,
+  MessageStatus,
   ReplyRecipient,
   Sender,
 } from "./types";
-import { AUTH } from "../utils/firebase";
+import { AUTH, FIRESTORE } from "../utils/firebase";
+import { doc, serverTimestamp, updateDoc } from "firebase/firestore";
+import { ParsedMedia, parseMediaFromText } from "./messageUtils";
 
 /**
  * Base interface implemented by Message class.
  */
-export type IMessage<T extends number | object = number> = {
-  message: string;
-  createdAt: T;
-  type: "system" | "attachment" | "youtube" | "mediaUri" | "text";
-  systemType: "start";
-  replyTarget?: ReplyRecipient;
+export type IMessage = {
   sender: Sender;
+  createdAt: number;
+  text?: string;
+  systemType?: "start" | "other";
+  replyTarget?: ReplyRecipient;
   reactions?: Record<string, { emoji: string; name: string }>;
-  locationName: string;
+  locationName?: string;
   seenBy?: Record<string, boolean>;
-  attachment: Attachment;
-  contentType: MessageContentType;
-  sourceUrl: string;
+  attachment?: Attachment;
 };
 
 /**
@@ -42,20 +49,16 @@ export class Message implements IMessage {
   /**
    * Message content
    */
-  public message: string;
+  public text?: string;
   /**
    * The time the message was created
    */
   public createdAt: number;
   /**
-   * The type of the message
-   */
-  public type: "attachment" | "youtube" | "mediaUri" | "text" | "system";
-  /**
    * The type of the system message
    * - start: The first message of the chat
    */
-  public systemType: "start";
+  public systemType?: "start" | "other";
   /**
    * In case the message is a reply to another message, this property will contain the message that is being replied to.
    */
@@ -78,7 +81,7 @@ export class Message implements IMessage {
    * The name of the location
    * - This property is only used for notification purposes
    */
-  public locationName: string;
+  public locationName?: string;
   /**
    * The users that have seen the message
    * - key: The user id of the user that has seen the message
@@ -94,15 +97,24 @@ export class Message implements IMessage {
   /**
    * The attachment of the message (if any)
    */
-  public attachment: Attachment;
-  /**
-   * The content type of the message in case it is an attachment
-   */
-  public contentType: MessageContentType;
-  /**
-   * The source url of the attachment if it is a mediaUri
-   */
-  public sourceUrl: string;
+  public attachment?: Attachment;
+
+  private _status: MessageStatus = "sending";
+
+  public get status(): MessageStatus {
+    return this._status;
+  }
+  private set status(value: MessageStatus) {
+    this._status = value;
+  }
+  private _attachmentStatus: AttachmentStatus = "none";
+
+  public get attachmentStatus(): AttachmentStatus {
+    return this._attachmentStatus;
+  }
+  private set attachmentStatus(value: AttachmentStatus) {
+    this._attachmentStatus = value;
+  }
 
   /**
    * Creates a new Message instance
@@ -112,9 +124,8 @@ export class Message implements IMessage {
    */
   constructor(
     {
-      message,
+      text,
       createdAt,
-      type,
       systemType,
       replyTarget,
       sender,
@@ -122,15 +133,13 @@ export class Message implements IMessage {
       locationName,
       seenBy,
       attachment,
-      contentType,
-      sourceUrl,
     }: IMessage,
     id: string,
-    ref: DatabaseReference
+    ref: DatabaseReference,
+    options?: MessageConstructorOptions
   ) {
-    this.message = message;
+    this.text = text;
     this.createdAt = createdAt;
-    this.type = type;
     this.systemType = systemType;
     this.replyTarget = replyTarget;
     this.sender = sender;
@@ -138,10 +147,49 @@ export class Message implements IMessage {
     this.locationName = locationName;
     this.seenBy = seenBy;
     this.attachment = attachment;
-    this.contentType = contentType;
-    this.sourceUrl = sourceUrl;
     this.id = id;
     this.messageRef = ref;
+
+    if (options) {
+      this.status = "sending";
+      this.attachmentStatus = "none";
+      this.processMessage(options);
+    }
+  }
+
+  private async processMessage(options: MessageConstructorOptions) {
+    this.status = "sending";
+    try {
+      // If there is an attachment callback, upload the attachment
+      if (options.uploadAttachment) {
+        this.attachmentStatus = "uploading";
+        const attachment = await options.uploadAttachment(this.id);
+        this.attachment = attachment;
+        this.attachmentStatus = "uploaded";
+      }
+
+      // Set to Realtime Database
+      const { createdAt, messageRef, status, ...messageData } = this;
+      await set(messageRef, {
+        ...omitBy(
+          messageData,
+          (value) => isUndefined(value) || isFunction(value)
+        ),
+        createdAt: DBServerTimestamp(),
+        status: "sent",
+      });
+
+      if (options.isDM) {
+        await updateDoc(doc(FIRESTORE, "DirectMessages", options.dmId), {
+          recentMessage: serverTimestamp(),
+        });
+      }
+    } catch (error) {
+      this.status = "failed";
+      this.attachmentStatus = "failed";
+      console.error(error);
+      return;
+    }
   }
 
   /**
@@ -149,33 +197,22 @@ export class Message implements IMessage {
    * - This method is used to reply to a message
    */
   public get toReplyData(): ReplyRecipient | null {
-    const {
-      message,
-      createdAt,
-      type,
-      sender,
-      attachment,
-      contentType,
-      sourceUrl,
-      id,
-    } = this;
-    if (type === "system") {
+    const { text, createdAt, sender, attachment, id } = this;
+    if (this.systemType !== undefined) {
       return null;
     }
 
-    const object: ReplyRecipient = {
-      message,
-      createdAt,
-      type,
-      sender,
-      attachment,
-      contentType,
-      sourceUrl,
-      id,
-    };
-
     // Remove undefined values from object
-    return pickBy(object, (value) => value !== undefined) as ReplyRecipient;
+    return pickBy(
+      {
+        text,
+        createdAt,
+        sender,
+        attachment,
+        id,
+      },
+      (value) => value !== undefined
+    ) as ReplyRecipient;
   }
 
   /**
@@ -183,6 +220,21 @@ export class Message implements IMessage {
    */
   public get createdAtDate() {
     return dayjs(this.createdAt);
+  }
+
+  public get parsedMedia(): ParsedMedia[] | null {
+    if (!this.text) {
+      return null;
+    }
+    return parseMediaFromText(this.text);
+  }
+
+  public get dmReceived() {
+    if (!this.seenBy) {
+      return false;
+    }
+    const seenBy = Object.values(this.seenBy);
+    return seenBy.length === 2 && seenBy.every((value) => value);
   }
 
   /**
@@ -265,9 +317,8 @@ export class Message implements IMessage {
    * This method is used internally
    */
   public stateUpdate({
-    message,
+    text,
     createdAt,
-    type,
     systemType,
     replyTarget,
     sender,
@@ -275,12 +326,9 @@ export class Message implements IMessage {
     locationName,
     seenBy,
     attachment,
-    contentType,
-    sourceUrl,
   }: IMessage) {
-    this.message = message;
+    this.text = text;
     this.createdAt = createdAt;
-    this.type = type;
     this.systemType = systemType;
     this.replyTarget = replyTarget;
     this.sender = sender;
@@ -288,7 +336,5 @@ export class Message implements IMessage {
     this.locationName = locationName;
     this.seenBy = seenBy;
     this.attachment = attachment;
-    this.contentType = contentType;
-    this.sourceUrl = sourceUrl;
   }
 }

@@ -1,6 +1,6 @@
 {
   "name": "@cuttinboard-solutions/cuttinboard-library",
-  "version": "3.3.7",
+  "version": "3.6.4",
   "description": "Shared Code Library for Cuttinboard App",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -46,7 +46,8 @@
         "dist/boards/index.d.ts"
       ],
       "chats": [
-        "dist/chats/index.d.ts"
+        "dist/chats/index.d.ts",
+        "dist/chats/types.d.ts"
       ],
       "checklist": [
         "dist/checklist/index.d.ts"

@@ -40,10 +40,16 @@ export function useTasksData(): ScheduleDataHook {
 
     const combined$ = combineLatest([recurringTaskDoc$, tasks$]);
 
-    const subscription = combined$.subscribe(([recurringTaskDoc, tasks]) => {
-      loading && setLoading(false);
-      setRecurringTaskDoc(recurringTaskDoc);
-      setTasks(tasks);
+    const subscription = combined$.subscribe({
+      next: ([recurringTaskDoc, tasks]) => {
+        loading && setLoading(false);
+        setRecurringTaskDoc(recurringTaskDoc);
+        setTasks(tasks);
+      },
+      error: (err) => {
+        loading && setLoading(false);
+        console.error(err);
+      },
     });
 
     return () => {

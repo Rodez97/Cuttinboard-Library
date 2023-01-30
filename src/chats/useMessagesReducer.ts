@@ -1,105 +1,71 @@
-import { unionBy } from "lodash";
 import { Reducer, useReducer } from "react";
+import { ListenEvent } from "rxfire/database";
 import { Message } from "./Message";
+import { MessagesReducerAction } from "./types";
 
-type Action =
-  | {
-      type: "ADD_MESSAGE";
-      newMessageData: Message | null;
-    }
-  | {
-      type: "UPDATE_MESSAGE";
-      message: Message | null;
-    }
-  | {
-      type: "REMOVE_MESSAGE";
-      messageId: string;
-    }
-  | { type: "RESET" }
-  | {
-      type: "APPEND_OLDER";
-      oldMessages: Message[] | null;
-    };
-
-const initialState: Message[] = [];
+const initialState: Record<string, Message> = {};
 
 // Implement the reducer function
-const messagesReducer: Reducer<Message[], Action> = (
-  state: Message[] = initialState,
-  action: Action
-): Message[] => {
+const messagesReducer: Reducer<
+  Record<string, Message>,
+  MessagesReducerAction
+> = (
+  state: Record<string, Message> = initialState,
+  action: MessagesReducerAction
+): Record<string, Message> => {
   switch (action.type) {
-    case "ADD_MESSAGE":
-      if (!action.newMessageData) {
-        return state;
-      }
-      return addMessage(state, action.newMessageData);
-    case "UPDATE_MESSAGE":
-      if (!action.message) {
-        return state;
-      }
+    case ListenEvent.added:
+      return addMessage(state, action.message);
+    case ListenEvent.changed:
       return updateMessage(state, action.message);
-    case "APPEND_OLDER":
-      if (!action.oldMessages) {
-        return state;
-      }
+    case "append_older":
       return appendOlder(state, action.oldMessages);
-    case "REMOVE_MESSAGE":
+    case ListenEvent.removed:
       return removeMessage(state, action.messageId);
-    case "RESET":
+    case "reset":
       return initialState;
     default:
       return state;
   }
 };
 
-const addMessage = (currentState: Message[], message: Message): Message[] => {
-  // Check if the message already exists in the current state
-  const exists = currentState.some(({ id }) => id === message.id);
-
-  // If the message already exists, update it
-  if (exists) {
-    return updateMessage(currentState, message);
-  }
-
-  return currentState ? [...currentState, message] : [message];
+const addMessage = (
+  currentState: Record<string, Message>,
+  message: Message
+): Record<string, Message> => {
+  return {
+    ...currentState,
+    [message.id]: message,
+  };
 };
 
 const updateMessage = (
-  currentState: Message[],
-  messageData: Message
-): Message[] => {
-  if (!currentState) {
-    return [];
-  }
-  return currentState.map((message) =>
-    message.id === messageData.id ? messageData : message
-  );
+  currentState: Record<string, Message>,
+  message: Message
+): Record<string, Message> => {
+  return {
+    ...currentState,
+    [message.id]: message,
+  };
 };
 
 const removeMessage = (
-  currentState: Message[],
+  currentState: Record<string, Message>,
   messageId: string
-): Message[] => {
-  if (!currentState) {
-    return [];
-  }
+): Record<string, Message> => {
+  const { [messageId]: _, ...newState } = currentState;
 
-  return currentState.filter((message) => message.id !== messageId);
+  return newState;
 };
 
 const appendOlder = (
-  currentState: Message[],
-  olderMessages: Message[]
-): Message[] => {
-  if (!olderMessages) {
-    return currentState;
-  }
-  // Insert the item after the previous child
-
-  return currentState
-    ? unionBy(olderMessages, currentState, "id")
-    : olderMessages;
+  currentState: Record<string, Message>,
+  olderMessages: Record<string, Message>
+): Record<string, Message> => {
+  return {
+    ...olderMessages,
+    ...currentState,
+  };
 };
 
-export default () => useReducer(messagesReducer, initialState);
+export const useListReducer = () => useReducer(messagesReducer, initialState);

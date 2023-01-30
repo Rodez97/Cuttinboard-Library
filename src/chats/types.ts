@@ -1,3 +1,4 @@
+import { ListenEvent } from "rxfire/database";
 import { Message } from "./Message";
 
 /**
@@ -16,16 +17,9 @@ export type Attachment = {
    * The name of the file.
    */
   fileName: string;
-  /**
-   * The final url of the file after it has been uploaded to cloud storage.
-   */
-  uri: string;
+  url: string;
+  contentType: MessageContentType;
 };
-
-/**
- * Recipient of the chat.
- */
-export type Recipient = { id: string; fullName: string; avatar?: string };
 
 /**
  * The content type of the message in case it is an attachment or a mediaUri
@@ -33,28 +27,11 @@ export type Recipient = { id: string; fullName: string; avatar?: string };
 export type MessageContentType = "image" | "video" | "audio" | "file";
 
 /**
- * Message type are used to determine how it should be rendered in the UI.
- */
-export type MessageType =
-  | "system"
-  | "attachment"
-  | "youtube"
-  | "mediaUri"
-  | "text";
-
-/**
  * Reply recipient is basic information about the message that we use to reply to it.
  */
 export type ReplyRecipient = Pick<
   Message,
-  | "message"
-  | "createdAt"
-  | "type"
-  | "sender"
-  | "attachment"
-  | "contentType"
-  | "sourceUrl"
-  | "id"
+  "text" | "createdAt" | "sender" | "attachment" | "id"
 >;
 
 /**
@@ -63,4 +40,73 @@ export type ReplyRecipient = Pick<
 export type Sender = {
   id: string;
   name: string;
+  avatar?: string | null;
 };
+
+/**
+ * Recipient of the chat.
+ */
+export type Recipient = Sender;
+
+export type MessageConstructorOptions =
+  | {
+      uploadAttachment?: (messageId: string) => Promise<Attachment>;
+      isDM?: false;
+    }
+  | {
+      uploadAttachment?: (messageId: string) => Promise<Attachment>;
+      isDM: true;
+      dmId: string;
+    };
+
+export type MessageStatus = "sending" | "sent" | "failed";
+
+export type AttachmentStatus = "uploading" | "uploaded" | "failed" | "none";
+
+export type MessageProviderMessagingType =
+  | { type: "dm"; chatId: string }
+  | {
+      type: "conversation";
+      chatId: string;
+      organizationId: string;
+      locationId: string;
+    };
+
+export type ChatPaths = {
+  messagesPath: string;
+  usersPath: string;
+  storagePath: string;
+};
+
+export type MessagesReducerAction =
+  | {
+      type: ListenEvent.added;
+      message: Message;
+    }
+  | {
+      type: ListenEvent.changed;
+      message: Message;
+    }
+  | {
+      type: ListenEvent.removed;
+      messageId: string;
+    }
+  | { type: "reset" }
+  | {
+      type: "append_older";
+      oldMessages: Record<string, Message>;
+    };
+
+export type SubmitMessageParams =
+  | {
+      replyTargetMessage?: Message | undefined;
+      messageText: string;
+      uploadAttachment?:
+        | ((messageId: string) => Promise<Attachment>)
+        | undefined;
+    }
+  | {
+      replyTargetMessage?: Message | undefined;
+      messageText?: string | undefined;
+      uploadAttachment: (messageId: string) => Promise<Attachment>;
+    };

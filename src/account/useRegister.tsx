@@ -1,6 +1,10 @@
-import { AuthError, UserCredential } from "firebase/auth";
-import { useSignInWithEmailAndPassword } from "react-firebase-hooks/auth";
-import { useHttpsCallable } from "react-firebase-hooks/functions";
+import {
+  AuthError,
+  signInWithEmailAndPassword,
+  UserCredential,
+} from "firebase/auth";
+import { httpsCallable } from "firebase/functions";
+import { useState } from "react";
 import { AUTH, FUNCTIONS } from "../utils/firebase";
 import { RegisterProps } from "./types";
 
@@ -19,34 +23,41 @@ export const useRegister = (): {
   /**
    * A boolean indicating whether the register operation is currently in progress.
    */
-  submitting: boolean;
+  isSubmitting: boolean;
   /**
    * An error object containing details about any error that occurred during the register operation.
    */
   error: Error | AuthError | undefined;
-  /**
-   * An object containing the user's credentials, if the register operation was successful.
-   */
-  user: UserCredential | undefined;
 } => {
-  const [registerCuttinboardUser, isSubmitting, signUpError] = useHttpsCallable<
-    RegisterProps,
-    string
-  >(FUNCTIONS, "auth-registerUser");
-  const [signIn, user, loginLoading, loginError] =
-    useSignInWithEmailAndPassword(AUTH);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<Error | AuthError | undefined>();
 
   const registerUser = async (
     registerData: RegisterProps
   ): Promise<UserCredential | undefined> => {
-    await registerCuttinboardUser(registerData);
-    return signIn(registerData.email, registerData.password);
+    try {
+      setIsSubmitting(true);
+      const registerCuttinboardUser = httpsCallable<RegisterProps, string>(
+        FUNCTIONS,
+        "auth-registerUser"
+      );
+      await registerCuttinboardUser(registerData);
+      return signInWithEmailAndPassword(
+        AUTH,
+        registerData.email,
+        registerData.password
+      );
+    } catch (error) {
+      setError(error);
+      throw error;
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return {
     registerUser,
-    submitting: Boolean(isSubmitting || loginLoading),
-    error: signUpError ?? loginError,
-    user,
+    isSubmitting,
+    error,
   };
 };

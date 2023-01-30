@@ -126,11 +126,13 @@ export function DirectMessageChatProvider({
       createdAt: serverTimestamp(),
       members: {
         [user.uid]: {
-          fullName: user.displayName,
+          id: user.uid,
+          name: user.displayName,
           avatar: user.photoURL,
         },
         [id]: {
-          fullName: `${name} ${lastName}`,
+          id,
+          name: `${name} ${lastName}`,
           avatar,
         },
       },
