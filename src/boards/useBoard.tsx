@@ -5,7 +5,6 @@ import { BoardContext } from "./BoardProvider";
  * A hook that returns the board context
  * @returns The Board Context
  */
-
 export const useBoard = () => {
   const context = useContext(BoardContext);
   if (context === undefined) {

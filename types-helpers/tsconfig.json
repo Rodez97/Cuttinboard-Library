@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "outDir": "dist",
+    "moduleResolution": "node",
+    "noImplicitAny": true,
+    "module": "CommonJS",
+    "target": "ESNext",
+    "jsx": "react",
+    "lib": ["es2017", "es7", "es6", "dom", "ESNext"],
+    "esModuleInterop": true,
+    "allowJs": true,
+    "baseUrl": "src",
+    "sourceMap": true,
+    "resolveJsonModule": true,
+    "strictNullChecks": true,
+    "declaration": true,
+    "declarationMap": true
+  },
+  "exclude": ["dist/**/*", "src/**/*.old.ts", "src/schedule.old"]
+}

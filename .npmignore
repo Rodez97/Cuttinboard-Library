@@ -10,3 +10,7 @@ jsdoc2md.json
 typedoc.json
 htw
 docs
+.babelrc
+.gitattributes
+.VSCodeCounter
+test

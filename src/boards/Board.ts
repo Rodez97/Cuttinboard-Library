@@ -1,274 +1,206 @@
-import { AUTH, FIRESTORE } from "../utils/firebase";
 import {
-  DocumentReference,
   DocumentData,
   QueryDocumentSnapshot,
   SnapshotOptions,
-  collection,
-  updateDoc,
-  deleteDoc,
   FieldValue,
   arrayUnion,
   arrayRemove,
-  FirestoreDataConverter,
 } from "firebase/firestore";
-import { Timestamp } from "firebase/firestore";
-import { PrivacyLevel } from "../utils/PrivacyLevel";
-import { FirebaseSignature } from "../models/FirebaseSignature";
-import { PrimaryFirestore } from "../models/PrimaryFirestore";
-import { Employee } from "../employee/Employee";
+import { clone, merge, set, uniq } from "lodash";
+import {
+  BoardUpdate,
+  getBoardPosition,
+  IBoard,
+  IEmployee,
+  PrivacyLevel,
+} from "@cuttinboard-solutions/types-helpers";
+
+export const boardConverter = {
+  toFirestore(object: IBoard): DocumentData {
+    const { refPath, id, ...objectToSave } = object;
+    return objectToSave;
+  },
+  fromFirestore(
+    value: QueryDocumentSnapshot<IBoard>,
+    options: SnapshotOptions
+  ): IBoard {
+    const { id, ref } = value;
+    const rawData = value.data(options);
+    return {
+      ...rawData,
+      id,
+      refPath: ref.path,
+    };
+  },
+};
 
 /**
- * Base interface implemented by Board class.
+ * Updates the board with the given data.
+ * @param data The data to update.
+ * @remarks
+ * This method will only update the name, description, and access tags.
  */
-export interface IBoard {
-  name: string;
-  description?: string;
-  hosts?: string[];
-  parentId: string;
-  privacyLevel: PrivacyLevel;
-  accessTags?: string[];
-  global?: boolean;
+export function getUpdateBoardData(board: IBoard, updates: BoardUpdate) {
+  const { position, ...data } = updates;
+  let serverUpdates;
+  const localUpdates = board;
+  if (
+    board.privacyLevel === PrivacyLevel.POSITIONS &&
+    position &&
+    position !== getBoardPosition(board)
+  ) {
+    const hostsTags = board.hosts
+      ? board.hosts.map((host) => `hostId_${host}`)
+      : [];
+    hostsTags.push(position);
+    serverUpdates = { ...data, accessTags: hostsTags };
+    merge(localUpdates, data, { accessTags: hostsTags });
+  } else {
+    serverUpdates = data;
+    merge(localUpdates, data);
+  }
+
+  return {
+    serverUpdates,
+    localUpdates,
+  };
 }
 
 /**
- * A class that represents a board in the database.
+ * Add a host to the board.
+ * @param newHost The new host to add.
  */
-export class Board implements IBoard, PrimaryFirestore, FirebaseSignature {
-  /**
-   * The title given to the board.
-   */
-  public readonly name: string;
-  /**
-   * The description of the board.
-   */
-  public readonly description?: string;
-  /**
-   * An array of the ids of the hosts of this board.
-   */
-  public readonly hosts?: string[];
-  /**
-   * The id of the location this board is in.
-   */
-  public readonly parentId: string;
-  /**
-   * The privacy level of the board.
-   * @see PrivacyLevel
-   */
-  public readonly privacyLevel: PrivacyLevel;
-  /**
-   * The access tags used to determine who can access this board.
-   * [Access Tags](https://github.com/Cuttinboard-Solutions/Cuttinboard-Library/blob/c4a61dda39bafb9c93841e88e18a6c170f3a51dd/src/models/boards/Board.MD)
-   */
-  public readonly accessTags?: string[];
-  /**
-   * The Id of the board
-   */
-  public readonly id: string;
-  /**
-   * The Firestore document reference of this board.
-   */
-  public readonly docRef: DocumentReference<DocumentData>;
-  /**
-   * The timestamp of when this board was created.
-   */
-  public readonly createdAt: Timestamp;
-  /**
-   * The id of the user who created this board.
-   */
-  public readonly createdBy: string;
-
-  public readonly global?: boolean;
-
-  public static firestoreConverter: FirestoreDataConverter<Board> = {
-    toFirestore(object: Board): DocumentData {
-      const { docRef, id, ...objectToSave } = object;
-      return objectToSave;
-    },
-    fromFirestore(
-      value: QueryDocumentSnapshot<IBoard & FirebaseSignature>,
-      options: SnapshotOptions
-    ): Board {
-      const { id, ref } = value;
-      const rawData = value.data(options);
-      return new Board(rawData, { id, docRef: ref });
-    },
+export function addBoardHost(board: IBoard, newHost: IEmployee) {
+  const serverUpdate: { accessTags?: FieldValue; hosts: FieldValue } = {
+    hosts: arrayUnion(newHost.id),
   };
 
-  /**
-   * Creates a new Board instance.
-   * @param boardData The data to create the board with.
-   * @param firestoreBase The id and docRef of the board.
-   */
-  constructor(
-    {
-      name,
-      description,
-      hosts,
-      parentId,
-      privacyLevel,
-      accessTags,
-      createdAt,
-      createdBy,
-      global,
-    }: IBoard & FirebaseSignature,
-    { id, docRef }: PrimaryFirestore
-  ) {
-    this.name = name;
-    this.description = description;
-    this.hosts = hosts;
-    this.parentId = parentId;
-    this.privacyLevel = privacyLevel;
-    this.accessTags = accessTags;
-    this.id = id;
-    this.docRef = docRef;
-    this.createdAt = createdAt;
-    this.createdBy = createdBy;
-    this.global = global;
-  }
+  // Make sure that the object is extensible.
+  const localUpdate: IBoard = {
+    ...clone(board),
+    hosts: [...(board.hosts || []), newHost.id],
+  };
 
-  /**
-   * Reference of the content collection of this board.
-   */
-  public get contentRef() {
-    return collection(FIRESTORE, this.docRef.path, "content");
-  }
+  if (board.privacyLevel === PrivacyLevel.POSITIONS) {
+    // If the board is position based, create a specific access tag for the host. (hostId_<hostId>)
+    const newHostTag = `hostId_${newHost.id}`;
+    serverUpdate.accessTags = arrayUnion(newHostTag);
 
-  /**
-   * Returns true if the current user is a host of this board.
-   */
-  public get amIhost() {
-    if (!AUTH.currentUser || !this.hosts) {
-      return false;
-    }
-    return this.hosts.indexOf(AUTH.currentUser.uid) > -1;
-  }
-
-  /**
-   * Returns the position linked to this board.
-   * @remarks
-   * This method will return null if the privacy level is not set to positions.
-   */
-  public get position() {
-    if (this.privacyLevel !== PrivacyLevel.POSITIONS || !this.accessTags) {
-      return null;
-    }
-    return this.accessTags.find(
-      (at) => at !== "pl_public" && !at.startsWith("hostId_")
-    );
-  }
-
-  /**
-   * Get the members of this board.
-   * @remarks
-   * This method will return null if the privacy level is not set to private.
-   */
-  public get getMembers() {
-    if (this.privacyLevel !== PrivacyLevel.PRIVATE) {
-      return null;
-    }
-    return this.accessTags ?? [];
-  }
-
-  /**
-   * Updates the board with the given data.
-   * @param data The data to update.
-   * @remarks
-   * This method will only update the name, description, and access tags.
-   */
-  public async update({
-    position,
-    ...data
-  }: {
-    name?: string;
-    description?: string;
-    position?: string;
-  }) {
     if (
-      this.privacyLevel === PrivacyLevel.POSITIONS &&
-      position &&
-      position !== this.position
+      localUpdate.accessTags &&
+      !localUpdate.accessTags.includes(newHostTag)
     ) {
-      const accessTags = this.hosts?.map((host) => `hostId_${host}`) ?? [];
-      accessTags.push(position);
-      await updateDoc(this.docRef, { ...data, accessTags });
+      set(localUpdate, "accessTags", [...localUpdate.accessTags, newHostTag]);
+    } else if (!localUpdate.accessTags) {
+      set(localUpdate, "accessTags", [newHostTag]);
     } else {
-      await updateDoc(this.docRef, data);
+      console.error("Access tags already contains the new host tag.");
     }
+  }
+  if (board.privacyLevel === PrivacyLevel.PRIVATE) {
+    // If the board is private, add the host to the access tags.
+    serverUpdate.accessTags = arrayUnion(newHost.id);
+
+    if (
+      localUpdate.accessTags &&
+      !localUpdate.accessTags.includes(newHost.id)
+    ) {
+      set(localUpdate, "accessTags", [...localUpdate.accessTags, newHost.id]);
+    } else if (!localUpdate.accessTags) {
+      set(localUpdate, "accessTags", [newHost.id]);
+    } else {
+      console.error("Access tags already contains the new host tag.");
+    }
+  }
+  return { serverUpdate, localUpdate };
+}
+
+/**
+ * Remove a host from the board.
+ * @param hostId The host to remove.
+ */
+export function removeBoardHost(board: IBoard, hostId: string) {
+  const serverUpdate: { accessTags?: FieldValue; hosts: FieldValue } = {
+    hosts: arrayRemove(hostId),
+  };
+  const localUpdate: IBoard = clone(board);
+
+  if (localUpdate.hosts && !localUpdate.hosts.includes(hostId)) {
+    throw new Error("Cannot remove a host that is not on the board.");
+  } else if (!localUpdate.hosts) {
+    throw new Error("Cannot remove a host from a board with no hosts.");
   }
 
-  /**
-   * Deletes the board.
-   */
-  public async delete() {
-    await deleteDoc(this.docRef);
-  }
+  localUpdate.hosts = localUpdate.hosts.filter((h) => h !== hostId);
 
-  /**
-   * Add a host to the board.
-   * @param newHost The new host to add.
-   */
-  public async addHost(newHost: Employee) {
-    const hostUpdate: { accessTags?: FieldValue; hosts: FieldValue } = {
-      hosts: arrayUnion(newHost.id),
-    };
-    if (this.privacyLevel === PrivacyLevel.POSITIONS) {
-      // If the board is position based, create a specific access tag for the host. (hostId_<hostId>)
-      hostUpdate.accessTags = arrayUnion(`hostId_${newHost.id}`);
+  if (board.privacyLevel === PrivacyLevel.POSITIONS) {
+    // If the board is position based, remove the specific access tag for the host. (hostId_<hostId>)
+    const hostTag = `hostId_${hostId}`;
+    serverUpdate.accessTags = arrayRemove(hostTag);
+    if (localUpdate.accessTags) {
+      localUpdate.accessTags = localUpdate.accessTags.filter(
+        (at) => at !== hostTag
+      );
     }
-    if (this.privacyLevel === PrivacyLevel.PRIVATE) {
-      // If the board is private, add the host to the access tags.
-      hostUpdate.accessTags = arrayUnion(newHost.id);
-    }
-    await updateDoc(this.docRef, hostUpdate);
   }
+  if (board.privacyLevel === PrivacyLevel.PRIVATE) {
+    // If the board is private, remove the host from the access tags.
+    serverUpdate.accessTags = arrayRemove(hostId);
+    if (localUpdate.accessTags) {
+      localUpdate.accessTags = localUpdate.accessTags.filter(
+        (at) => at !== hostId
+      );
+    }
+  }
+  return { serverUpdate, localUpdate };
+}
 
-  /**
-   * Remove a host from the board.
-   * @param hostId The host to remove.
-   */
-  public async removeHost(hostId: string) {
-    const hostUpdate: { accessTags?: FieldValue; hosts: FieldValue } = {
-      hosts: arrayRemove(hostId),
-    };
-    if (this.privacyLevel === PrivacyLevel.POSITIONS) {
-      // If the board is position based, remove the specific access tag for the host. (hostId_<hostId>)
-      hostUpdate.accessTags = arrayRemove(`hostId_${hostId}`);
-    }
-    if (this.privacyLevel === PrivacyLevel.PRIVATE) {
-      // If the board is private, remove the host from the access tags.
-      hostUpdate.accessTags = arrayRemove(hostId);
-    }
-    await updateDoc(this.docRef, hostUpdate);
+/**
+ * Add new members to the board.
+ * @param addedEmployees The employees to add.
+ */
+export function getAddMembersData(board: IBoard, addedEmployees: IEmployee[]) {
+  if (board.privacyLevel !== PrivacyLevel.PRIVATE) {
+    console.error("Cannot add members to a non private board.");
+    return;
   }
+  // Get the ids of the employees to add.
+  const addedEmployeesIds = addedEmployees.map((e) => e.id);
+  const serverUpdates = { accessTags: arrayUnion(...addedEmployeesIds) };
+  const localUpdates: IBoard = {
+    ...board,
+    accessTags: uniq(
+      board.accessTags
+        ? [...board.accessTags, ...addedEmployeesIds]
+        : addedEmployeesIds
+    ),
+  };
 
-  /**
-   * Add new members to the board.
-   * @param addedEmployees The employees to add.
-   */
-  public async addMembers(addedEmployees: Employee[]) {
-    if (this.privacyLevel !== PrivacyLevel.PRIVATE) {
-      // If the board is not private, throw an error.
-      throw new Error("Cannot add members to a non private board.");
-    }
-    // Get the ids of the employees to add.
-    const addedEmployeesIds = addedEmployees.map((e) => e.id);
-    await updateDoc(this.docRef, {
-      accessTags: arrayUnion(...addedEmployeesIds),
-    });
-  }
+  return {
+    serverUpdates,
+    localUpdates,
+  };
+}
 
-  /**
-   * Remove a member from the board.
-   * @param memberId The member to remove.
-   */
-  public async removeMember(memberId: string) {
-    if (this.privacyLevel !== PrivacyLevel.PRIVATE) {
-      // If the board is not private, throw an error.
-      throw new Error("Cannot remove members from a non private board.");
-    }
-    await updateDoc(this.docRef, {
-      accessTags: arrayRemove(memberId),
-    });
+/**
+ * Remove a member from the board.
+ * @param memberId The member to remove.
+ */
+export function getRemoveMemberData(board: IBoard, memberId: string) {
+  if (board.privacyLevel !== PrivacyLevel.PRIVATE) {
+    console.error("Cannot remove members from a non private board.");
+    return;
   }
+  const serverUpdates = { accessTags: arrayRemove(memberId) };
+  const localUpdates: IBoard = {
+    ...board,
+    accessTags: board.accessTags
+      ? board.accessTags.filter((at) => at !== memberId)
+      : [],
+  };
+
+  return {
+    serverUpdates,
+    localUpdates,
+  };
 }
