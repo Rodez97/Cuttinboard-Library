@@ -4,7 +4,7 @@ import {
   reauthenticateWithCredential,
 } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { AUTH, FIRESTORE } from "../utils/firebase";
 
 /**
@@ -35,35 +35,38 @@ export const useDeleteAccount = (): {
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
-  const deleteAccount = async (password: string) => {
-    if (!AUTH.currentUser || !AUTH.currentUser.email) {
-      throw new Error("There is no user logged in");
-    }
-
-    try {
-      setDeleting(true);
-      setError(null);
-      // Check if user is the owner of an organization
-      const org = await getDoc(
-        doc(FIRESTORE, "Organizations", AUTH.currentUser.uid)
-      );
-      if (org.exists()) {
-        throw new Error(
-          "You can't delete your account because you are an Owner."
-        );
+  const deleteAccount = useCallback(
+    async (password: string) => {
+      if (!AUTH.currentUser || !AUTH.currentUser.email) {
+        throw new Error("There is no user logged in");
       }
-      const credential = EmailAuthProvider.credential(
-        AUTH.currentUser.email,
-        password
-      );
-      await reauthenticateWithCredential(AUTH.currentUser, credential);
-      await deleteUser(AUTH.currentUser);
-    } catch (error) {
-      setError(error);
-    } finally {
-      setDeleting(false);
-    }
-  };
+
+      try {
+        setDeleting(true);
+        setError(null);
+        // Check if user is the owner of an organization
+        const org = await getDoc(
+          doc(FIRESTORE, "Organizations", AUTH.currentUser.uid)
+        );
+        if (org.exists()) {
+          throw new Error(
+            "You can't delete your account because you are an Owner."
+          );
+        }
+        const credential = EmailAuthProvider.credential(
+          AUTH.currentUser.email,
+          password
+        );
+        await reauthenticateWithCredential(AUTH.currentUser, credential);
+        await deleteUser(AUTH.currentUser);
+      } catch (error) {
+        setError(error);
+      } finally {
+        setDeleting(false);
+      }
+    },
+    [AUTH.currentUser]
+  );
 
   return { deleteAccount, deleting, error };
 };

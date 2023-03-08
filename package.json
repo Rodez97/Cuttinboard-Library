@@ -1,14 +1,17 @@
 {
   "name": "@cuttinboard-solutions/cuttinboard-library",
-  "version": "3.6.4",
+  "version": "7.1.64",
   "description": "Shared Code Library for Cuttinboard App",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "ts-mocha -p tsconfig.json test/**/*.test.ts",
     "deploy": "npm run build && npm publish",
-    "build:doc": "npx typedoc"
+    "deploy-root": "npm run build && npm publish src_main/dist"
   },
   "keywords": [
     "cuttinboard",
@@ -17,64 +20,6 @@
     "types",
     "hooks"
   ],
-  "exports": {
-    ".": "./dist/index.js",
-    "./account": "./dist/account/index.js",
-    "./billing": "./dist/billing/index.js",
-    "./boards": "./dist/boards/index.js",
-    "./chats": "./dist/chats/index.js",
-    "./checklist": "./dist/checklist/index.js",
-    "./employee": "./dist/employee/index.js",
-    "./schedule": "./dist/schedule/index.js",
-    "./services": "./dist/services/index.js",
-    "./user_metadata": "./dist/user_metadata/index.js",
-    "./utensils": "./dist/utensils/index.js",
-    "./utils": "./dist/utils/index.js"
-  },
-  "typesVersions": {
-    "*": {
-      "*": [
-        "dist/index.d.ts"
-      ],
-      "account": [
-        "dist/account/index.d.ts"
-      ],
-      "billing": [
-        "dist/billing/index.d.ts"
-      ],
-      "boards": [
-        "dist/boards/index.d.ts"
-      ],
-      "chats": [
-        "dist/chats/index.d.ts",
-        "dist/chats/types.d.ts"
-      ],
-      "checklist": [
-        "dist/checklist/index.d.ts"
-      ],
-      "employee": [
-        "dist/employee/index.d.ts"
-      ],
-      "models": [
-        "dist/models/index.d.ts"
-      ],
-      "schedule": [
-        "dist/schedule/index.d.ts"
-      ],
-      "services": [
-        "dist/services/index.d.ts"
-      ],
-      "user_metadata": [
-        "dist/user_metadata/index.d.ts"
-      ],
-      "utensils": [
-        "dist/utensils/index.d.ts"
-      ],
-      "utils": [
-        "dist/utils/index.d.ts"
-      ]
-    }
-  },
   "author": "Elevvate Technologies, Inc. <info@cuttinboard.com> (https://cuttinboard.com)",
   "license": "Unlicensed",
   "repository": {
@@ -86,8 +31,8 @@
   },
   "homepage": "hhttps://github.com/Cuttinboard-Solutions/Cuttinboard-Library",
   "peerDependencies": {
-    "@types/lodash": ">=4.14",
-    "@types/react": ">=18.0.0",
+    "@reduxjs/toolkit": ">=1.9.2",
+    "date-fns": ">=2.29.3",
     "dayjs": ">=1.11.6",
     "dayjs-recur": ">=1.0.1",
     "firebase": ">=9.0.0",
@@ -96,33 +41,35 @@
     "react": ">=18.0.0",
     "react-dom": ">=18.0.0",
     "react-firebase-hooks": ">=5.1.1",
+    "react-redux": ">=8.0.5",
+    "redux": ">=4.2.1",
     "rrule": ">=2.7.1",
     "rxfire": ">=6.0.3",
     "rxjs": ">=7.8.0",
-    "typescript": ">=4.9.3",
-    "date-fns": ">=2.29.3"
+    "typescript": ">=4.9.3"
   },
   "publishConfig": {
     "registry": "https://npm.pkg.github.com/"
   },
+  "dependencies": {
+    "@cuttinboard-solutions/types-helpers": "^1.0.42"
+  },
   "devDependencies": {
-    "@babel/cli": "^7.19.3",
-    "@babel/core": "^7.20.5",
-    "@babel/plugin-proposal-class-properties": "^7.18.6",
-    "@babel/plugin-proposal-object-rest-spread": "^7.20.2",
-    "@babel/preset-env": "^7.20.2",
-    "@babel/preset-typescript": "^7.18.6",
-    "@knodes/typedoc-plugin-pages": "^0.23.1",
+    "@types/chai": "^4.3.4",
+    "@types/expect": "^24.3.0",
+    "@types/lodash": "^4.14",
+    "@types/mocha": "^10.0.1",
+    "@types/react": "^18.0.0",
+    "@types/react-dom": "^18.0.10",
+    "@types/react-redux": "^7.1.25",
+    "@types/redux": "^3.6.31",
     "@typescript-eslint/eslint-plugin": "^5.44.0",
     "@typescript-eslint/parser": "^5.44.0",
+    "chai": "^4.3.7",
     "eslint": "^8.28.0",
     "eslint-plugin-react": "^7.31.11",
-    "jsdoc-babel": "^0.5.0",
-    "jsdoc-to-markdown": "^8.0.0",
-    "mermaid": "^9.2.2",
-    "typedoc": "^0.23.21",
-    "typedoc-plugin-markdown": "^3.14.0",
-    "typedoc-plugin-mermaid": "^1.9.0",
-    "typedoc-plugin-missing-exports": "^1.0.0"
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "mocha": "^10.2.0",
+    "ts-mocha": "^10.0.0"
   }
 }

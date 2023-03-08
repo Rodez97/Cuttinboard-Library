@@ -1,9 +1,12 @@
+import {
+  ContactUpdate,
+  ProfileUpdate,
+} from "@cuttinboard-solutions/types-helpers/dist/account";
 import { updateProfile } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
 import { isEmpty } from "lodash";
 import { useState } from "react";
 import { AUTH, FIRESTORE } from "../utils/firebase";
-import { ContactUpdate, ProfileUpdate } from "./types";
 
 /**
  * This code defines a custom Hook named useUpdateCuttinboardAccount that provides a function updateUserProfile that updates a user's profile and contact information in a database. The Hook also provides state variables updating and error that can be used to track the submission status and any errors that occurred during the update process.

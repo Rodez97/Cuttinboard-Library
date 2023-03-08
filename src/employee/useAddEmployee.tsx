@@ -1,10 +1,14 @@
-import { RoleAccessLevels } from "../utils/RoleAccessLevels";
 import { FIRESTORE, FUNCTIONS } from "../utils/firebase";
-import { useHttpsCallable } from "react-firebase-hooks/functions";
-import { useEmployeesList } from "./useEmployeesList";
 import { useCallback } from "react";
-import { useCuttinboardLocation } from "../services";
 import { collection, getDocs, query, where } from "firebase/firestore";
+import { httpsCallable } from "firebase/functions";
+import { employeesSelectors } from "./employees.slice";
+import { useAppSelector } from "../reduxStore";
+import { selectLocation } from "../cuttinboardLocation/locationSelectors";
+import {
+  getLocationUsage,
+  RoleAccessLevels,
+} from "@cuttinboard-solutions/types-helpers";
 
 /**
  * Type for employee data
@@ -16,7 +20,10 @@ type EmployeeData = {
   /**
    * Role access level for the employee
    */
-  role: RoleAccessLevels | "employee";
+  role:
+    | RoleAccessLevels.GENERAL_MANAGER
+    | RoleAccessLevels.MANAGER
+    | RoleAccessLevels.STAFF;
   /**
    * Array of positions held by the employee
    */
@@ -52,32 +59,17 @@ type EmployeeResponse = {
 /**
  * Hook for creating employees using an HTTPS callable function
  */
-export const useAddEmployee = (): {
-  /**
-   * Method for creating a new employee
-   */
-  addEmployee: (values: Omit<EmployeeData, "locationId">) => Promise<string>;
-  /**
-   * Flag indicating whether the employee creation operation is in progress
-   */
-  loading: boolean;
-  /**
-   * Error object containing information about any error that occurred during the employee creation operation
-   */
-  error: Error | undefined;
-} => {
-  const { location } = useCuttinboardLocation();
-  const { getEmployees } = useEmployeesList();
-  // Create a hook for the HTTPS callable function that accepts employee data and returns an employee response
-  const [createEmployee, loading, error] = useHttpsCallable<
-    EmployeeData,
-    EmployeeResponse
-  >(FUNCTIONS, "http-employees-create");
+export const useAddEmployee = () => {
+  const activeLocation = useAppSelector(selectLocation);
+  if (!activeLocation) {
+    throw new Error("No active location");
+  }
+  const activeEmployees = useAppSelector(employeesSelectors.selectAll);
 
   const addEmployee = useCallback(
     async (values: Omit<EmployeeData, "locationId">) => {
       // Check if the employee already exists
-      const employee = getEmployees.find(
+      const employee = activeEmployees.find(
         (employee) => employee.email === values.email
       );
       // If the employee already exists, return an error
@@ -86,8 +78,11 @@ export const useAddEmployee = (): {
           new Error("Employee already exists in your location")
         );
       }
+
+      const usage = getLocationUsage(activeLocation);
+
       // Check if we have reached the maximum number of employees
-      if (location.usage.employeesCount >= location.usage.employeesLimit) {
+      if (usage.employeesCount >= usage.employeesLimit) {
         return Promise.reject(new Error("Maximum number of employees reached"));
       }
       // Check if the new employee is already an organization level employee
@@ -96,11 +91,10 @@ export const useAddEmployee = (): {
           collection(
             FIRESTORE,
             "Organizations",
-            location.organizationId,
+            activeLocation.organizationId,
             "employees"
           ),
-          where("email", "==", values.email),
-          where("role", "in", [0, 1])
+          where("email", "==", values.email)
         )
       );
       if (checkForSupervisor.size === 1) {
@@ -109,10 +103,15 @@ export const useAddEmployee = (): {
         );
       }
 
+      const createEmployee = httpsCallable<EmployeeData, EmployeeResponse>(
+        FUNCTIONS,
+        "http-employees-create"
+      );
+
       // Create the employee
       const result = await createEmployee({
         ...values,
-        locationId: location.id,
+        locationId: activeLocation.id,
       });
 
       if (!result || !result.data) {
@@ -149,13 +148,8 @@ export const useAddEmployee = (): {
           );
       }
     },
-    [location, getEmployees]
+    [activeEmployees, activeLocation]
   );
 
-  // Return the hook and additional data for the employee creation operation
-  return {
-    addEmployee,
-    loading,
-    error,
-  };
+  return addEmployee;
 };

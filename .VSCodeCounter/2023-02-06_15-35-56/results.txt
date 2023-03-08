@@ -1,0 +1,183 @@
+Date : 2023-02-06 15:35:56
+Directory : d:\Main Proyects\cuttinboard-library\src
+Total : 131 files,  11269 codes, 1671 comments, 1174 blanks, all 14114 lines
+
+Languages
++----------------+------------+------------+------------+------------+------------+
+| language       | files      | code       | comment    | blank      | total      |
++----------------+------------+------------+------------+------------+------------+
+| TypeScript     |         93 |      8,169 |      1,379 |        826 |     10,374 |
+| TypeScript JSX |         37 |      3,098 |        290 |        347 |      3,735 |
+| JavaScript     |          1 |          2 |          2 |          1 |          5 |
++----------------+------------+------------+------------+------------+------------+
+
+Directories
++-------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| path                                                                                      | files      | code       | comment    | blank      | total      |
++-------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| .                                                                                         |        131 |     11,269 |      1,671 |      1,174 |     14,114 |
+| . (Files)                                                                                 |          2 |         33 |          3 |          4 |         40 |
+| account                                                                                   |          7 |        247 |        170 |         46 |        463 |
+| billing                                                                                   |          8 |        100 |         91 |         11 |        202 |
+| boards                                                                                    |          6 |        857 |         81 |         69 |      1,007 |
+| chats                                                                                     |         10 |        954 |         72 |        107 |      1,133 |
+| checklistsGroups                                                                          |          7 |        984 |         93 |         87 |      1,164 |
+| conversations                                                                             |          6 |        711 |         86 |         71 |        868 |
+| cuttinboard                                                                               |          5 |        398 |         43 |         60 |        501 |
+| dailyChecklist                                                                            |          2 |         35 |          2 |          5 |         42 |
+| directMessages                                                                            |          6 |        427 |         37 |         46 |        510 |
+| employee                                                                                  |          6 |        523 |        124 |         60 |        707 |
+| files                                                                                     |          5 |        347 |         21 |         34 |        402 |
+| globalBoards                                                                              |          4 |        416 |         38 |         35 |        489 |
+| location                                                                                  |          6 |        719 |         32 |         56 |        807 |
+| locationChecklists                                                                        |          2 |         60 |          2 |          8 |         70 |
+| models                                                                                    |          4 |         34 |         51 |         10 |         95 |
+| notes                                                                                     |          5 |        318 |         14 |         29 |        361 |
+| notifications                                                                             |          5 |        565 |        101 |         57 |        723 |
+| recurringTasks                                                                            |          5 |        560 |         70 |         53 |        683 |
+| redux                                                                                     |          3 |        810 |         27 |         82 |        919 |
+| redux (Files)                                                                             |          2 |         55 |          2 |          7 |         64 |
+| redux\features                                                                            |          1 |        755 |         25 |         75 |        855 |
+| schedule                                                                                  |         10 |      1,069 |        297 |        132 |      1,498 |
+| tasks                                                                                     |          4 |        480 |         48 |         36 |        564 |
+| utensils                                                                                  |          5 |        398 |         38 |         41 |        477 |
+| utils                                                                                     |          8 |        224 |        130 |         35 |        389 |
++-------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+
+Files
++-------------------------------------------------------------------------------------------+----------------+------------+------------+------------+------------+
+| filename                                                                                  | language       | code       | comment    | blank      | total      |
++-------------------------------------------------------------------------------------------+----------------+------------+------------+------------+------------+
+| d:\Main Proyects\cuttinboard-library\src\account\CuttinboardUser.ts                       | TypeScript     |         47 |         47 |         17 |        111 |
+| d:\Main Proyects\cuttinboard-library\src\account\OrganizationKey.ts                       | TypeScript     |          7 |          3 |          2 |         12 |
+| d:\Main Proyects\cuttinboard-library\src\account\index.ts                                 | TypeScript     |          6 |          2 |          1 |          9 |
+| d:\Main Proyects\cuttinboard-library\src\account\types.ts                                 | TypeScript     |         36 |         64 |          7 |        107 |
+| d:\Main Proyects\cuttinboard-library\src\account\useDeleteAccount.tsx                     | TypeScript JSX |         44 |         21 |          5 |         70 |
+| d:\Main Proyects\cuttinboard-library\src\account\useRegister.tsx                          | TypeScript JSX |         46 |         14 |          4 |         64 |
+| d:\Main Proyects\cuttinboard-library\src\account\useUpdateAccount.tsx                     | TypeScript JSX |         61 |         19 |         10 |         90 |
+| d:\Main Proyects\cuttinboard-library\src\billing\CustomerData.ts                          | TypeScript     |          6 |          0 |          1 |          7 |
+| d:\Main Proyects\cuttinboard-library\src\billing\Price.ts                                 | TypeScript     |         11 |         21 |          1 |         33 |
+| d:\Main Proyects\cuttinboard-library\src\billing\Product.ts                               | TypeScript     |         10 |         21 |          2 |         33 |
+| d:\Main Proyects\cuttinboard-library\src\billing\Recurring.ts                             | TypeScript     |          6 |          0 |          1 |          7 |
+| d:\Main Proyects\cuttinboard-library\src\billing\Subscription.ts                          | TypeScript     |         31 |         44 |          2 |         77 |
+| d:\Main Proyects\cuttinboard-library\src\billing\SubscriptionItem.ts                      | TypeScript     |         12 |          0 |          2 |         14 |
+| d:\Main Proyects\cuttinboard-library\src\billing\TaxRate.ts                               | TypeScript     |         17 |          3 |          1 |         21 |
+| d:\Main Proyects\cuttinboard-library\src\billing\index.ts                                 | TypeScript     |          7 |          2 |          1 |         10 |
+| d:\Main Proyects\cuttinboard-library\src\boards\Board.ts                                  | TypeScript     |        157 |         35 |         17 |        209 |
+| d:\Main Proyects\cuttinboard-library\src\boards\BoardProvider.tsx                         | TypeScript JSX |        242 |         17 |         16 |        275 |
+| d:\Main Proyects\cuttinboard-library\src\boards\createBoardSlice.ts                       | TypeScript     |        377 |         23 |         25 |        425 |
+| d:\Main Proyects\cuttinboard-library\src\boards\index.ts                                  | TypeScript     |          5 |          2 |          1 |          8 |
+| d:\Main Proyects\cuttinboard-library\src\boards\useBoard.tsx                              | TypeScript JSX |         11 |          4 |          2 |         17 |
+| d:\Main Proyects\cuttinboard-library\src\boards\useMultipleQueryListener.tsx              | TypeScript JSX |         65 |          0 |          8 |         73 |
+| d:\Main Proyects\cuttinboard-library\src\chats\IMessage.ts                                | TypeScript     |         14 |          3 |          2 |         19 |
+| d:\Main Proyects\cuttinboard-library\src\chats\MessagesProvider.tsx                       | TypeScript JSX |        336 |         20 |         42 |        398 |
+| d:\Main Proyects\cuttinboard-library\src\chats\index.ts                                   | TypeScript     |          9 |          2 |          1 |         12 |
+| d:\Main Proyects\cuttinboard-library\src\chats\messageUtils.ts                            | TypeScript     |         85 |          8 |          8 |        101 |
+| d:\Main Proyects\cuttinboard-library\src\chats\messages.slice.ts                          | TypeScript     |        301 |         14 |         17 |        332 |
+| d:\Main Proyects\cuttinboard-library\src\chats\types.ts                                   | TypeScript     |         91 |         24 |         14 |        129 |
+| d:\Main Proyects\cuttinboard-library\src\chats\useChatPaths.tsx                           | TypeScript JSX |         24 |          0 |          5 |         29 |
+| d:\Main Proyects\cuttinboard-library\src\chats\useMessages.tsx                            | TypeScript JSX |          9 |          0 |          4 |         13 |
+| d:\Main Proyects\cuttinboard-library\src\chats\useMessagesReducer.ts                      | TypeScript     |         62 |          1 |          9 |         72 |
+| d:\Main Proyects\cuttinboard-library\src\chats\usePresence.tsx                            | TypeScript JSX |         23 |          0 |          5 |         28 |
+| d:\Main Proyects\cuttinboard-library\src\checklistsGroups\IChecklist.ts                   | TypeScript     |         10 |          3 |          2 |         15 |
+| d:\Main Proyects\cuttinboard-library\src\checklistsGroups\IChecklistGroup.ts              | TypeScript     |         11 |          3 |          2 |         16 |
+| d:\Main Proyects\cuttinboard-library\src\checklistsGroups\checklistGroupUtils.ts          | TypeScript     |        199 |         40 |         34 |        273 |
+| d:\Main Proyects\cuttinboard-library\src\checklistsGroups\checklistUtils.ts               | TypeScript     |         38 |          7 |          8 |         53 |
+| d:\Main Proyects\cuttinboard-library\src\checklistsGroups\createChecklistsSlice.ts        | TypeScript     |        476 |         37 |         25 |        538 |
+| d:\Main Proyects\cuttinboard-library\src\checklistsGroups\index.ts                        | TypeScript     |          6 |          2 |          1 |          9 |
+| d:\Main Proyects\cuttinboard-library\src\checklistsGroups\useChecklistsActions.tsx        | TypeScript JSX |        244 |          1 |         15 |        260 |
+| d:\Main Proyects\cuttinboard-library\src\conversations\ConversationsProvider.tsx          | TypeScript JSX |        165 |         49 |         16 |        230 |
+| d:\Main Proyects\cuttinboard-library\src\conversations\IConversation.ts                   | TypeScript     |         16 |          3 |          2 |         21 |
+| d:\Main Proyects\cuttinboard-library\src\conversations\conversationUtils.ts               | TypeScript     |        152 |          9 |         16 |        177 |
+| d:\Main Proyects\cuttinboard-library\src\conversations\conversations.slice.ts             | TypeScript     |        362 |         19 |         33 |        414 |
+| d:\Main Proyects\cuttinboard-library\src\conversations\index.ts                           | TypeScript     |          5 |          2 |          1 |          8 |
+| d:\Main Proyects\cuttinboard-library\src\conversations\useConversations.tsx               | TypeScript JSX |         11 |          4 |          3 |         18 |
+| d:\Main Proyects\cuttinboard-library\src\cuttinboard\CuttinboardProvider.tsx              | TypeScript JSX |         57 |         32 |          9 |         98 |
+| d:\Main Proyects\cuttinboard-library\src\cuttinboard\cuttinboard.slice.ts                 | TypeScript     |        217 |          5 |         33 |        255 |
+| d:\Main Proyects\cuttinboard-library\src\cuttinboard\index.ts                             | TypeScript     |          4 |          2 |          1 |          7 |
+| d:\Main Proyects\cuttinboard-library\src\cuttinboard\useCuttinboard.tsx                   | TypeScript JSX |         44 |          4 |          7 |         55 |
+| d:\Main Proyects\cuttinboard-library\src\cuttinboard\useCuttinboardData.tsx               | TypeScript JSX |         76 |          0 |         10 |         86 |
+| d:\Main Proyects\cuttinboard-library\src\dailyChecklist\index.ts                          | TypeScript     |          1 |          2 |          1 |          4 |
+| d:\Main Proyects\cuttinboard-library\src\dailyChecklist\useDailyChecklistsData.tsx        | TypeScript JSX |         34 |          0 |          4 |         38 |
+| d:\Main Proyects\cuttinboard-library\src\directMessages\DirectMessagesProvider.tsx        | TypeScript JSX |        145 |         11 |         20 |        176 |
+| d:\Main Proyects\cuttinboard-library\src\directMessages\IDirectMessage.ts                 | TypeScript     |         11 |          3 |          2 |         16 |
+| d:\Main Proyects\cuttinboard-library\src\directMessages\directMessageUtils.ts             | TypeScript     |         69 |         14 |          8 |         91 |
+| d:\Main Proyects\cuttinboard-library\src\directMessages\directMessages.slice.ts           | TypeScript     |        188 |          7 |         13 |        208 |
+| d:\Main Proyects\cuttinboard-library\src\directMessages\index.ts                          | TypeScript     |          5 |          2 |          1 |          8 |
+| d:\Main Proyects\cuttinboard-library\src\directMessages\useDirectMessageChat.tsx          | TypeScript JSX |          9 |          0 |          2 |         11 |
+| d:\Main Proyects\cuttinboard-library\src\employee\Employee.ts                             | TypeScript     |        105 |         53 |         11 |        169 |
+| d:\Main Proyects\cuttinboard-library\src\employee\EmployeeLocationInfo.ts                 | TypeScript     |         10 |         27 |          8 |         45 |
+| d:\Main Proyects\cuttinboard-library\src\employee\employees.slice.ts                      | TypeScript     |        263 |          7 |         22 |        292 |
+| d:\Main Proyects\cuttinboard-library\src\employee\index.ts                                | TypeScript     |          5 |          2 |          1 |          8 |
+| d:\Main Proyects\cuttinboard-library\src\employee\useAddEmployee.tsx                      | TypeScript JSX |        100 |         35 |         13 |        148 |
+| d:\Main Proyects\cuttinboard-library\src\employee\useEmployees.tsx                        | TypeScript JSX |         40 |          0 |          5 |         45 |
+| d:\Main Proyects\cuttinboard-library\src\files\Cuttinboard_File.ts                        | TypeScript     |         55 |         10 |          7 |         72 |
+| d:\Main Proyects\cuttinboard-library\src\files\files.slice.ts                             | TypeScript     |        202 |          9 |         16 |        227 |
+| d:\Main Proyects\cuttinboard-library\src\files\index.ts                                   | TypeScript     |          4 |          2 |          1 |          7 |
+| d:\Main Proyects\cuttinboard-library\src\files\useFiles.tsx                               | TypeScript JSX |         54 |          0 |          6 |         60 |
+| d:\Main Proyects\cuttinboard-library\src\files\useFilesData.tsx                           | TypeScript JSX |         32 |          0 |          4 |         36 |
+| d:\Main Proyects\cuttinboard-library\src\global.d.ts                                      | TypeScript     |         10 |          1 |          3 |         14 |
+| d:\Main Proyects\cuttinboard-library\src\globalBoards\GBoardProvider.tsx                  | TypeScript JSX |        157 |         21 |         12 |        190 |
+| d:\Main Proyects\cuttinboard-library\src\globalBoards\createGlobalBoardSlice.ts           | TypeScript     |        245 |         11 |         20 |        276 |
+| d:\Main Proyects\cuttinboard-library\src\globalBoards\index.ts                            | TypeScript     |          3 |          2 |          1 |          6 |
+| d:\Main Proyects\cuttinboard-library\src\globalBoards\useGBoard.tsx                       | TypeScript JSX |         11 |          4 |          2 |         17 |
+| d:\Main Proyects\cuttinboard-library\src\index.ts                                         | TypeScript     |         23 |          2 |          1 |         26 |
+| d:\Main Proyects\cuttinboard-library\src\locationChecklists\index.ts                      | TypeScript     |          1 |          2 |          1 |          4 |
+| d:\Main Proyects\cuttinboard-library\src\locationChecklists\useLocationChecklistsData.tsx | TypeScript JSX |         59 |          0 |          7 |         66 |
+| d:\Main Proyects\cuttinboard-library\src\location\Location.ts                             | TypeScript     |        166 |         26 |         11 |        203 |
+| d:\Main Proyects\cuttinboard-library\src\location\LocationProvider.tsx                    | TypeScript JSX |         87 |          3 |         10 |        100 |
+| d:\Main Proyects\cuttinboard-library\src\location\index.ts                                | TypeScript     |          5 |          2 |          1 |          8 |
+| d:\Main Proyects\cuttinboard-library\src\location\location.slice.ts                       | TypeScript     |        289 |          1 |         17 |        307 |
+| d:\Main Proyects\cuttinboard-library\src\location\useCuttinboardLocation.tsx              | TypeScript JSX |         76 |          0 |          7 |         83 |
+| d:\Main Proyects\cuttinboard-library\src\location\useLocationData.tsx                     | TypeScript JSX |         96 |          0 |         10 |        106 |
+| d:\Main Proyects\cuttinboard-library\src\models\FirebaseSignature.ts                      | TypeScript     |          5 |          9 |          2 |         16 |
+| d:\Main Proyects\cuttinboard-library\src\models\Organization.ts                           | TypeScript     |         21 |         30 |          4 |         55 |
+| d:\Main Proyects\cuttinboard-library\src\models\PrimaryFirestore.ts                       | TypeScript     |          5 |         10 |          3 |         18 |
+| d:\Main Proyects\cuttinboard-library\src\models\index.ts                                  | TypeScript     |          3 |          2 |          1 |          6 |
+| d:\Main Proyects\cuttinboard-library\src\notes\Note.ts                                    | TypeScript     |         40 |          3 |          3 |         46 |
+| d:\Main Proyects\cuttinboard-library\src\notes\index.ts                                   | TypeScript     |          4 |          2 |          1 |          7 |
+| d:\Main Proyects\cuttinboard-library\src\notes\notes.slice.ts                             | TypeScript     |        188 |          9 |         15 |        212 |
+| d:\Main Proyects\cuttinboard-library\src\notes\useNotes.tsx                               | TypeScript JSX |         54 |          0 |          6 |         60 |
+| d:\Main Proyects\cuttinboard-library\src\notes\useNotesData.tsx                           | TypeScript JSX |         32 |          0 |          4 |         36 |
+| d:\Main Proyects\cuttinboard-library\src\notifications\INotifications.ts                  | TypeScript     |         17 |         26 |          1 |         44 |
+| d:\Main Proyects\cuttinboard-library\src\notifications\index.ts                           | TypeScript     |          4 |          2 |          1 |          7 |
+| d:\Main Proyects\cuttinboard-library\src\notifications\notifications.slice.ts             | TypeScript     |        282 |          2 |         15 |        299 |
+| d:\Main Proyects\cuttinboard-library\src\notifications\notificationsUtils.ts              | TypeScript     |        144 |         68 |         25 |        237 |
+| d:\Main Proyects\cuttinboard-library\src\notifications\useNotifications.tsx               | TypeScript JSX |        118 |          3 |         15 |        136 |
+| d:\Main Proyects\cuttinboard-library\src\recurringTasks\RecurrenceObject.ts               | TypeScript     |          8 |          3 |          2 |         13 |
+| d:\Main Proyects\cuttinboard-library\src\recurringTasks\RecurringTask.ts                  | TypeScript     |        208 |         53 |         24 |        285 |
+| d:\Main Proyects\cuttinboard-library\src\recurringTasks\index.ts                          | TypeScript     |          4 |          2 |          1 |          7 |
+| d:\Main Proyects\cuttinboard-library\src\recurringTasks\recurringTasks.slice.ts           | TypeScript     |        225 |         12 |         16 |        253 |
+| d:\Main Proyects\cuttinboard-library\src\recurringTasks\useRecurringTasks.tsx             | TypeScript JSX |        115 |          0 |         10 |        125 |
+| d:\Main Proyects\cuttinboard-library\src\redux\features\schedule.slice.ts                 | TypeScript     |        755 |         25 |         75 |        855 |
+| d:\Main Proyects\cuttinboard-library\src\redux\index.js                                   | JavaScript     |          2 |          2 |          1 |          5 |
+| d:\Main Proyects\cuttinboard-library\src\redux\rootReducer.ts                             | TypeScript     |         53 |          0 |          6 |         59 |
+| d:\Main Proyects\cuttinboard-library\src\schedule\EmployeeShifts.ts                       | TypeScript     |        211 |         80 |         21 |        312 |
+| d:\Main Proyects\cuttinboard-library\src\schedule\ScheduleDoc.ts                          | TypeScript     |        127 |         24 |          9 |        160 |
+| d:\Main Proyects\cuttinboard-library\src\schedule\ScheduleProvider.tsx                    | TypeScript JSX |        273 |         28 |         29 |        330 |
+| d:\Main Proyects\cuttinboard-library\src\schedule\ScheduleSettings.ts                     | TypeScript     |         28 |         36 |          9 |         73 |
+| d:\Main Proyects\cuttinboard-library\src\schedule\Shift.ts                                | TypeScript     |        272 |         71 |         36 |        379 |
+| d:\Main Proyects\cuttinboard-library\src\schedule\WeekSummary.ts                          | TypeScript     |         16 |         40 |          3 |         59 |
+| d:\Main Proyects\cuttinboard-library\src\schedule\helpers.ts                              | TypeScript     |         63 |         16 |         12 |         91 |
+| d:\Main Proyects\cuttinboard-library\src\schedule\index.ts                                | TypeScript     |          9 |          2 |          1 |         12 |
+| d:\Main Proyects\cuttinboard-library\src\schedule\useSchedule.tsx                         | TypeScript JSX |          9 |          0 |          4 |         13 |
+| d:\Main Proyects\cuttinboard-library\src\schedule\useScheduleData.tsx                     | TypeScript JSX |         61 |          0 |          8 |         69 |
+| d:\Main Proyects\cuttinboard-library\src\tasks\ITask.ts                                   | TypeScript     |          7 |          3 |          1 |         11 |
+| d:\Main Proyects\cuttinboard-library\src\tasks\index.ts                                   | TypeScript     |          3 |          2 |          1 |          6 |
+| d:\Main Proyects\cuttinboard-library\src\tasks\tasksThunks.ts                             | TypeScript     |        284 |         15 |          6 |        305 |
+| d:\Main Proyects\cuttinboard-library\src\tasks\tasksUtils.ts                              | TypeScript     |        186 |         28 |         28 |        242 |
+| d:\Main Proyects\cuttinboard-library\src\utensils\Utensil.ts                              | TypeScript     |         91 |         25 |          8 |        124 |
+| d:\Main Proyects\cuttinboard-library\src\utensils\index.ts                                | TypeScript     |          4 |          2 |          1 |          7 |
+| d:\Main Proyects\cuttinboard-library\src\utensils\useUtensils.tsx                         | TypeScript JSX |         78 |          0 |          8 |         86 |
+| d:\Main Proyects\cuttinboard-library\src\utensils\useUtensilsData.ts                      | TypeScript     |         31 |          0 |          4 |         35 |
+| d:\Main Proyects\cuttinboard-library\src\utensils\utensils.slice.ts                       | TypeScript     |        194 |         11 |         20 |        225 |
+| d:\Main Proyects\cuttinboard-library\src\utils\CONSTANTS.ts                               | TypeScript     |         33 |         23 |          7 |         63 |
+| d:\Main Proyects\cuttinboard-library\src\utils\Colors.ts                                  | TypeScript     |         88 |          9 |          4 |        101 |
+| d:\Main Proyects\cuttinboard-library\src\utils\PrivacyLevel.ts                            | TypeScript     |         15 |         44 |          2 |         61 |
+| d:\Main Proyects\cuttinboard-library\src\utils\RoleAccessLevels.ts                        | TypeScript     |         19 |         33 |          3 |         55 |
+| d:\Main Proyects\cuttinboard-library\src\utils\firebase.ts                                | TypeScript     |         25 |          7 |          8 |         40 |
+| d:\Main Proyects\cuttinboard-library\src\utils\index.ts                                   | TypeScript     |          7 |          2 |          1 |         10 |
+| d:\Main Proyects\cuttinboard-library\src\utils\toLocalTime.ts                             | TypeScript     |          9 |          0 |          2 |         11 |
+| d:\Main Proyects\cuttinboard-library\src\utils\useDisclose.ts                             | TypeScript     |         28 |         12 |          8 |         48 |
+| Total                                                                                     |                |     11,269 |      1,671 |      1,174 |     14,114 |
++-------------------------------------------------------------------------------------------+----------------+------------+------------+------------+------------+
