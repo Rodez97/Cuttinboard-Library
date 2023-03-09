@@ -1,22 +1,33 @@
-import { WeekSchedule } from "@cuttinboard-solutions/types-helpers";
+import { IShift, IScheduleDoc } from "@cuttinboard-solutions/types-helpers";
 import {
   createEntityAdapter,
   createSlice,
+  EntityState,
   PayloadAction,
 } from "@reduxjs/toolkit";
+import { keyBy } from "lodash";
 import { LoadingStatus } from "../models";
-
-// Interfaces
-export interface ScheduleEntry {
-  id: string;
-  schedule: WeekSchedule;
-}
+import { RootState } from "../reduxStore";
 
 export interface ScheduleState extends LoadingStatus {
   selectedWeekId?: undefined | string;
 }
 
+// Interfaces
+export interface ScheduleEntry {
+  id: string;
+  summary: IScheduleDoc;
+  shifts: EntityState<IShift>;
+}
+
+export const shiftsAdapter = createEntityAdapter<IShift>();
 export const scheduleAdapter = createEntityAdapter<ScheduleEntry>();
+
+export const scheduleSelectors = scheduleAdapter.getSelectors<RootState>(
+  (state) => state.schedule
+);
+
+export const shiftSelectors = shiftsAdapter.getSelectors();
 
 // Slice
 const scheduleSlice = createSlice({
@@ -25,33 +36,39 @@ const scheduleSlice = createSlice({
     loading: "idle",
   }),
   reducers: {
-    setEmployeeShifts(
+    setScheduleData(
       state,
       action: PayloadAction<{
         weekId: string;
-        schedule: WeekSchedule;
+        shifts: IShift[];
+        summary: IScheduleDoc;
       }>
     ) {
-      const { weekId, schedule } = action.payload;
-      if (state.loading === "failed") {
-        state.error = undefined;
-      }
-      state.loading = "succeeded";
+      const { weekId, shifts, summary } = action.payload;
       const scheduleEntry = state.entities[weekId];
       if (!scheduleEntry) {
         scheduleAdapter.addOne(state, {
           id: weekId,
-          schedule,
+          summary,
+          shifts: shiftsAdapter.getInitialState({
+            ids: shifts.map((s) => s.id),
+            entities: keyBy(shifts, (s) => s.id),
+          }),
         });
       } else {
-        scheduleEntry.schedule = schedule;
+        scheduleEntry.summary = summary;
+        shiftsAdapter.setAll(scheduleEntry.shifts, shifts);
       }
+      if (state.loading === "failed") {
+        state.error = undefined;
+      }
+      state.loading = "succeeded";
     },
-    setEmployeeShiftsDocuments(
+    setShifts(
       state,
       action: PayloadAction<{
         weekId: string;
-        shifts: WeekSchedule["shifts"];
+        shifts: IShift[];
       }>
     ) {
       const { weekId, shifts } = action.payload;
@@ -59,45 +76,64 @@ const scheduleSlice = createSlice({
       if (!scheduleEntry) {
         return;
       }
-      scheduleEntry.schedule.shifts = shifts;
+      shiftsAdapter.setAll(scheduleEntry.shifts, shifts);
     },
-    upsertEmployeeShiftsEntry(
+    upsertShifts(
       state,
       action: PayloadAction<{
         weekId: string;
-        employeeId: string;
-        entry: WeekSchedule["shifts"][string];
+        shifts: IShift[];
       }>
     ) {
-      const { weekId, employeeId, entry } = action.payload;
+      const { weekId, shifts } = action.payload;
       const scheduleEntry = state.entities[weekId];
       if (!scheduleEntry) {
         return;
       }
-      scheduleEntry.schedule.shifts = {
-        ...scheduleEntry.schedule.shifts,
-        [employeeId]: entry,
-      };
+      shiftsAdapter.upsertMany(scheduleEntry.shifts, shifts);
     },
     upsertEmployeeShifts(
       state,
       action: PayloadAction<{
         weekId: string;
-        empShifts: WeekSchedule["shifts"];
+        employeeId: string;
+        newEntry: IShift[];
       }>
     ) {
-      const { weekId, empShifts } = action.payload;
+      // Replace the employee's shifts with the new shifts
+      const { weekId, employeeId, newEntry } = action.payload;
       const scheduleEntry = state.entities[weekId];
       if (!scheduleEntry) {
         return;
       }
-      scheduleEntry.schedule.shifts = empShifts;
+      const empShiftsEntry = shiftSelectors
+        .selectAll(scheduleEntry.shifts)
+        .filter((s) => s.employeeId === employeeId);
+
+      // Deleted shifts
+      const deletedShifts = empShiftsEntry.filter(
+        (s) => !newEntry.some((ns) => ns.id === s.id)
+      );
+      shiftsAdapter.removeMany(
+        scheduleEntry.shifts,
+        deletedShifts.map((s) => s.id)
+      );
+      // Updated shifts
+      const updatedShifts = empShiftsEntry.filter((s) =>
+        newEntry.some((ns) => ns.id === s.id)
+      );
+      shiftsAdapter.upsertMany(scheduleEntry.shifts, updatedShifts);
+      // New shifts
+      const newShifts = newEntry.filter(
+        (s) => !empShiftsEntry.some((es) => es.id === s.id)
+      );
+      shiftsAdapter.upsertMany(scheduleEntry.shifts, newShifts);
     },
     setScheduleDocument(
       state,
       action: PayloadAction<{
         weekId: string;
-        summary: WeekSchedule["summary"];
+        summary: IScheduleDoc;
       }>
     ) {
       const { weekId, summary } = action.payload;
@@ -105,7 +141,7 @@ const scheduleSlice = createSlice({
       if (!scheduleEntry) {
         return;
       }
-      scheduleEntry.schedule.summary = summary;
+      scheduleEntry.summary = summary;
     },
     setEmployeeShiftsLoading(
       state,
@@ -121,13 +157,13 @@ const scheduleSlice = createSlice({
 });
 
 export const {
-  setEmployeeShifts,
+  setScheduleData,
   setScheduleDocument,
-  setEmployeeShiftsDocuments,
+  setShifts,
   setEmployeeShiftsLoading,
   setEmployeeShiftsError,
-  upsertEmployeeShiftsEntry,
   upsertEmployeeShifts,
+  upsertShifts,
 } = scheduleSlice.actions;
 
 export const scheduleReducer = scheduleSlice.reducer;

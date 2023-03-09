@@ -14,10 +14,11 @@ import { Dictionary } from "lodash";
 import { useScheduleData } from "./useScheduleData";
 import {
   makeEmpShiftsSelector,
-  makeSelectScheduleSummary,
+  makeScheduleSummarySelector,
   makeSelectUpdatesCount,
   makeSelectWageData,
   makeSelectWeekSummary,
+  makeSingleEmpShiftsSelector,
   selectScheduleError,
   selectScheduleLoading,
 } from "./scheduleSelectors";
@@ -35,6 +36,7 @@ import { useAppSelector, useAppThunkDispatch } from "../reduxStore/utils";
 import { useCuttinboard } from "../cuttinboard";
 import {
   getWeekDays,
+  IEmployee,
   IPrimaryShiftData,
   IShift,
   ShiftWage,
@@ -42,7 +44,7 @@ import {
   WEEKFORMAT,
   WeekSummary,
 } from "@cuttinboard-solutions/types-helpers";
-import { WeekSchedule } from "@cuttinboard-solutions/types-helpers/dist/ScheduleRTDB";
+import { WeekSchedule } from "@cuttinboard-solutions/types-helpers";
 dayjs.extend(isoWeek);
 dayjs.extend(advancedFormat);
 dayjs.extend(customParseFormat);
@@ -52,7 +54,8 @@ export interface IScheduleContext {
   weekId: string;
   setWeekId: React.Dispatch<React.SetStateAction<string>>;
   summaryDoc?: WeekSchedule["summary"];
-  employeeShifts: [string, [string, IShift][]][];
+  shifts: IShift[];
+  employeeShifts: { employee: IEmployee; shifts: IShift[]; key: string }[];
   weekDays: dayjs.Dayjs[];
   weekSummary: WeekSummary;
   publish: (
@@ -114,6 +117,7 @@ export function ScheduleProvider({ children }: IScheduleProvider) {
   const thunkDispatch = useAppThunkDispatch();
   const [
     empShiftsSelector,
+    empSingleShiftsSelector,
     weekDays,
     updatesCountSelector,
     wageDataSelector,
@@ -122,15 +126,17 @@ export function ScheduleProvider({ children }: IScheduleProvider) {
   ] = useMemo(
     () => [
       makeEmpShiftsSelector(weekId),
+      makeSingleEmpShiftsSelector(weekId),
       getWeekDays(weekId),
       makeSelectUpdatesCount(weekId),
       makeSelectWageData(weekId),
       makeSelectWeekSummary(weekId),
-      makeSelectScheduleSummary(weekId),
+      makeScheduleSummarySelector(weekId),
     ],
     [weekId]
   );
   const employeeShifts = useAppSelector(empShiftsSelector);
+  const shifts = useAppSelector(empSingleShiftsSelector);
   const updatesCount = useAppSelector(updatesCountSelector);
   const wageData = useAppSelector(wageDataSelector);
   const weekSummary = useAppSelector(weekSummarySelector);
@@ -151,7 +157,7 @@ export function ScheduleProvider({ children }: IScheduleProvider) {
         })
       ).catch(onError);
     },
-    [thunkDispatch, weekId]
+    [onError, thunkDispatch, weekId]
   );
 
   const cancelShiftUpdate = useCallback(
@@ -165,7 +171,7 @@ export function ScheduleProvider({ children }: IScheduleProvider) {
         })
       ).catch(onError);
     },
-    [thunkDispatch, weekId]
+    [onError, thunkDispatch, weekId]
   );
 
   const deleteShift = useCallback(
@@ -179,7 +185,7 @@ export function ScheduleProvider({ children }: IScheduleProvider) {
         })
       ).catch(onError);
     },
-    [thunkDispatch, weekId]
+    [onError, thunkDispatch, weekId]
   );
 
   const restoreShift = useCallback(
@@ -193,7 +199,7 @@ export function ScheduleProvider({ children }: IScheduleProvider) {
         })
       ).catch(onError);
     },
-    [thunkDispatch, weekId]
+    [onError, thunkDispatch, weekId]
   );
 
   const createShift = useCallback(
@@ -213,7 +219,7 @@ export function ScheduleProvider({ children }: IScheduleProvider) {
         })
       ).catch(onError);
     },
-    [thunkDispatch, weekId]
+    [onError, thunkDispatch, weekId]
   );
 
   const cloneWeek = useCallback(
@@ -238,7 +244,7 @@ export function ScheduleProvider({ children }: IScheduleProvider) {
         })
       ).catch(onError);
     },
-    [thunkDispatch, weekId]
+    [onError, thunkDispatch, weekId]
   );
 
   const publish = useCallback(
@@ -252,7 +258,7 @@ export function ScheduleProvider({ children }: IScheduleProvider) {
         })
       ).catch(onError);
     },
-    [thunkDispatch, weekId, weekSummary]
+    [onError, thunkDispatch, weekDays, weekId, weekSummary]
   );
 
   return (
@@ -280,6 +286,7 @@ export function ScheduleProvider({ children }: IScheduleProvider) {
         updateProjectedSales,
         loading,
         error,
+        shifts,
       }}
     >
       {children}

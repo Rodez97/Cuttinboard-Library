@@ -1,6 +1,6 @@
 {
   "name": "@cuttinboard-solutions/types-helpers",
-  "version": "1.0.42",
+  "version": "1.0.45",
   "description": "Main types and helper functions for cuttinboard",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

@@ -19,25 +19,8 @@ dayjs.extend(duration);
 dayjs.extend(isBetween);
 
 export type WeekSchedule = {
-  shifts: {
-    [employeeId: string]: {
-      [shiftId: string]: IShift;
-    };
-  };
+  shifts: IShift[];
   summary: IScheduleDoc;
-};
-
-export type EmployeeShiftsItem = [string, [string, IShift][]];
-
-/**
- * An interface that defines the properties of an object representing the shifts for a specific employee in a given week.
- */
-export type ShiftData = {
-  [organizationId: string]: {
-    [locationId: string]: {
-      [weekId: string]: WeekSchedule;
-    };
-  };
 };
 
 /**
@@ -115,12 +98,12 @@ export function getOvertimeRateOfPay(
  * Check is the employee's schedule have any changes or is unpublished
  */
 export function checkShiftObjectChanges(
-  weekEmployeeSchedule: WeekSchedule["shifts"][string]
+  weekEmployeeShifts: IShift[] | undefined
 ): boolean {
-  if (!weekEmployeeSchedule || Object.keys(weekEmployeeSchedule).length === 0) {
+  if (!weekEmployeeShifts || weekEmployeeShifts.length === 0) {
     return false;
   }
-  return Object.values(weekEmployeeSchedule).some((shift) =>
+  return weekEmployeeShifts.some((shift) =>
     Boolean(
       !isEmpty(shift.pendingUpdate) ||
         shift.deleting ||
@@ -132,11 +115,8 @@ export function checkShiftObjectChanges(
 /**
  * Check is the employee's schedule have any changes or is unpublished
  */
-export function checkShiftArrayChanges([
-  ,
-  shifts,
-]: EmployeeShiftsItem): boolean {
-  return shifts.some(([, shift]) =>
+export function checkShiftArrayChanges(shifts: IShift[]): boolean {
+  return shifts.some((shift) =>
     Boolean(
       !isEmpty(shift.pendingUpdate) ||
         shift.deleting ||
@@ -152,22 +132,18 @@ export function checkShiftArrayChanges([
  * @param shiftId - The id of the shift to ignore
  */
 export function checkForOverlappingShifts(
-  weekEmployeeSchedule: WeekSchedule["shifts"][string],
+  weekEmployeeShifts: IShift[] | undefined,
   start: dayjs.Dayjs,
   end: dayjs.Dayjs,
   shiftId: string
 ): boolean {
-  const shiftsArray = weekEmployeeSchedule
-    ? Object.values(weekEmployeeSchedule)
-    : [];
-
   // Check if there are any shifts
-  if (!shiftsArray.length) {
+  if (!weekEmployeeShifts || !weekEmployeeShifts.length) {
     return false;
   }
 
   // Check if the new shift start or end time overlaps with an existing shift
-  return shiftsArray.some((shiftRaw) => {
+  return weekEmployeeShifts.some((shiftRaw) => {
     // Check if the shift is the same shift
     if (shiftRaw.id === shiftId) {
       return false;
@@ -189,7 +165,7 @@ export function checkForOverlappingShifts(
 }
 
 export function checkForOverlappingShiftsARRAY(
-  [, shifts]: EmployeeShiftsItem,
+  shifts: IShift[],
   start: dayjs.Dayjs,
   end: dayjs.Dayjs,
   shiftId: string
@@ -200,9 +176,9 @@ export function checkForOverlappingShiftsARRAY(
   }
 
   // Check if the new shift start or end time overlaps with an existing shift
-  return shifts.some(([shiftRawId, shiftRaw]) => {
+  return shifts.some((shiftRaw) => {
     // Check if the shift is the same shift
-    if (shiftId === shiftRawId) {
+    if (shiftId === shiftRaw.id) {
       return false;
     }
 
@@ -222,7 +198,7 @@ export function checkForOverlappingShiftsARRAY(
 }
 
 export function getEmployeeShiftsSummary(
-  data: WageDataByDay
+  data: WageDataByDay | undefined | null
 ): WageDataByDay[number] {
   const result: WageDataByDay[number] = {
     normalHours: 0,
@@ -234,6 +210,10 @@ export function getEmployeeShiftsSummary(
     totalShifts: 0,
     people: 0,
   };
+
+  if (!data) {
+    return result;
+  }
 
   Object.values(data).forEach((day) => {
     result.normalHours += day.normalHours;

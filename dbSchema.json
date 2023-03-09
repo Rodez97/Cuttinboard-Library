@@ -1,0 +1,22 @@
+{
+  "shifts": {
+    "[weekId]": {
+      "[shiftId]": {
+        "start": "start time",
+        "end": "end time",
+        "locationId": "12345abcde",
+        "weekId": "weekId",
+        "shiftId": "shiftId",
+        "employeeId": "userId"
+      }
+    }
+  },
+  "schedule": {
+    "[weekId]": {
+      "[locationId]": {
+        "locationId": "12345abcde",
+        "weekId": "weekId"
+      }
+    }
+  }
+}

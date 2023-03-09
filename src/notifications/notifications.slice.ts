@@ -55,8 +55,7 @@ export const removeDMBadgeThunk =
   };
 
 export const removeScheduleBadgesThunk =
-  (organizationId: string, locationId: string): AppThunk<Promise<void>> =>
-  async (dispatch, getState) => {
+  (): AppThunk<Promise<void>> => async (dispatch, getState) => {
     if (!AUTH.currentUser) {
       throw new Error("User not logged in");
     }
@@ -67,29 +66,18 @@ export const removeScheduleBadgesThunk =
 
     const localUpdate: INotifications = clone(notifications);
 
-    if (
-      !localUpdate.organizations?.[organizationId]?.locations?.[locationId]?.sch
-    ) {
+    if (!localUpdate.sch) {
       // No badges to remove
       return;
     }
 
-    unset(localUpdate, [
-      "organizations",
-      organizationId,
-      "locations",
-      locationId,
-      "sch",
-    ]);
+    unset(localUpdate, "sch");
 
     dispatch(setNotifications(localUpdate));
 
     try {
       await remove(
-        ref(
-          DATABASE,
-          `users/${AUTH.currentUser.uid}/notifications/organizations/${organizationId}/locations/${locationId}/sch`
-        )
+        ref(DATABASE, `users/${AUTH.currentUser.uid}/notifications/sch`)
       );
     } catch (error) {
       dispatch(setNotifications(notifications));

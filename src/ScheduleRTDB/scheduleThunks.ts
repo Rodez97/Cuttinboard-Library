@@ -16,11 +16,12 @@ import {
 import { DATABASE } from "../utils";
 import { AppThunk } from "../reduxStore/utils";
 import { employeesSelectors } from "../employee";
-import { scheduleSelectors } from "./scheduleSelectors";
 import {
+  scheduleSelectors,
   setScheduleDocument,
+  shiftSelectors,
   upsertEmployeeShifts,
-  upsertEmployeeShiftsEntry,
+  upsertShifts,
 } from "./schedule.slice";
 import {
   checkIfShiftsHaveChanges,
@@ -31,17 +32,20 @@ import {
   parseWeekId,
   Shift,
   WeekSummary,
+  IScheduleDoc,
 } from "@cuttinboard-solutions/types-helpers";
 import {
-  checkShiftObjectChanges,
-  IScheduleDoc,
-  WeekSchedule,
-} from "@cuttinboard-solutions/types-helpers/dist/ScheduleRTDB";
-import { get, ref, update } from "firebase/database";
+  equalTo,
+  get,
+  orderByChild,
+  query,
+  ref,
+  update,
+} from "firebase/database";
 
 function createShiftUpdateThunk<T = undefined>(
   updateFn: (args: {
-    employeeWeekSchedule: WeekSchedule["shifts"][string];
+    employeeWeekSchedule: IShift[];
     shift: IShift;
     extra?: T;
     location: ILocation;
@@ -70,8 +74,10 @@ function createShiftUpdateThunk<T = undefined>(
       if (!scheduleEntry) {
         throw new Error("Schedule entry not found");
       }
-      const empShiftsEntry = scheduleEntry.schedule.shifts[employeeId] ?? {};
-      if (!empShiftsEntry) {
+      const empShiftsEntry = shiftSelectors
+        .selectAll(scheduleEntry.shifts)
+        .filter((s) => s.employeeId === employeeId);
+      if (!empShiftsEntry || !empShiftsEntry.length) {
         throw new Error(
           "Employee shifts entry not found: " +
             JSON.stringify({ scheduleEntry })
@@ -95,20 +101,20 @@ function createShiftUpdateThunk<T = undefined>(
       const { serverUpdates, localUpdates } = updates;
 
       dispatch(
-        upsertEmployeeShiftsEntry({
+        upsertEmployeeShifts({
           weekId,
           employeeId,
-          entry: localUpdates,
+          newEntry: localUpdates,
         })
       );
       try {
         await update(ref(DATABASE), serverUpdates);
       } catch (error) {
         dispatch(
-          upsertEmployeeShiftsEntry({
+          upsertEmployeeShifts({
             weekId,
             employeeId,
-            entry: empShiftsEntry,
+            newEntry: empShiftsEntry,
           })
         );
         throw error;
@@ -118,37 +124,24 @@ function createShiftUpdateThunk<T = undefined>(
 
 export const updateShiftThunk = createShiftUpdateThunk<
   Partial<IPrimaryShiftData>
->(
-  ({
-    employeeWeekSchedule,
-    shift,
-    extra: pendingUpdate,
-    location,
-    employeeId,
-    weekId,
-  }) => {
-    if (!pendingUpdate) {
-      throw new Error("No update data provided");
-    }
-    const updates = getUpdateShiftData(
-      employeeWeekSchedule,
-      location,
-      weekId,
-      employeeId,
-      shift.id,
-      pendingUpdate
-    );
-    return updates;
+>(({ employeeWeekSchedule, shift, extra: pendingUpdate, weekId }) => {
+  if (!pendingUpdate) {
+    throw new Error("No update data provided");
   }
-);
+  const updates = getUpdateShiftData(
+    employeeWeekSchedule,
+    weekId,
+    shift.id,
+    pendingUpdate
+  );
+  return updates;
+});
 
 export const cancelShiftUpdateThunk = createShiftUpdateThunk(
-  ({ employeeWeekSchedule, shift, location, employeeId, weekId }) => {
+  ({ employeeWeekSchedule, shift, weekId }) => {
     const updates = getCancelShiftUpdateData(
       employeeWeekSchedule,
-      location,
       weekId,
-      employeeId,
       shift.id
     );
     return updates;
@@ -156,27 +149,15 @@ export const cancelShiftUpdateThunk = createShiftUpdateThunk(
 );
 
 export const deleteShiftThunk = createShiftUpdateThunk(
-  ({ employeeWeekSchedule, shift, location, employeeId, weekId }) => {
-    const updates = getDeleteShiftData(
-      employeeWeekSchedule,
-      location,
-      weekId,
-      employeeId,
-      shift
-    );
+  ({ employeeWeekSchedule, shift, weekId }) => {
+    const updates = getDeleteShiftData(employeeWeekSchedule, weekId, shift);
     return updates;
   }
 );
 
 export const restoreShiftThunk = createShiftUpdateThunk(
-  ({ employeeWeekSchedule, shift, location, employeeId, weekId }) => {
-    const updates = getRestoreShiftData(
-      employeeWeekSchedule,
-      location,
-      weekId,
-      employeeId,
-      shift
-    );
+  ({ employeeWeekSchedule, shift, weekId }) => {
+    const updates = getRestoreShiftData(employeeWeekSchedule, weekId, shift);
     return updates;
   }
 );
@@ -196,7 +177,7 @@ export const createShiftThunk =
     applyToWeekDays: number[];
   }): AppThunk<Promise<void>> =>
   async (dispatch, getState) => {
-    const newShifts: Record<string, IShift> = createShiftElement(
+    const newShifts: IShift[] = createShiftElement(
       shift,
       dates,
       applyToWeekDays
@@ -211,34 +192,33 @@ export const createShiftThunk =
     if (!scheduleEntry) {
       console.log("Schedule entry not found");
     }
-    const empShiftsEntry =
-      scheduleEntry && scheduleEntry.schedule.shifts[employeeId]
-        ? scheduleEntry.schedule.shifts[employeeId]
-        : {};
+    const empShiftsEntry = scheduleEntry
+      ? shiftSelectors
+          .selectAll(scheduleEntry.shifts)
+          .filter((s) => s.employeeId === employeeId)
+      : [];
 
     const { localUpdates, serverUpdates } = getNewShiftsData(
       empShiftsEntry,
-      location,
       weekId,
-      employeeId,
       newShifts
     );
 
     dispatch(
-      upsertEmployeeShiftsEntry({
+      upsertEmployeeShifts({
         weekId,
         employeeId,
-        entry: localUpdates,
+        newEntry: localUpdates,
       })
     );
     try {
       await update(ref(DATABASE), serverUpdates);
     } catch (error) {
       dispatch(
-        upsertEmployeeShiftsEntry({
+        upsertEmployeeShifts({
           weekId,
           employeeId,
-          entry: empShiftsEntry,
+          newEntry: empShiftsEntry,
         })
       );
       throw error;
@@ -265,8 +245,8 @@ export const batchPublishShiftsThunk =
     if (!scheduleEntry) {
       throw new Error("Schedule entry not found");
     }
-    const empShiftsRecord = scheduleEntry.schedule.shifts;
-    if (!empShiftsRecord || !Object.keys(empShiftsRecord).length) {
+    const empShiftsArray = shiftSelectors.selectAll(scheduleEntry.shifts);
+    if (!empShiftsArray || !empShiftsArray.length) {
       console.info(
         "%c No new shifts available to publish ",
         "font-size: 1.5rem; font-weight: 600; color: purple;"
@@ -283,21 +263,19 @@ export const batchPublishShiftsThunk =
         break;
       case "all_scheduled":
         // Get all employees that have shifts
-        notiRecipients = Object.entries(empShiftsRecord)
-          .filter(([, shifts]) => shifts && Object.keys(shifts).length > 0)
-          .map(([employeeId]) => employeeId);
+        notiRecipients = empShiftsArray.map(({ employeeId }) => employeeId);
         break;
       case "changed":
         // Get all employees that have shifts and have changed shifts from the last published schedule
-        notiRecipients = Object.entries(empShiftsRecord)
-          .filter(([, shifts]) => checkShiftObjectChanges(shifts))
-          .map(([employeeId]) => employeeId);
+        notiRecipients = empShiftsArray
+          .filter(checkIfShiftsHaveChanges)
+          .map(({ employeeId }) => employeeId);
         break;
       default:
         break;
     }
 
-    const updates = batchPublish(empShiftsRecord, location, weekId);
+    const updates = batchPublish(empShiftsArray, weekId);
 
     if (!updates) {
       console.info(
@@ -310,9 +288,9 @@ export const batchPublishShiftsThunk =
     const { localUpdates, serverUpdates } = updates;
 
     dispatch(
-      upsertEmployeeShifts({
+      upsertShifts({
         weekId,
-        empShifts: localUpdates,
+        shifts: localUpdates,
       })
     );
     try {
@@ -323,6 +301,8 @@ export const batchPublishShiftsThunk =
           publishedAt: Timestamp.now().toMillis(),
           notificationRecipients: uniq(notiRecipients),
         },
+        locationId: location.id,
+        weekId,
       };
 
       const batchUpdateObject: EmployeeShiftsDocumentUpdates["serverUpdates"] =
@@ -333,15 +313,15 @@ export const batchPublishShiftsThunk =
       copyPropertiesWithPrefix(
         summaryObjectUpdate,
         batchUpdateObject,
-        `scheduleData/${location.organizationId}/${location.id}/${weekId}/summary`
+        `schedule/${weekId}/${location.id}`
       );
 
       await update(ref(DATABASE), batchUpdateObject);
     } catch (error) {
       dispatch(
-        upsertEmployeeShifts({
+        upsertShifts({
           weekId,
-          empShifts: empShiftsRecord,
+          shifts: empShiftsArray,
         })
       );
       throw error;
@@ -377,12 +357,8 @@ export const cloneWeekShiftsThunk =
     if (!scheduleEntry) {
       throw new Error("Schedule entry not found");
     }
-    const empShiftsRecord = scheduleEntry.schedule.shifts ?? {};
-    if (
-      Object.values(empShiftsRecord).some(
-        (shifts) => Object.keys(shifts).length
-      )
-    ) {
+    const empShiftsArray = shiftSelectors.selectAll(scheduleEntry.shifts) ?? [];
+    if (empShiftsArray.length > 0) {
       throw new Error("Cannot clone shifts from a week with published shifts");
     }
 
@@ -392,14 +368,15 @@ export const cloneWeekShiftsThunk =
     const weeksDiff = Math.abs(dayjs(start).diff(weekDays[0], "weeks"));
 
     // Get the shifts for the target week for the given employees
-    const allQueries = ref(
-      DATABASE,
-      `scheduleData/${location.organizationId}/${location.id}/${targetWeekId}`
+    const allQueries = query(
+      ref(DATABASE, `shifts/${targetWeekId}`),
+      orderByChild("locationId"),
+      equalTo(location.id)
     );
 
     const exeQueries = await get(allQueries);
 
-    if (!exeQueries.exists() || !exeQueries.child("shifts").size) {
+    if (!exeQueries.exists() || !exeQueries.size) {
       console.info(
         "%c No shifts available to clone ",
         "font-size: 1.5rem; font-weight: 600; color: purple;"
@@ -407,82 +384,58 @@ export const cloneWeekShiftsThunk =
       return;
     }
 
-    const shiftsRecord: WeekSchedule["shifts"] = exeQueries
-      .child("shifts")
-      .val();
-    const summary: WeekSchedule["summary"] = exeQueries.child("summary").val();
-
-    const flatShiftsArray: [string, [string, IShift][]][] = Object.entries(
-      shiftsRecord
-    ).map(([employeeId, shifts]) => [employeeId, Object.entries(shifts)]);
+    const shiftsArray: IShift[] = Object.values(exeQueries.val());
 
     // Create a record of shifts to update
     const serverUpdates: EmployeeShiftsDocumentUpdates["serverUpdates"] = {};
-    const localUpdates: WeekSchedule["shifts"] = {};
+    const localUpdates: IShift[] = [];
 
     const updatedAt = Timestamp.now().toMillis();
 
     // Loop through each shift
-    flatShiftsArray.forEach(([employeeId, shifts]) => {
-      const employeeShiftsRefPath = getEmployeeShiftsRefPath(
-        location,
-        weekId,
-        employeeId
-      );
+    shiftsArray
+      .filter(
+        (shift) =>
+          shift.status === "published" && // Only clone published shifts
+          !shift.deleting && // Only clone if the shift is not being deleted
+          !checkIfShiftsHaveChanges(shift) // Only clone if the shift doesn't have pending updates
+      )
+      .forEach((shift) => {
+        const employeeShiftsRefPath = getEmployeeShiftsRefPath(
+          shift.id,
+          weekId
+        );
 
-      shifts
-        .filter(
-          ([, shift]) =>
-            shift.status === "published" && // Only clone published shifts
-            !shift.deleting && // Only clone if the shift is not being deleted
-            !checkIfShiftsHaveChanges(shift) // Only clone if the shift doesn't have pending updates
-        )
-        .forEach(([shiftId, shift]) => {
-          // Adjust the shift to the current week
-          const newStart = getShiftDayjsDate(shift, "start").add(
-            weeksDiff,
-            "weeks"
-          );
-          const newEnd = getShiftDayjsDate(shift, "end").add(
-            weeksDiff,
-            "weeks"
-          );
-          const newShift: IShift = {
-            ...shift,
-            start: Shift.toString(newStart.toDate()),
-            end: Shift.toString(newEnd.toDate()),
-            updatedAt,
-            status: "draft",
-          };
-          serverUpdates[`${employeeShiftsRefPath}/${shiftId}`] = newShift;
-          localUpdates[employeeId] = {
-            ...localUpdates[employeeId],
-            [shiftId]: newShift,
-          };
-        });
-    });
+        // Adjust the shift to the current week
+        const newStart = getShiftDayjsDate(shift, "start").add(
+          weeksDiff,
+          "weeks"
+        );
+        const newEnd = getShiftDayjsDate(shift, "end").add(weeksDiff, "weeks");
+        const newShift: IShift = {
+          ...shift,
+          start: Shift.toString(newStart.toDate()),
+          end: Shift.toString(newEnd.toDate()),
+          updatedAt,
+          status: "draft",
+        };
+        serverUpdates[`${employeeShiftsRefPath}`] = newShift;
+        localUpdates.push(newShift);
+      });
 
     dispatch(
-      upsertEmployeeShifts({
+      upsertShifts({
         weekId,
-        empShifts: localUpdates,
+        shifts: localUpdates,
       })
     );
     try {
-      const batchUpdateObject = {
-        ...serverUpdates,
-        [`scheduleData/${location.organizationId}/${location.id}/${weekId}/summary`]:
-          {
-            updatedAt: Timestamp.now().toMillis(),
-            ...summary,
-          },
-      };
-      await update(ref(DATABASE), batchUpdateObject);
+      await update(ref(DATABASE), serverUpdates);
     } catch (error) {
       dispatch(
-        upsertEmployeeShifts({
+        upsertShifts({
           weekId,
-          empShifts: empShiftsRecord,
+          shifts: empShiftsArray,
         })
       );
       throw error;
@@ -507,7 +460,7 @@ export const updateProjectedSalesThunk =
     if (!scheduleEntry) {
       throw new Error("Schedule entry not found");
     }
-    const summary = scheduleEntry.schedule.summary;
+    const summary = scheduleEntry.summary;
 
     const localUpdate = {
       ...summary,
@@ -529,7 +482,7 @@ export const updateProjectedSalesThunk =
       for (const key in projectedSalesByDay) {
         const projectedSales = projectedSalesByDay[key];
         serverUpdates[
-          `scheduleData/${location.organizationId}/${location.id}/${weekId}/summary/projectedSalesByDay/${key}`
+          `schedule/${weekId}/${location.id}/projectedSalesByDay/${key}`
         ] = projectedSales;
       }
 

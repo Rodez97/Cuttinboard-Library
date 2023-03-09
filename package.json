@@ -1,6 +1,6 @@
 {
   "name": "@cuttinboard-solutions/cuttinboard-library",
-  "version": "7.1.64",
+  "version": "7.1.80",
   "description": "Shared Code Library for Cuttinboard App",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -52,7 +52,7 @@
     "registry": "https://npm.pkg.github.com/"
   },
   "dependencies": {
-    "@cuttinboard-solutions/types-helpers": "^1.0.42"
+    "@cuttinboard-solutions/types-helpers": "^1.0.45"
   },
   "devDependencies": {
     "@types/chai": "^4.3.4",

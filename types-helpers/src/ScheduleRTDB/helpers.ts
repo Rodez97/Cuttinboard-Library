@@ -2,12 +2,12 @@ import dayjs from "dayjs";
 import {
   calculateWageData,
   calculateWageDataFromArray,
+  IShift,
   WageDataRecord,
   WeekInfo,
 } from "./Shift";
 import isoWeek from "dayjs/plugin/isoWeek";
 import {
-  EmployeeShiftsItem,
   getEmployeeShiftsSummary,
   getWageOptions,
   WageDataByDay,
@@ -15,6 +15,7 @@ import {
 } from "./ShiftData";
 import { IScheduleSettings } from "./ScheduleSettings";
 import { getScheduleTotalProjectedSales, IScheduleDoc } from "./ScheduleDoc";
+import { groupBy } from "lodash";
 dayjs.extend(isoWeek);
 
 /**
@@ -38,6 +39,12 @@ export function weekToDate(year: number, isoWeekNo: number): dayjs.Dayjs {
     .isoWeek(isoWeekNo)
     .startOf("isoWeek");
   return firstDay;
+}
+
+export function getWeekFullNumberByDate(date: dayjs.Dayjs): number {
+  const weekNumber = date.isoWeek() / 100;
+  const year = date.year();
+  return year + weekNumber;
 }
 
 /**
@@ -101,34 +108,25 @@ export const getWeekDays = (weekId: string): dayjs.Dayjs[] => {
  * @param employeeShifts The list of shifts to count.
  * @returns The number of new or draft shifts, the number of deleted shifts,
  */
-export const getUpdatesCount = (employeeShifts: WeekSchedule["shifts"]) => {
+export const getUpdatesCount = (employeeShifts: IShift[] | undefined) => {
   let newOrDraft = 0;
   let deleted = 0;
   let pendingUpdates = 0;
 
-  const shiftsArray = employeeShifts ? Object.values(employeeShifts) : [];
-
-  if (!shiftsArray.length) {
+  if (!employeeShifts || !employeeShifts.length) {
     return { newOrDraft, deleted, pendingUpdates, total: 0 };
   }
 
-  for (const shiftData of shiftsArray) {
-    if (!Object.keys(shiftData).length) {
-      continue;
-    }
-
-    for (const shiftId in shiftData) {
-      const shift = shiftData[shiftId];
-      const noOfChangedAttrs = shift.pendingUpdate
-        ? Object.keys(shift.pendingUpdate).length
-        : 0;
-      if (shift.status === "draft" && !noOfChangedAttrs) {
-        newOrDraft++;
-      } else if (shift.deleting) {
-        deleted++;
-      } else if (noOfChangedAttrs > 0) {
-        pendingUpdates++;
-      }
+  for (const shift of employeeShifts) {
+    const noOfChangedAttrs = shift.pendingUpdate
+      ? Object.keys(shift.pendingUpdate).length
+      : 0;
+    if (shift.status === "draft" && !noOfChangedAttrs) {
+      newOrDraft++;
+    } else if (shift.deleting) {
+      deleted++;
+    } else if (noOfChangedAttrs > 0) {
+      pendingUpdates++;
     }
   }
 
@@ -140,9 +138,7 @@ export const getUpdatesCount = (employeeShifts: WeekSchedule["shifts"]) => {
   };
 };
 
-export const getUpdatesCountFromArray = (
-  employeeShifts: EmployeeShiftsItem[]
-) => {
+export const getUpdatesCountFromArray = (employeeShifts: IShift[]) => {
   let newOrDraft = 0;
   let deleted = 0;
   let pendingUpdates = 0;
@@ -151,22 +147,16 @@ export const getUpdatesCountFromArray = (
     return { newOrDraft, deleted, pendingUpdates, total: 0 };
   }
 
-  for (const shiftData of employeeShifts) {
-    if (!shiftData[1].length) {
-      continue;
-    }
-
-    for (const [, shift] of shiftData[1]) {
-      const noOfChangedAttrs = shift.pendingUpdate
-        ? Object.keys(shift.pendingUpdate).length
-        : 0;
-      if (shift.status === "draft" && !noOfChangedAttrs) {
-        newOrDraft++;
-      } else if (shift.deleting) {
-        deleted++;
-      } else if (noOfChangedAttrs > 0) {
-        pendingUpdates++;
-      }
+  for (const shift of employeeShifts) {
+    const noOfChangedAttrs = shift.pendingUpdate
+      ? Object.keys(shift.pendingUpdate).length
+      : 0;
+    if (shift.status === "draft" && !noOfChangedAttrs) {
+      newOrDraft++;
+    } else if (shift.deleting) {
+      deleted++;
+    } else if (noOfChangedAttrs > 0) {
+      pendingUpdates++;
     }
   }
 
@@ -188,38 +178,19 @@ export const getUpdatesCountFromArray = (
  * @returns An object containing the total wage for each employee.
  */
 export const getEmployeeShiftsWageData = (
-  employeeShifts: WeekSchedule["shifts"],
+  employeeShifts: IShift[] | undefined,
   scheduleSettings?: IScheduleSettings
 ): Record<string, WageDataRecord> => {
-  if (!employeeShifts) {
+  if (!employeeShifts || !employeeShifts.length) {
     return {};
   }
   const wageOptions = getWageOptions(scheduleSettings);
-  const mapEmployeeShifts = Object.entries(employeeShifts).reduce(
+  const groupedByEmployee = groupBy(employeeShifts, "employeeId");
+  const mapEmployeeShifts = Object.entries(groupedByEmployee).reduce(
     (acc, [employeeId, shifts]) => {
       return {
         ...acc,
         [employeeId]: calculateWageData(shifts, wageOptions),
-      };
-    },
-    {} as Record<string, WageDataRecord>
-  );
-  return mapEmployeeShifts;
-};
-
-export const getEmployeeShiftsWageDataFromArray = (
-  employeeShifts: EmployeeShiftsItem[],
-  scheduleSettings?: IScheduleSettings
-): Record<string, WageDataRecord> => {
-  if (!employeeShifts.length) {
-    return {};
-  }
-  const wageOptions = getWageOptions(scheduleSettings);
-  const mapEmployeeShifts = employeeShifts.reduce(
-    (acc, [employeeId, shifts]) => {
-      return {
-        ...acc,
-        [employeeId]: calculateWageDataFromArray(shifts, wageOptions),
       };
     },
     {} as Record<string, WageDataRecord>

@@ -8,6 +8,8 @@ import { WeekSummary } from "./WeekSummary";
 export interface IScheduleDoc {
   year: number;
   weekNumber: number;
+  locationId: string;
+  weekId: string;
   projectedSalesByDay?: Record<number, number>;
   scheduleSummary: WeekSummary;
   createdAt: number;
@@ -68,7 +70,10 @@ export function getScheduleSummaryByDay(
 /**
  * Creates a Default ScheduleDoc for a given week.
  */
-export function createDefaultScheduleDoc(weekId: string): IScheduleDoc {
+export function createDefaultScheduleDoc(
+  weekId: string,
+  locationId: string
+): IScheduleDoc {
   const { week, year } = parseWeekId(weekId);
   return {
     year,
@@ -90,5 +95,7 @@ export function createDefaultScheduleDoc(weekId: string): IScheduleDoc {
       },
       byDay: {},
     },
+    locationId,
+    weekId,
   };
 }

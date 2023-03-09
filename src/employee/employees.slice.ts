@@ -17,8 +17,16 @@ import {
 import { employeeConverter } from "./Employee";
 
 const employeesAdapter = createEntityAdapter<IEmployee>({
-  sortComparer: (a, b) =>
-    getEmployeeFullName(a).localeCompare(getEmployeeFullName(b)),
+  sortComparer: (a, b) => {
+    const aRole = a.role;
+    const aFullName = getEmployeeFullName(a);
+    const bRole = b.role;
+    const bFullName = getEmployeeFullName(b);
+    if (aRole !== bRole) {
+      return Number(aRole) - Number(bRole);
+    }
+    return aFullName.localeCompare(bFullName);
+  },
 });
 
 export const deleteEmployeeThunk =

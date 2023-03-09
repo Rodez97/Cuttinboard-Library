@@ -87,7 +87,7 @@ export function getAllBadgesByLocation(
   let badges = 0;
 
   // Add the `sch` property to the `badges` variable, if it exists
-  location.sch && (badges += location.sch);
+  notifications.sch && (badges += notifications.sch);
 
   // Add the values from the `conv` object to the `badges` variable, if it exists
   if (location.conv) {
@@ -165,10 +165,7 @@ export function getScheduleBadges(
 
   // Return 0 if the `locations` object is `null` or `undefined`,
   // or if the `sch` property of the specified location is `null` or `undefined`
-  return (
-    notifications.organizations[organizationId]?.locations?.[locationId]?.sch ??
-    0
-  );
+  return notifications.sch ?? 0;
 }
 
 /**

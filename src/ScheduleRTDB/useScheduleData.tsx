@@ -1,58 +1,49 @@
 import { useEffect } from "react";
 import { DATABASE } from "../utils";
 import {
-  setEmployeeShifts,
+  setScheduleData,
   setEmployeeShiftsError,
   setEmployeeShiftsLoading,
 } from "./schedule.slice";
-import { useAppDispatch, useAppSelector } from "../reduxStore/utils";
+import { useAppDispatch } from "../reduxStore/utils";
 import { useCuttinboard } from "../cuttinboard";
-import { selectScheduleLoadingStatus } from "./scheduleSelectors";
 import { useCuttinboardLocation } from "../cuttinboardLocation";
-import { createDefaultScheduleDoc } from "@cuttinboard-solutions/types-helpers";
-import { ref } from "firebase/database";
-import { object } from "rxfire/database";
+import {
+  createDefaultScheduleDoc,
+  IScheduleDoc,
+  IShift,
+} from "@cuttinboard-solutions/types-helpers";
+import { equalTo, orderByChild, query, ref } from "firebase/database";
+import { listVal, objectVal } from "rxfire/database";
+import { combineLatest } from "rxjs";
 
 export function useScheduleData(weekId: string) {
   const { onError } = useCuttinboard();
   const { location } = useCuttinboardLocation();
   const dispatch = useAppDispatch();
-  const loadingStatus = useAppSelector(selectScheduleLoadingStatus);
 
   useEffect(() => {
-    if (loadingStatus !== "succeeded") {
-      dispatch(setEmployeeShiftsLoading("pending"));
-    }
+    dispatch(setEmployeeShiftsLoading("pending"));
 
-    const scheduleRef = ref(
-      DATABASE,
-      `scheduleData/${location.organizationId}/${location.id}/${weekId}`
+    const shiftsRef = query(
+      ref(DATABASE, `shifts/${weekId}`),
+      orderByChild("locationId"),
+      equalTo(location.id)
     );
 
-    const schedule$ = object(scheduleRef);
+    const scheduleRef = ref(DATABASE, `schedule/${weekId}/${location.id}`);
 
-    const subscription = schedule$.subscribe({
-      next: (schedule) => {
-        const scheduleDocumentExists = schedule.snapshot.exists();
-        const scheduleDocument = schedule.snapshot.val();
+    const shifts$ = listVal<IShift>(shiftsRef);
 
-        if (!scheduleDocumentExists || !scheduleDocument) {
-          dispatch(
-            setEmployeeShifts({
-              weekId,
-              schedule: {
-                shifts: {},
-                summary: createDefaultScheduleDoc(weekId),
-              },
-            })
-          );
-          return;
-        }
+    const schedule$ = objectVal<IScheduleDoc | null>(scheduleRef);
 
+    const subscription = combineLatest([schedule$, shifts$]).subscribe({
+      next: ([schedule, shifts]) => {
         dispatch(
-          setEmployeeShifts({
-            schedule: scheduleDocument,
+          setScheduleData({
             weekId,
+            shifts: shifts || [],
+            summary: schedule || createDefaultScheduleDoc(weekId, location.id),
           })
         );
       },
@@ -65,5 +56,5 @@ export function useScheduleData(weekId: string) {
     return () => {
       subscription.unsubscribe();
     };
-  }, [weekId]);
+  }, [dispatch, location.id, onError, weekId]);
 }

@@ -63,6 +63,10 @@ export interface IShift extends IPrimaryShiftData {
   pendingUpdate?: Partial<IPrimaryShiftData>;
   deleting?: boolean;
   updatedAt: number;
+  locationName: string;
+  locationId: string;
+  weekId: string;
+  employeeId: string;
 }
 
 /**
@@ -273,7 +277,7 @@ export function checkIfShiftsHaveChanges(shift: IShift): boolean {
 }
 
 export function calculateWageData(
-  empShifts: WeekSchedule["shifts"][string],
+  empShifts: IShift[] | undefined,
   options?: WageOptions
 ): WageDataRecord {
   const result: WageDataRecord = {
@@ -281,24 +285,21 @@ export function calculateWageData(
     shifts: new Map(),
   };
 
-  if (!empShifts || isEmpty(empShifts)) {
+  if (!empShifts || !empShifts.length) {
     // if there is no shifts, return the default value
-    console.log("No shifts");
     return result;
   }
 
-  const shiftsArray = Object.values(empShifts);
-
   // Calculate the wage data for each shift
-  shiftsArray.forEach((shift) => {
+  empShifts.forEach((shift) => {
     let accumulatedHours = 0;
     if (options) {
       const { mode, hoursLimit, multiplier } = options;
       // if there is options, calculate the overtime
-      const overtimeRateOfPay = getOvertimeRateOfPay(shiftsArray, multiplier);
+      const overtimeRateOfPay = getOvertimeRateOfPay(empShifts, multiplier);
       if (mode === "weekly") {
         // if the mode is weekly, calculate the accumulated hours
-        accumulatedHours = shiftsArray.reduce(
+        accumulatedHours = empShifts.reduce(
           (acc, s) =>
             acc +
             (getShiftDayjsDate(s, "start").isBefore(
@@ -310,7 +311,7 @@ export function calculateWageData(
         );
       } else {
         // if the mode is daily, calculate the accumulated hours
-        accumulatedHours = shiftsArray.reduce(
+        accumulatedHours = empShifts.reduce(
           (acc, s) =>
             acc +
             (getShiftDayjsDate(s, "start").isSame(
@@ -377,7 +378,7 @@ export function calculateWageData(
 }
 
 export function calculateWageDataFromArray(
-  empShifts: [string, IShift][],
+  empShifts: IShift[] | undefined,
   options?: WageOptions
 ): WageDataRecord {
   const result: WageDataRecord = {
@@ -385,26 +386,25 @@ export function calculateWageDataFromArray(
     shifts: new Map(),
   };
 
-  if (!empShifts.length) {
+  if (!empShifts || !empShifts.length) {
     // if there is no shifts, return the default value
-    console.log("No shifts");
     return result;
   }
 
   // Calculate the wage data for each shift
-  empShifts.forEach(([, shift]) => {
+  empShifts.forEach((shift) => {
     let accumulatedHours = 0;
     if (options) {
       const { mode, hoursLimit, multiplier } = options;
       // if there is options, calculate the overtime
       const overtimeRateOfPay = getOvertimeRateOfPay(
-        empShifts.map(([, es]) => es),
+        empShifts.map((es) => es),
         multiplier
       );
       if (mode === "weekly") {
         // if the mode is weekly, calculate the accumulated hours
         accumulatedHours = empShifts.reduce(
-          (acc, [, s]) =>
+          (acc, s) =>
             acc +
             (getShiftDayjsDate(s, "start").isBefore(
               getShiftDayjsDate(shift, "start")
@@ -416,7 +416,7 @@ export function calculateWageDataFromArray(
       } else {
         // if the mode is daily, calculate the accumulated hours
         accumulatedHours = empShifts.reduce(
-          (acc, [, s]) =>
+          (acc, s) =>
             acc +
             (getShiftDayjsDate(s, "start").isSame(
               getShiftDayjsDate(shift, "start"),

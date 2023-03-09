@@ -9,13 +9,13 @@ export function createShiftElement(
   shift: IShift,
   dates: dayjs.Dayjs[],
   applyToWeekDays: number[]
-): Record<string, IShift> {
+): IShift[] {
   if (!AUTH.currentUser) {
     throw new Error("User not authenticated");
   }
 
   // New shift record
-  const newShifts: Record<string, IShift> = {};
+  const newShifts: IShift[] = [];
 
   const { start, end, ...rest } = shift;
   const baseStart = Shift.toDate(start);
@@ -38,14 +38,14 @@ export function createShiftElement(
       ? newEnd.add(1, "day")
       : newEnd;
     // Create the new shift
-    newShifts[shiftId] = {
+    newShifts.push({
       ...rest,
       start: Shift.toString(newStart.toDate()),
       end: Shift.toString(normalizedEnd.toDate()),
       updatedAt: Timestamp.now().toMillis(),
       status: "draft",
       id: shiftId,
-    };
+    });
   }
   return newShifts;
 }

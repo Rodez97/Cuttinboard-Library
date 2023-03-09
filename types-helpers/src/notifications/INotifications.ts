@@ -11,6 +11,10 @@ export interface INotifications {
     [dmId: string]: number;
   };
   /**
+   * The number of unread schedule notifications for the location.
+   */
+  sch?: number;
+  /**
    * Organization-related notifications.
    * The keys of this object represent the IDs of the organizations,
    * and the values are objects containing the notifications data for each organization.
@@ -32,10 +36,6 @@ export interface INotifications {
           conv?: {
             [convId: string]: number;
           };
-          /**
-           * The number of unread schedule notifications for the location.
-           */
-          sch?: number;
         };
       };
     };

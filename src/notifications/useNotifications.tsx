@@ -53,26 +53,15 @@ export function useNotifications() {
         },
         0
       );
-      const scheduleBadges = get(
-        notifications,
-        `organizations.${organizationId}.locations.${locationId}.sch`,
-        0
-      );
+      const scheduleBadges = get(notifications, `sch`, 0);
       return convBadges + scheduleBadges;
     },
     [notifications]
   );
 
-  const getScheduleBadges = useCallback(
-    (organizationId: string, locationId: string) => {
-      return get(
-        notifications,
-        `organizations.${organizationId}.locations.${locationId}.sch`,
-        0
-      );
-    },
-    [notifications]
-  );
+  const getScheduleBadges = useCallback(() => {
+    return get(notifications, `sch`, 0);
+  }, [notifications]);
 
   const getDMBadge = useCallback(
     (dmId: string) => {
@@ -98,17 +87,12 @@ export function useNotifications() {
     (dmId: string) => {
       thunkDispatch(removeDMBadgeThunk(dmId)).catch(onError);
     },
-    [thunkDispatch]
+    [onError, thunkDispatch]
   );
 
-  const removeScheduleBadges = useCallback(
-    (organizationId: string, locationId: string) => {
-      thunkDispatch(
-        removeScheduleBadgesThunk(organizationId, locationId)
-      ).catch(onError);
-    },
-    [thunkDispatch]
-  );
+  const removeScheduleBadges = useCallback(() => {
+    thunkDispatch(removeScheduleBadgesThunk()).catch(onError);
+  }, [onError, thunkDispatch]);
 
   const removeConversationBadges = useCallback(
     (organizationId: string, locationId: string, conversationId: string) => {
@@ -120,7 +104,7 @@ export function useNotifications() {
         )
       ).catch(onError);
     },
-    [thunkDispatch]
+    [onError, thunkDispatch]
   );
 
   return {
