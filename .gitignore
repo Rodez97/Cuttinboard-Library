@@ -3,5 +3,5 @@ dist/
 .vscode/
 test/
 __tests__/
-.parcel-cache/
+.parcel-cache/data.mdb
 .VSCodeCounter/
