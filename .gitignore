@@ -1,7 +1,7 @@
-node_modules
-dist 
-.vscode
-test
-__tests__
-.parcel-cache
-.VSCodeCounter
+node_modules/
+dist/ 
+.vscode/
+test/
+__tests__/
+.parcel-cache/
+.VSCodeCounter/
