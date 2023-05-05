@@ -3,26 +3,15 @@
     "outDir": "dist",
     "moduleResolution": "node",
     "noImplicitAny": true,
-    "module": "ESNext",
-    "target": "ESNext",
+    "module": "CommonJS",
+    "target": "ES2020",
     "jsx": "react",
-    "lib": ["es2017", "es7", "es6", "dom", "ESNext"],
+    "lib": ["ES2020", "dom"],
     "esModuleInterop": true,
     "allowJs": true,
     "baseUrl": "src",
-    "sourceMap": true,
     "resolveJsonModule": true,
-    "strictNullChecks": true,
-    "declaration": true,
-    "declarationMap": true
+    "strictNullChecks": true
   },
-  "exclude": [
-    "dist",
-    "docs",
-    "htw",
-    "types-helpers",
-    "test",
-    "src/chats_old",
-    "src/schedule_old"
-  ]
+  "exclude": ["dist", "docs", "htw", "test", "__tests__"]
 }

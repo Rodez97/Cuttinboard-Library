@@ -1,64 +1,54 @@
-import { IBoard } from "@cuttinboard-solutions/types-helpers";
-import { collection } from "firebase/firestore";
-import { useEffect, useMemo } from "react";
-import { collectionData } from "rxfire/firestore";
-import { useCuttinboard } from "../cuttinboard";
-import { useAppSelector } from "../reduxStore";
-import { FIRESTORE } from "../utils";
+import { IBoard, INote } from "@cuttinboard-solutions/types-helpers";
+import { useCuttinboard } from "../cuttinboard/useCuttinboard";
+import { collection, onSnapshot } from "firebase/firestore";
+import { useEffect, useReducer, useState } from "react";
+import { FIRESTORE } from "../utils/firebase";
 import { noteConverter } from "./Note";
-import {
-  noteLoadingStatusSelector,
-  setNotes,
-  setNotesError,
-  setNotesLoading,
-  useNotesDispatch,
-} from "./notes.slice";
+import { listReducer } from "../utils/listReducer";
 
-export function useNotesData(board: IBoard) {
-  const dispatch = useNotesDispatch();
+export function useNotesData(selectedBoard: IBoard | undefined) {
   const { onError } = useCuttinboard();
-  const loadingStatusSelector = useMemo(
-    () => noteLoadingStatusSelector(board.id),
-    [board.id]
-  );
-  const loadingStatus = useAppSelector(loadingStatusSelector);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error>();
+  const [notes, dispatch] = useReducer(listReducer<INote>("id"), []);
 
   useEffect(() => {
-    if (loadingStatus !== "succeeded") {
-      dispatch(
-        setNotesLoading({
-          boardId: board.id,
-          loading: "pending",
-        })
-      );
+    if (!selectedBoard) {
+      setLoading(false);
+      return;
     }
+    setLoading(true);
 
-    const subscription = collectionData(
-      collection(FIRESTORE, board.refPath, "content").withConverter(
+    const unsubscribe = onSnapshot(
+      collection(FIRESTORE, selectedBoard.refPath, "content").withConverter(
         noteConverter
-      )
-    ).subscribe({
-      next: (notes) => {
-        dispatch(
-          setNotes({
-            boardId: board.id,
-            notes,
-          })
-        );
+      ),
+      (snapshot) => {
+        snapshot.docChanges().forEach((change) => {
+          if (change.type === "added") {
+            dispatch({ type: "ADD_ELEMENT", payload: change.doc.data() });
+          }
+          if (change.type === "modified") {
+            dispatch({ type: "SET_ELEMENT", payload: change.doc.data() });
+          }
+          if (change.type === "removed") {
+            dispatch({ type: "DELETE_BY_ID", payload: change.doc.id });
+          }
+        });
+        setLoading(false);
       },
-      error: (error) => {
-        dispatch(
-          setNotesError({
-            boardId: board.id,
-            error: error.message,
-          })
-        );
-        onError(error);
-      },
-    });
+      (err) => {
+        setError(err);
+        onError(err);
+        setLoading(false);
+      }
+    );
 
     return () => {
-      subscription.unsubscribe();
+      unsubscribe();
+      dispatch({ type: "CLEAR" });
     };
-  }, [board.id, board.refPath, dispatch]);
+  }, [dispatch, onError, selectedBoard]);
+
+  return { notes, loading, error };
 }

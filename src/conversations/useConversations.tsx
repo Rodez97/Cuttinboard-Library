@@ -1,11 +1,14 @@
 import { useContext } from "react";
-import { ConversationsContext } from "./ConversationsProvider";
+import {
+  ConversationsContext,
+  IConversationsContextProps,
+} from "./ConversationsProvider";
 
 /**
  * A hook to get the conversations context
  * @returns The current conversations context
  */
-export const useConversations = () => {
+export const useConversations = (): IConversationsContextProps => {
   const context = useContext(ConversationsContext);
   if (context === undefined) {
     throw new Error(

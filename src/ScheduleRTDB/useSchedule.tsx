@@ -1,7 +1,7 @@
 import { useContext } from "react";
-import { ShiftContext } from "./ScheduleProvider";
+import { IScheduleContext, ShiftContext } from "./ScheduleProvider";
 
-export const useSchedule = () => {
+export const useSchedule = (): IScheduleContext => {
   const context = useContext(ShiftContext);
 
   if (!context) {

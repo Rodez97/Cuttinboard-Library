@@ -10,9 +10,15 @@ import {
   deleteField,
   Timestamp,
 } from "firebase/firestore";
-import { isEmpty, set, unset } from "lodash";
+import { isEmpty, set } from "lodash";
 import { AUTH } from "../utils/firebase";
 
+/* `checklistGroupConverter` is an object that contains two methods: `toFirestore` and `fromFirestore`.
+These methods are used to convert `IChecklistGroup` objects to and from Firestore documents. The
+`toFirestore` method takes an `IChecklistGroup` object and returns a `DocumentData` object that can
+be saved to Firestore. The `fromFirestore` method takes a `QueryDocumentSnapshot` object and returns
+an `IChecklistGroup` object that can be used in the application. This object is used as a converter
+when reading and writing data to Firestore. */
 export const checklistGroupConverter = {
   toFirestore(object: IChecklistGroup): DocumentData {
     const { refPath, id, ...objectToSave } = object;
@@ -33,12 +39,16 @@ export const checklistGroupConverter = {
 };
 
 /**
- * Reset the status of all the tasks in all the checklists of this group.
+ * This function resets all tasks in a checklist object to false.
+ * @param {IChecklistGroup} checklistObject - The checklistObject parameter is an object that
+ * represents a group of checklists. It contains an array of checklists, each of which contains an
+ * array of tasks. Each task has a status property that indicates whether it has been completed or not.
+ * The resetAllTasks function takes this object as input and returns
+ * @returns An object with two properties: `serverUpdates` and `localUpdates`.
  */
 export function resetAllTasks(checklistObject: IChecklistGroup) {
   // Create a new object with all the tasks set to false
   const serverUpdates: Partial<IChecklistGroup> = {};
-  const localUpdates = checklistObject;
 
   if (!checklistObject.checklists || isEmpty(checklistObject.checklists)) {
     // If there are no sections, return
@@ -57,23 +67,20 @@ export function resetAllTasks(checklistObject: IChecklistGroup) {
         `checklists.${checklistKey}.tasks.${taskKey}.status`,
         false
       );
-      set(
-        localUpdates,
-        `checklists.${checklistKey}.tasks.${taskKey}.status`,
-        false
-      );
     }
   }
 
-  return {
-    serverUpdates,
-    localUpdates,
-  };
+  return serverUpdates;
 }
 
 /**
- * Remove a checklist from this group.
- * @param checklistKey The key of the checklist to remove.
+ * This function removes a checklist from a checklist group object and updates the order of the
+ * remaining checklists.
+ * @param {IChecklistGroup} checklistObject - An object of type IChecklistGroup, which contains a list
+ * of checklists.
+ * @param {string} checklistKey - The ID of the checklist section to be removed from the
+ * checklistObject.
+ * @returns An object with two properties: `serverUpdates` and `localUpdates`.
  */
 export function removeChecklist(
   checklistObject: IChecklistGroup,
@@ -85,9 +92,6 @@ export function removeChecklist(
   }
   const serverUpdates: Partial<IChecklistGroup> = {};
   set(serverUpdates, `checklists.${checklistKey}`, deleteField());
-
-  const localUpdates = checklistObject;
-  unset(localUpdates, `checklists.${checklistKey}`);
 
   // Create a copy of the objects array
   const updatedOrder = getChecklistsArray(checklistObject);
@@ -103,19 +107,21 @@ export function removeChecklist(
   // Update the order attribute of the remaining objects in the array
   updatedOrder.forEach((checklist, index) => {
     set(serverUpdates, `checklists.${checklist.id}.order`, index + 1);
-    set(localUpdates, `checklists.${checklist.id}.order`, index + 1);
   });
 
-  return {
-    serverUpdates,
-    localUpdates,
-  };
+  return serverUpdates;
 }
 
 /**
- * Add a new checklist to this group.
- * @param newChecklistKey The key of the checklist to add.
- * @param newTask If provided, a new task will be added to the checklist in the same operation.
+ * This function adds a new checklist section with optional tasks to a checklist object.
+ * @param {IChecklistGroup} checklistObject - An object of type IChecklistGroup which represents a
+ * group of checklists.
+ * @param {string} newChecklistKey - A string representing the unique identifier for the new checklist
+ * section being added.
+ * @param [newTask] - The optional parameter `newTask` is an object that represents a new task to be
+ * added to the checklist. It has three properties: `id` (string), `name` (string), and `status`
+ * (boolean). If `newTask` is not provided, an empty object will be
+ * @returns An object with two properties: `serverUpdates` and `localUpdates`.
  */
 export function addChecklist(
   checklistObject: IChecklistGroup,
@@ -159,18 +165,18 @@ export function addChecklist(
     },
   };
 
-  const localUpdates = checklistObject;
-  set(localUpdates, `checklists.${newChecklistKey}`, newSection);
-
-  return {
-    serverUpdates,
-    localUpdates,
-  };
+  return serverUpdates;
 }
 
 /**
- * Reorder the checklists in this group.
- * @param checklistKey The key of the checklist to move.
+ * This function reorders checklists in a checklist group by updating their order attribute and
+ * returning the server and local updates.
+ * @param {IChecklistGroup} checklistObject - An object that represents a group of checklists. It has a
+ * property called "checklists" which is an object containing individual checklists as key-value pairs.
+ * @param {string} checklistKey - The ID of the checklist to be reordered.
+ * @param {number} toIndex - The index where the checklist being moved should be placed in the updated
+ * order of checklists.
+ * @returns An object with two properties: `serverUpdates` and `localUpdates`.
  */
 export function reorderChecklists(
   checklistObject: IChecklistGroup,
@@ -182,7 +188,6 @@ export function reorderChecklists(
     throw new Error("There is no task with this ID");
   }
   const serverUpdates: Partial<IChecklistGroup> = {};
-  const localUpdates = checklistObject;
 
   // Create a copy of the objects array
   const updatedOrder = getChecklistsArray(checklistObject);
@@ -200,21 +205,22 @@ export function reorderChecklists(
   updatedOrder.forEach((checklist, index) => {
     const newOrder = index + 1;
     set(serverUpdates, `checklists.${checklist.id}.order`, newOrder);
-    set(localUpdates, `checklists.${checklist.id}.order`, newOrder);
   });
 
-  return {
-    serverUpdates,
-    localUpdates,
-  };
+  return serverUpdates;
 }
 
 /**
- * Update a specific checklist.
- * @param checklist The new checklist data.
+ * The function updates a checklist object with new name and description properties and returns both a
+ * local and server update.
+ * @param {IChecklistGroup} baseObject - The base object is an instance of the IChecklistGroup
+ * interface, which likely contains a collection of checklists.
+ * @param {string} checklistId - The ID of the checklist that needs to be updated.
+ * @param checklist - The `checklist` parameter is an object that contains partial updates to a
+ * checklist. It can include updates to the `name` and `description` properties of the checklist.
+ * @returns An object with two properties: `localUpdate` and `serverUpdate`.
  */
 export function updateChecklist(
-  baseObject: IChecklistGroup,
   checklistId: string,
   checklist: Partial<{
     name: string;
@@ -226,11 +232,6 @@ export function updateChecklist(
       [checklistId]: checklist,
     },
   };
-  const localUpdate = baseObject;
-  set(localUpdate, `checklists.${checklistId}`, checklist);
 
-  return {
-    localUpdate,
-    serverUpdate,
-  };
+  return serverUpdate;
 }

@@ -1,5 +1,9 @@
 import { IMessage } from "@cuttinboard-solutions/types-helpers";
-import { ListenEvent } from "rxfire/database";
+import {
+  DocumentData,
+  QueryDocumentSnapshot,
+  SnapshotOptions,
+} from "firebase/firestore";
 
 export type MessageConstructorOptions =
   | {
@@ -12,39 +16,24 @@ export type MessageConstructorOptions =
       dmId: string;
     };
 
-export type MessagesReducerAction =
-  | {
-      type: ListenEvent.added;
-      message: IMessage;
-    }
-  | {
-      type: ListenEvent.changed;
-      message: IMessage;
-    }
-  | {
-      type: ListenEvent.removed;
-      messageId: string;
-    }
-  | { type: "reset" }
-  | {
-      type: "append_older";
-      oldMessages: Record<string, IMessage>;
-    };
-
-export type SubmitMessageParams =
-  | {
-      messageText: string;
-      uploadAttachment?:
-        | {
-            uploadFn: (messageId: string) => Promise<string>;
-            image: string;
-          }
-        | undefined;
-    }
-  | {
-      messageText?: string | undefined;
-      uploadAttachment: {
+export type SubmitMessageParams = {
+  messageText: string;
+  uploadAttachment?:
+    | {
         uploadFn: (messageId: string) => Promise<string>;
         image: string;
-      };
-    };
+      }
+    | undefined;
+};
+
+export const messagesConverter = {
+  toFirestore(object: IMessage): DocumentData {
+    return object;
+  },
+  fromFirestore(
+    value: QueryDocumentSnapshot<IMessage>,
+    options: SnapshotOptions
+  ): IMessage {
+    return value.data(options);
+  },
+};

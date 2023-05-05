@@ -3,28 +3,13 @@ import {
   IBoard,
   PrivacyLevel,
 } from "@cuttinboard-solutions/types-helpers";
-import { nanoid } from "@reduxjs/toolkit";
-import { collection, doc, Timestamp } from "firebase/firestore";
-import React, { ReactNode, useCallback, useEffect } from "react";
-import { collectionData } from "rxfire/firestore";
-import {
-  boardConverter,
-  FIRESTORE,
-  useAppDispatch,
-  useAppSelector,
-  useBoardsThunkDispatch,
-} from "..";
+import { boardConverter } from "../boards/boardHelpers";
 import { useCuttinboard } from "../cuttinboard/useCuttinboard";
-import {
-  makeSelectGlobalBoardById,
-  makeSelectGlobalBoardError,
-  makeSelectGlobalBoardId,
-  makeSelectGlobalBoardLoading,
-  makeSelectGlobalBoardLoadingStatus,
-  makeSelectGlobalBoards,
-  selectGlobalBoardActions,
-  selectGlobalBoardThunks,
-} from "./createGlobalBoardSlice";
+import { deleteDoc, doc, setDoc, Timestamp } from "firebase/firestore";
+import React, { ReactNode, useCallback } from "react";
+import { FIRESTORE } from "../utils/firebase";
+import { useGBoardsData } from "./useGBoardsData";
+import { nanoid } from "nanoid";
 
 export interface IGBoardProvider {
   boardCollection: BoardCollection;
@@ -36,27 +21,23 @@ export interface IGBoardProvider {
  * The Board Provider Context
  */
 export interface IGBoardContext {
-  /**
-   * The selected board, or undefined if not found.
-   */
-  selectedBoard?: IBoard | undefined | null;
   boards: IBoard[];
+  selectedBoard?: IBoard | undefined;
   loading: boolean;
-  error?: string | undefined;
-  /**
-   * Selects a board by its ID
-   * @param id The ID of the board to select
-   */
-  selectActiveBoard: (boardId?: string) => void;
-  addNewBoard: (newBoardData: { name: string; description?: string }) => string;
+  error?: Error | undefined;
+  selectBoardId: (boardId?: string) => void;
+  addNewBoard: (newBoardData: {
+    name: string;
+    description?: string;
+  }) => Promise<string>;
   updateBoard: (
     board: IBoard,
     updates: {
       name?: string;
       description?: string;
     }
-  ) => void;
-  deleteBoard: (board: IBoard) => void;
+  ) => Promise<void>;
+  deleteBoard: (board: IBoard) => Promise<void>;
 }
 
 /**
@@ -77,55 +58,14 @@ export function GBoardProvider({
   onError,
 }: IGBoardProvider) {
   const { user } = useCuttinboard();
-  const boardId = useAppSelector(makeSelectGlobalBoardId(boardCollection));
-  const boards = useAppSelector(makeSelectGlobalBoards(boardCollection));
-  const selectedBoard = useAppSelector((state) =>
-    makeSelectGlobalBoardById(boardCollection)(state, boardId)
-  );
-  const loading = useAppSelector(makeSelectGlobalBoardLoading(boardCollection));
-  const error = useAppSelector(makeSelectGlobalBoardError(boardCollection));
-  const loadingStatus = useAppSelector(
-    makeSelectGlobalBoardLoadingStatus(boardCollection)
-  );
-  const thunkDispatch = useBoardsThunkDispatch();
-  const dispatch = useAppDispatch();
+  const { boards, selectedBoard, selectBoardId, loading, error } =
+    useGBoardsData(boardCollection);
 
-  useEffect(() => {
-    if (loadingStatus === "idle") {
-      // Start loading
-      dispatch(
-        selectGlobalBoardActions(boardCollection).setBoardsLoading("pending")
-      );
-    }
-
-    const subscription = collectionData(
-      collection(
-        FIRESTORE,
-        "Organizations",
-        user.uid,
-        boardCollection
-      ).withConverter(boardConverter)
-    ).subscribe({
-      next: (boards) =>
-        dispatch(selectGlobalBoardActions(boardCollection).setBoards(boards)),
-      error: (err) => {
-        dispatch(
-          selectGlobalBoardActions(boardCollection).setBoardsError(err?.message)
-        );
-        onError(err);
-      },
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [boardCollection, user.uid, dispatch]);
-
-  /**
-   * {@inheritdoc IBoardProviderContext.addNewBoard}
-   */
   const addNewBoard = useCallback(
-    (newBoardData: { name: string; description?: string }): string => {
+    async (newBoardData: {
+      name: string;
+      description?: string;
+    }): Promise<string> => {
       const id = nanoid();
       const firestoreRef = doc(
         FIRESTORE,
@@ -144,48 +84,58 @@ export function GBoardProvider({
         refPath: firestoreRef.path,
         createdAt: Timestamp.now().toMillis(),
       };
-      thunkDispatch(
-        selectGlobalBoardThunks(boardCollection).addBoardThunk(elementToAdd)
-      ).catch(onError);
-      return id;
-    },
-    [boardCollection, user.uid, thunkDispatch]
-  );
 
-  const selectActiveBoard = useCallback(
-    (boardId?: string) => {
-      dispatch(
-        selectGlobalBoardActions(boardCollection).setSelectedBoardId(boardId)
-      );
+      try {
+        await setDoc(firestoreRef, elementToAdd, {
+          merge: true,
+        });
+        return id;
+      } catch (error) {
+        onError(error);
+        throw error;
+      }
     },
-    [dispatch, boardCollection]
+    [user.uid, boardCollection, onError]
   );
 
   const updateBoard = useCallback(
-    (
+    async (
       board: IBoard,
       updates: {
         name?: string;
         description?: string;
       }
     ) => {
-      thunkDispatch(
-        selectGlobalBoardThunks(boardCollection).updateBoardThunk(
-          board,
-          updates
-        )
-      ).catch(onError);
+      // Update the board on the server
+      const docRef = doc(FIRESTORE, board.refPath).withConverter(
+        boardConverter
+      );
+
+      try {
+        await setDoc(docRef, updates, {
+          merge: true,
+        });
+      } catch (error) {
+        onError(error);
+      }
     },
-    [boardCollection, thunkDispatch]
+    [onError]
   );
 
   const deleteBoard = useCallback(
-    (board: IBoard) => {
-      thunkDispatch(
-        selectGlobalBoardThunks(boardCollection).deleteBoardThunk(board)
-      ).catch(onError);
+    async (board: IBoard) => {
+      // Delete the board from the server
+      const docRef = doc(FIRESTORE, board.refPath).withConverter(
+        boardConverter
+      );
+
+      try {
+        await deleteDoc(docRef);
+      } catch (error) {
+        onError(error);
+      }
     },
-    [boardCollection, thunkDispatch]
+    [onError]
   );
 
   return (
@@ -193,12 +143,12 @@ export function GBoardProvider({
       value={{
         boards,
         selectedBoard,
-        addNewBoard,
-        selectActiveBoard,
-        updateBoard,
-        deleteBoard,
         loading,
         error,
+        selectBoardId,
+        addNewBoard,
+        updateBoard,
+        deleteBoard,
       }}
     >
       {children}

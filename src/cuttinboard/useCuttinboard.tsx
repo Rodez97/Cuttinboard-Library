@@ -1,11 +1,14 @@
+import { User } from "firebase/auth";
 import { useContext } from "react";
-import { CuttinboardContext } from "./CuttinboardProvider";
+import { CuttinboardContext, ICuttinboardContext } from "./CuttinboardProvider";
 
 /**
  * The `useCuttinboard` hook returns the `CuttinboardContext` value.
  * @returns The `ICuttinboardContext` for the current user.
  */
-export const useCuttinboard = () => {
+export const useCuttinboard = (): ICuttinboardContext & {
+  user: User;
+} => {
   const context = useContext(CuttinboardContext);
   if (context === undefined) {
     throw new Error("useCuttinboard must be used within a CuttinboardProvider");
@@ -17,7 +20,7 @@ export const useCuttinboard = () => {
   return { ...context, user: context.user };
 };
 
-export const useCuttinboardRaw = () => {
+export const useCuttinboardRaw = (): ICuttinboardContext => {
   const context = useContext(CuttinboardContext);
   if (context === undefined) {
     throw new Error("useCuttinboard must be used within a CuttinboardProvider");

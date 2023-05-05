@@ -1,27 +1,5 @@
-import {
-  collection,
-  collectionGroup,
-  doc,
-  query,
-  Timestamp,
-  where,
-} from "firebase/firestore";
-import React, { ReactNode, useCallback, useEffect, useMemo } from "react";
-import { boardConverter, FIRESTORE, useAppDispatch, useAppSelector } from "..";
-import { useCuttinboardLocation } from "../cuttinboardLocation/useCuttinboardLocation";
-import { useCuttinboard } from "../cuttinboard/useCuttinboard";
-import { getBoardsObservable } from "./useMultipleQueryListener";
-import { nanoid } from "@reduxjs/toolkit";
-import {
-  selectBoardThunks,
-  selectBoardActions,
-  makeSelectBoards,
-  makeSelectBoardById,
-  makeSelectBoardLoading,
-  makeSelectBoardError,
-  useBoardsThunkDispatch,
-  makeSelectBoardLoadingStatus,
-} from "./createBoardSlice";
+import { deleteDoc, doc, setDoc, Timestamp } from "firebase/firestore";
+import React, { ReactNode, useCallback, useMemo } from "react";
 import {
   BoardCollection,
   BoardUpdate,
@@ -30,6 +8,19 @@ import {
   PrivacyLevel,
   RoleAccessLevels,
 } from "@cuttinboard-solutions/types-helpers";
+import {
+  addBoardHost,
+  boardConverter,
+  getAddMembersData,
+  getRemoveMemberData,
+  getUpdateBoardData,
+  removeBoardHost,
+} from "./boardHelpers";
+import { useCuttinboard } from "../cuttinboard/useCuttinboard";
+import { useCuttinboardLocation } from "../cuttinboardLocation/useCuttinboardLocation";
+import { FIRESTORE } from "../utils/firebase";
+import { useBoardsData } from "./useBoardsData";
+import { nanoid } from "nanoid";
 
 export interface IBoardProvider {
   boardCollection: BoardCollection;
@@ -41,23 +32,23 @@ export interface IBoardProvider {
  */
 export interface IBoardContext {
   boards: IBoard[];
-  selectedBoard?: IBoard | undefined | null;
-  canManageBoard: boolean;
+  selectedBoard?: IBoard | undefined;
+  selectBoardId: (boardId?: string) => void;
   loading: boolean;
-  error?: string | undefined;
-  deleteBoard: (board: IBoard) => void;
-  addHost: (board: IBoard, newHost: IEmployee) => void;
-  removeHost: (board: IBoard, hostId: string) => void;
-  addMembers: (board: IBoard, newMembers: IEmployee[]) => void;
-  removeMember: (board: IBoard, memberId: string) => void;
-  updateBoard: (board: IBoard, updates: BoardUpdate) => void;
-  selectActiveBoard: (boardId?: string) => void;
-  addNewBoard: (args: {
+  error?: Error | undefined;
+  canManageBoard: boolean;
+  addNewBoard: (props: {
     name: string;
     description?: string | undefined;
     position?: string | undefined;
     privacyLevel: PrivacyLevel;
-  }) => string;
+  }) => Promise<string>;
+  deleteBoard: (board: IBoard) => Promise<void>;
+  updateBoard: (board: IBoard, updates: BoardUpdate) => Promise<void>;
+  addHost: (board: IBoard, newHost: IEmployee) => Promise<void>;
+  removeHost: (board: IBoard, hostId: string) => Promise<void>;
+  addMembers: (board: IBoard, newMembers: IEmployee[]) => Promise<void>;
+  removeMember: (board: IBoard, memberId: string) => Promise<void>;
 }
 
 /**
@@ -74,91 +65,25 @@ export const BoardContext = React.createContext<IBoardContext>(
  */
 export function BoardProvider({ children, boardCollection }: IBoardProvider) {
   const { user, onError } = useCuttinboard();
-  const { location, positions, role } = useCuttinboardLocation();
-  const [
-    boardsSelector,
-    selectedBoardSelector,
-    loadingSelector,
-    errorSelector,
-    loadingStatusSelector,
-  ] = useMemo(
-    () => [
-      makeSelectBoards(boardCollection),
-      makeSelectBoardById(boardCollection),
-      makeSelectBoardLoading(boardCollection),
-      makeSelectBoardError(boardCollection),
-      makeSelectBoardLoadingStatus(boardCollection),
-    ],
-    [boardCollection]
-  );
-  const boards = useAppSelector(boardsSelector);
-  const selectedBoard = useAppSelector(selectedBoardSelector);
-  const loading = useAppSelector(loadingSelector);
-  const loadingStatus = useAppSelector(loadingStatusSelector);
-  const error = useAppSelector(errorSelector);
-  const thunkDispatch = useBoardsThunkDispatch();
-  const dispatch = useAppDispatch();
+  const { location, role } = useCuttinboardLocation();
+  const { boards, selectedBoard, selectBoardId, loading, error } =
+    useBoardsData(boardCollection);
 
-  useEffect(() => {
-    const singleQuery = query(
-      collectionGroup(FIRESTORE, boardCollection),
-      where(`parentId`, "in", [location.id, location.organizationId])
-    ).withConverter(boardConverter);
-
-    const multiQuery = [
-      collection(
-        FIRESTORE,
-        "Organizations",
-        location.organizationId,
-        boardCollection
-      ).withConverter(boardConverter),
-      query(
-        collection(FIRESTORE, "Locations", location.id, boardCollection),
-        where(`accessTags`, "array-contains-any", [
-          user.uid,
-          `hostId_${user.uid}`,
-          "pl_public",
-          ...positions,
-        ])
-      ).withConverter(boardConverter),
-    ];
-
-    if (loadingStatus !== "succeeded") {
-      dispatch(selectBoardActions(boardCollection).setBoardsLoading("pending"));
+  const canManageBoard = useMemo(() => {
+    if (role === RoleAccessLevels.OWNER) {
+      return true;
     }
+    if (role <= RoleAccessLevels.GENERAL_MANAGER) {
+      return true;
+    }
+    if (!selectedBoard) {
+      return false;
+    }
+    return Boolean(selectedBoard.hosts?.includes(user.uid));
+  }, [user.uid, selectedBoard, role]);
 
-    const observables$ = getBoardsObservable(role, singleQuery, multiQuery);
-
-    const subscription = observables$.subscribe({
-      next: (boards) =>
-        dispatch(selectBoardActions(boardCollection).setBoards(boards)),
-      error: (err) => {
-        dispatch(
-          selectBoardActions(boardCollection).setBoardsError(err?.message)
-        );
-        onError(err);
-      },
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [
-    boardCollection,
-    dispatch,
-    location.id,
-    location.organizationId,
-    onError,
-    positions,
-    role,
-    user.uid,
-  ]);
-
-  /**
-   * {@inheritdoc IBoardProviderContext.addNewBoard}
-   */
   const addNewBoard = useCallback(
-    ({
+    async ({
       name,
       description,
       position,
@@ -168,7 +93,7 @@ export function BoardProvider({ children, boardCollection }: IBoardProvider) {
       description?: string;
       position?: string;
       privacyLevel: PrivacyLevel;
-    }): string => {
+    }): Promise<string> => {
       const id = nanoid();
       const firestoreRef = doc(
         FIRESTORE,
@@ -198,89 +123,128 @@ export function BoardProvider({ children, boardCollection }: IBoardProvider) {
           );
         }
       }
-      thunkDispatch(
-        selectBoardThunks(boardCollection).addBoardThunk(elementToAdd)
-      ).catch(onError);
-      return id;
-    },
-    [location.id, boardCollection, thunkDispatch]
-  );
 
-  /**
-   * {@inheritdoc IBoardProviderContext.canManageBoard}
-   */
-  const canManageBoard = useMemo(() => {
-    if (role === RoleAccessLevels.OWNER) {
-      return true;
-    }
-    if (role <= RoleAccessLevels.GENERAL_MANAGER) {
-      return true;
-    }
-    if (!selectedBoard) {
-      return false;
-    }
-    return Boolean(selectedBoard.hosts?.includes(user.uid));
-  }, [user.uid, selectedBoard, role]);
-
-  const selectActiveBoard = useCallback(
-    (boardId?: string) => {
-      dispatch(selectBoardActions(boardCollection).setSelectedBoardId(boardId));
+      const docRef = doc(FIRESTORE, elementToAdd.refPath).withConverter(
+        boardConverter
+      );
+      try {
+        await setDoc(docRef, elementToAdd, {
+          merge: true,
+        });
+        return id;
+      } catch (error) {
+        onError(error);
+        throw error;
+      }
     },
-    [boardCollection, dispatch]
+    [location.id, boardCollection, onError]
   );
 
   const deleteBoard = useCallback(
-    (board: IBoard) => {
-      thunkDispatch(
-        selectBoardThunks(boardCollection).deleteBoardThunk(board)
-      ).catch(onError);
+    async (board: IBoard) => {
+      const docRef = doc(FIRESTORE, board.refPath).withConverter(
+        boardConverter
+      );
+      try {
+        await deleteDoc(docRef);
+      } catch (error) {
+        onError(error);
+      }
     },
-    [boardCollection, thunkDispatch]
-  );
-
-  const addHost = useCallback(
-    (board: IBoard, newHost: IEmployee) => {
-      thunkDispatch(
-        selectBoardThunks(boardCollection).addHostThunk(board, newHost)
-      ).catch(onError);
-    },
-    [boardCollection, dispatch]
-  );
-
-  const removeHost = useCallback(
-    (board: IBoard, hostId: string) => {
-      thunkDispatch(
-        selectBoardThunks(boardCollection).removeHostThunk(board, hostId)
-      ).catch(onError);
-    },
-    [boardCollection, dispatch]
-  );
-
-  const addMembers = useCallback(
-    (board: IBoard, newMembers: IEmployee[]) => {
-      thunkDispatch(
-        selectBoardThunks(boardCollection).addMembersThunk(board, newMembers)
-      ).catch(onError);
-    },
-    [boardCollection, dispatch]
-  );
-
-  const removeMember = useCallback(
-    (board: IBoard, memberId: string) => {
-      thunkDispatch(
-        selectBoardThunks(boardCollection).removeMemberThunk(board, memberId)
-      ).catch(onError);
-    },
-    [boardCollection, dispatch]
+    [onError]
   );
 
   const updateBoard = useCallback(
-    (board: IBoard, updates: BoardUpdate) => {
-      thunkDispatch(
-        selectBoardThunks(boardCollection).updateBoardThunk(board, updates)
-      ).catch(onError);
+    async (board: IBoard, updates: BoardUpdate) => {
+      const docRef = doc(FIRESTORE, board.refPath).withConverter(
+        boardConverter
+      );
+      const serverUpdates = getUpdateBoardData(board, updates);
+      try {
+        await setDoc(docRef, serverUpdates, {
+          merge: true,
+        });
+      } catch (error) {
+        onError(error);
+      }
     },
-    [boardCollection, dispatch]
+    [onError]
+  );
+
+  const addHost = useCallback(
+    async (board: IBoard, newHost: IEmployee) => {
+      const docRef = doc(FIRESTORE, board.refPath).withConverter(
+        boardConverter
+      );
+      const serverUpdate = addBoardHost(board, newHost);
+      try {
+        await setDoc(docRef, serverUpdate, {
+          merge: true,
+        });
+      } catch (error) {
+        onError(error);
+      }
+    },
+    [onError]
+  );
+
+  const removeHost = useCallback(
+    async (board: IBoard, hostId: string) => {
+      const docRef = doc(FIRESTORE, board.refPath).withConverter(
+        boardConverter
+      );
+      const serverUpdate = removeBoardHost(board, hostId);
+      try {
+        await setDoc(docRef, serverUpdate, {
+          merge: true,
+        });
+      } catch (error) {
+        onError(error);
+      }
+    },
+    [onError]
+  );
+
+  const addMembers = useCallback(
+    async (board: IBoard, newMembers: IEmployee[]) => {
+      const docRef = doc(FIRESTORE, board.refPath).withConverter(
+        boardConverter
+      );
+      const updates = getAddMembersData(board, newMembers);
+      if (!updates) {
+        return;
+      }
+
+      try {
+        await setDoc(docRef, updates, {
+          merge: true,
+        });
+      } catch (error) {
+        onError(error);
+      }
+    },
+    [onError]
+  );
+
+  const removeMember = useCallback(
+    async (board: IBoard, memberId: string) => {
+      const docRef = doc(FIRESTORE, board.refPath).withConverter(
+        boardConverter
+      );
+      const updates = getRemoveMemberData(board, memberId);
+      if (!updates) {
+        return;
+      }
+
+      try {
+        await setDoc(docRef, updates, {
+          merge: true,
+        });
+      } catch (error) {
+        onError(error);
+      }
+    },
+    [onError]
   );
 
   return (
@@ -288,17 +252,17 @@ export function BoardProvider({ children, boardCollection }: IBoardProvider) {
       value={{
         boards,
         selectedBoard,
-        addNewBoard,
+        selectBoardId,
+        loading,
+        error,
         canManageBoard,
-        selectActiveBoard,
+        addNewBoard,
         deleteBoard,
+        updateBoard,
         addHost,
         removeHost,
         addMembers,
         removeMember,
-        updateBoard,
-        loading,
-        error,
       }}
     >
       {children}

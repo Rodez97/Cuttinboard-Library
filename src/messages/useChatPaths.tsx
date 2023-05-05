@@ -3,8 +3,8 @@ import {
   generateChatPaths,
   MessageProviderMessagingType,
 } from "@cuttinboard-solutions/types-helpers";
+import { useCuttinboard } from "../cuttinboard/useCuttinboard";
 import { useEffect, useRef, useState } from "react";
-import { useCuttinboard } from "../cuttinboard";
 
 export function useChatPaths(messagingType: MessageProviderMessagingType) {
   const { user } = useCuttinboard();

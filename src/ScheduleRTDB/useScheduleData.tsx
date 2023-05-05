@@ -1,69 +1,140 @@
-import { useEffect } from "react";
-import { DATABASE } from "../utils";
+import { useEffect, useReducer, useState } from "react";
 import {
-  setEmployeeShifts,
-  setEmployeeShiftsError,
-  setEmployeeShiftsLoading,
-} from "./schedule.slice";
-import { useAppDispatch, useAppSelector } from "../reduxStore/utils";
-import { useCuttinboard } from "../cuttinboard";
-import { selectScheduleLoadingStatus } from "./scheduleSelectors";
-import { useCuttinboardLocation } from "../cuttinboardLocation";
-import { createDefaultScheduleDoc } from "@cuttinboard-solutions/types-helpers";
-import { ref } from "firebase/database";
-import { object } from "rxfire/database";
+  createDefaultScheduleDoc,
+  IScheduleDoc,
+  IShift,
+} from "@cuttinboard-solutions/types-helpers";
+import { equalTo, orderByChild, query, ref } from "firebase/database";
+import {
+  ListenEvent,
+  QueryChange,
+  objectVal,
+  stateChanges,
+} from "rxfire/database";
+import { useCuttinboard } from "../cuttinboard/useCuttinboard";
+import { useCuttinboardLocation } from "../cuttinboardLocation/useCuttinboardLocation";
+import { DATABASE } from "../utils/firebase";
+import { listReducer } from "../utils";
+import { defaultIfEmpty, map, merge } from "rxjs";
+
+interface IShiftEvent {
+  _key: string;
+  event: ListenEvent;
+  shift: IShift;
+}
+
+type BaseEvent =
+  | { type: "shifts"; event: IShiftEvent | null }
+  | { type: "schedule"; event: IScheduleDoc | null }
+  | null;
 
 export function useScheduleData(weekId: string) {
   const { onError } = useCuttinboard();
   const { location } = useCuttinboardLocation();
-  const dispatch = useAppDispatch();
-  const loadingStatus = useAppSelector(selectScheduleLoadingStatus);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error>();
+  const [shifts, dispatch] = useReducer(listReducer<IShift>("id"), []);
+  const [summaryDoc, setSummary] = useState<IScheduleDoc>(
+    createDefaultScheduleDoc(weekId, location.id)
+  );
 
   useEffect(() => {
-    if (loadingStatus !== "succeeded") {
-      dispatch(setEmployeeShiftsLoading("pending"));
-    }
+    setLoading(true);
 
-    const scheduleRef = ref(
-      DATABASE,
-      `scheduleData/${location.organizationId}/${location.id}/${weekId}`
+    const shiftsRef = query(
+      ref(DATABASE, "shifts"),
+      orderByChild("locationQuery"),
+      equalTo(`${weekId}-${location.id}`)
     );
 
-    const schedule$ = object(scheduleRef);
+    const scheduleRef = ref(DATABASE, `schedule/${location.id}/${weekId}`);
 
-    const subscription = schedule$.subscribe({
-      next: (schedule) => {
-        const scheduleDocumentExists = schedule.snapshot.exists();
-        const scheduleDocument = schedule.snapshot.val();
+    const shifts$ = stateChanges(shiftsRef).pipe(
+      map<QueryChange, BaseEvent>((change) => {
+        if (!change.snapshot.exists() || !change.snapshot.key) {
+          return null;
+        }
 
-        if (!scheduleDocumentExists || !scheduleDocument) {
-          dispatch(
-            setEmployeeShifts({
-              weekId,
-              schedule: {
-                shifts: {},
-                summary: createDefaultScheduleDoc(weekId),
-              },
-            })
-          );
+        return {
+          type: "shifts",
+          event: {
+            _key: change.snapshot.key,
+            event: change.event,
+            shift: change.snapshot.val(),
+          },
+        };
+      }),
+      defaultIfEmpty(null)
+    );
+
+    const processShifts = (shifts: IShiftEvent | null) => {
+      if (!shifts) {
+        return;
+      }
+
+      if (shifts.event === "child_added") {
+        dispatch({ type: "ADD_ELEMENT", payload: shifts.shift });
+      }
+      if (shifts.event === "child_changed") {
+        dispatch({ type: "SET_ELEMENT", payload: shifts.shift });
+      }
+      if (shifts.event === "child_removed") {
+        dispatch({ type: "DELETE_BY_ID", payload: shifts._key });
+      }
+    };
+
+    const schedule$ = objectVal<IScheduleDoc>(scheduleRef).pipe(
+      map<IScheduleDoc | null, BaseEvent>((schedule) => {
+        if (!schedule) {
+          return null;
+        }
+
+        return {
+          type: "schedule",
+          event: schedule,
+        };
+      })
+    );
+
+    const processSchedule = (schedule: IScheduleDoc | null) => {
+      if (!schedule) {
+        setSummary(createDefaultScheduleDoc(weekId, location.id));
+      } else {
+        setSummary(schedule);
+      }
+    };
+
+    const scheduleSubscription = merge(schedule$, shifts$).subscribe({
+      next: (data) => {
+        setLoading(false);
+        if (!data) {
           return;
         }
 
-        dispatch(
-          setEmployeeShifts({
-            schedule: scheduleDocument,
-            weekId,
-          })
-        );
+        const { type, event } = data;
+
+        if (type === "shifts") {
+          processShifts(event);
+          return;
+        }
+
+        if (type === "schedule") {
+          processSchedule(event);
+          return;
+        }
       },
-      error: (error) => {
-        dispatch(setEmployeeShiftsError(error.message));
+      error: (error: Error) => {
+        setLoading(false);
+        setError(error);
         onError(error);
       },
     });
 
     return () => {
-      subscription.unsubscribe();
+      scheduleSubscription.unsubscribe();
+      dispatch({ type: "CLEAR" });
     };
-  }, [weekId]);
+  }, [location.id, onError, weekId]);
+
+  return { shifts, summaryDoc, loading, error };
 }

@@ -2,16 +2,18 @@ import {
   DocumentData,
   QueryDocumentSnapshot,
   SnapshotOptions,
-  collection,
+  deleteField,
+  doc,
+  setDoc,
 } from "firebase/firestore";
 import { ref } from "firebase/storage";
-import { FIRESTORE, FUNCTIONS, STORAGE } from "../utils/firebase";
-import { employeeConverter } from "../employee/Employee";
 import {
   getLocationStoragePath,
   ILocation,
 } from "@cuttinboard-solutions/types-helpers";
 import { httpsCallable } from "firebase/functions";
+import { AUTH, FIRESTORE, FUNCTIONS, STORAGE } from "../utils/firebase";
+import { employeesDocumentConverter } from "../employee/Employee";
 
 export const locationConverter = {
   toFirestore(object: ILocation): DocumentData {
@@ -43,41 +45,39 @@ export function getLocationStorageRef(location: ILocation) {
  * Gets the employees reference for the location in firestore.
  */
 export function getEmployeesRef(location: ILocation) {
-  return collection(
+  return doc(
     FIRESTORE,
     "Locations",
     location.id,
-    "employees"
-  ).withConverter(employeeConverter);
+    "employees",
+    "employeesDocument"
+  ).withConverter(employeesDocumentConverter);
 }
 
 /**
  * If the user is the owner of the location. This method allows the user to join/leave the location as a member.
  * @param join True to join the location, false to leave the location.
  */
-export async function joinLocation(location: ILocation, join: boolean) {
-  const JoinLocation = httpsCallable<
-    { locationId: string; join?: boolean },
-    void
-  >(FUNCTIONS, "http-employees-joinLocation");
+export async function joinLocation(location: ILocation) {
+  const JoinLocation = httpsCallable<string, void>(
+    FUNCTIONS,
+    "http-employees-joinLocation"
+  );
 
-  await JoinLocation({
-    locationId: location.id,
-    join,
-  });
+  await JoinLocation(location.id);
 }
 
-/**
- * If the user is a supervisor of the location. This method allows the user to join/leave the location as a member.
- * @param join True to join the location, false to leave the location.
- */
-export async function supervisorJoinLocation(
-  location: ILocation,
-  uid: string,
-  join: boolean
-) {
-  if (!location.supervisors || !location.supervisors.includes(uid)) {
-    throw new Error("User is not a supervisor of this location.");
+export async function leaveLocation(location: ILocation) {
+  if (!AUTH.currentUser) {
+    throw new Error("User is not logged in.");
   }
-  await joinLocation(location, join);
+  await setDoc(
+    doc(FIRESTORE, "Locations", location.id, "employees", "employeesDocument"),
+    {
+      employees: {
+        [AUTH.currentUser.uid]: deleteField(),
+      },
+    },
+    { merge: true }
+  );
 }

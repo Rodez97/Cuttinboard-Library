@@ -1,7 +1,10 @@
 import { useContext } from "react";
-import { LocationContext } from "./LocationProvider";
+import { ILocationContextProps, LocationContext } from "./LocationProvider";
+import { ILocation } from "@cuttinboard-solutions/types-helpers";
 
-export const useCuttinboardLocation = () => {
+export const useCuttinboardLocation = (): ILocationContextProps & {
+  location: ILocation;
+} => {
   const context = useContext(LocationContext);
   if (context === undefined) {
     throw new Error("useLocation must be used within a LocationProvider");
@@ -13,7 +16,7 @@ export const useCuttinboardLocation = () => {
   return { ...context, location: context.location };
 };
 
-export const useCuttinboardLocationRaw = () => {
+export const useCuttinboardLocationRaw = (): ILocationContextProps => {
   const context = useContext(LocationContext);
   if (context === undefined) {
     throw new Error("useLocation must be used within a LocationProvider");

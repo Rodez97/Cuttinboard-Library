@@ -1,62 +1,60 @@
-import { IBoard } from "@cuttinboard-solutions/types-helpers";
-import { collection } from "firebase/firestore";
-import { useEffect, useMemo } from "react";
-import { collectionData } from "rxfire/firestore";
-import { useCuttinboard } from "../cuttinboard";
-import { useAppDispatch, useAppSelector } from "../reduxStore/utils";
-import { FIRESTORE } from "../utils";
-import { cuttinboardFileConverter } from "./Cuttinboard_File";
 import {
-  fileLoadingStatusSelector,
-  setFiles,
-  setFilesError,
-  setFilesLoading,
-} from "./files.slice";
+  IBoard,
+  ICuttinboard_File,
+} from "@cuttinboard-solutions/types-helpers";
+import { useCuttinboard } from "../cuttinboard/useCuttinboard";
+import { collection, onSnapshot } from "firebase/firestore";
+import { useEffect, useReducer, useState } from "react";
+import { FIRESTORE } from "../utils/firebase";
+import { cuttinboardFileConverter } from "./Cuttinboard_File";
+import { listReducer } from "../utils/listReducer";
 
-export function useFilesData(board: IBoard) {
-  const dispatch = useAppDispatch();
+export function useFilesData(selectedBoard: IBoard | undefined) {
   const { onError } = useCuttinboard();
-  const loadingStatusSelector = useMemo(
-    () => fileLoadingStatusSelector(board.id),
-    [board.id]
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error>();
+  const [files, dispatch] = useReducer(
+    listReducer<ICuttinboard_File>("id"),
+    []
   );
-  const loadingStatus = useAppSelector(loadingStatusSelector);
 
   useEffect(() => {
-    if (loadingStatus !== "succeeded") {
-      dispatch(
-        setFilesLoading({
-          boardId: board.id,
-          loading: "pending",
-        })
-      );
+    if (!selectedBoard) {
+      setLoading(false);
+      return;
     }
+    setLoading(true);
 
-    const subscription = collectionData(
-      collection(FIRESTORE, board.refPath, "content").withConverter(
+    const unsubscribe = onSnapshot(
+      collection(FIRESTORE, selectedBoard.refPath, "content").withConverter(
         cuttinboardFileConverter
-      )
-    ).subscribe({
-      next: (files) =>
-        dispatch(
-          setFiles({
-            boardId: board.id,
-            files,
-          })
-        ),
-      error: (error) => {
-        dispatch(
-          setFilesError({
-            boardId: board.id,
-            error: error.message,
-          })
-        );
-        onError(error);
+      ),
+      (snapshot) => {
+        snapshot.docChanges().forEach((change) => {
+          if (change.type === "added") {
+            dispatch({ type: "ADD_ELEMENT", payload: change.doc.data() });
+          }
+          if (change.type === "modified") {
+            dispatch({ type: "SET_ELEMENT", payload: change.doc.data() });
+          }
+          if (change.type === "removed") {
+            dispatch({ type: "DELETE_BY_ID", payload: change.doc.id });
+          }
+        });
+        setLoading(false);
       },
-    });
+      (err) => {
+        setError(err);
+        onError(err);
+        setLoading(false);
+      }
+    );
 
     return () => {
-      subscription.unsubscribe();
+      unsubscribe();
+      dispatch({ type: "CLEAR" });
     };
-  }, [board.id, board.refPath, dispatch]);
+  }, [dispatch, onError, selectedBoard]);
+
+  return { files, loading, error };
 }

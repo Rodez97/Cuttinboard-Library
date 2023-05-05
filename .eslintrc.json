@@ -13,7 +13,7 @@
     "src/**/*.test.ts",
     "dist/*",
     "node_modules/*",
-    "types-helpers/*"
+    "test/*"
   ],
   "rules": {
     //"@typescript-eslint/no-explicit-any": "off",

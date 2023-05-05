@@ -1,6 +1,7 @@
-// @index('./**/*.{tsx,ts}', f => `export * from '${f.path}'`)
-export * from "./directMessages.slice";
+// @index('./**/*.{ts,tsx}', f => `export * from '${f.path}'`)
 export * from "./DirectMessagesProvider";
-export * from "./directMessageUtils";
+export * from "./dmUtils";
 export * from "./useDirectMessageChat";
+export * from "./useDMData";
+export * from "./useFindDMRecipient";
 // @endindex

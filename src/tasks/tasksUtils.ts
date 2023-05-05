@@ -4,14 +4,9 @@ import {
   ITask,
 } from "@cuttinboard-solutions/types-helpers";
 import { deleteField, Timestamp } from "firebase/firestore";
-import { merge, set, unset } from "lodash";
+import { set } from "lodash";
 
-export function updateTask(
-  baseObject: IChecklistGroup,
-  checklistId: string,
-  taskKey: string,
-  name: string
-) {
+export function updateTask(checklistId: string, taskKey: string, name: string) {
   const serverUpdates = {
     checklists: {
       [checklistId]: {
@@ -23,13 +18,7 @@ export function updateTask(
       },
     },
   };
-  const localUpdates = baseObject;
-  merge(localUpdates, serverUpdates);
-
-  return {
-    localUpdates,
-    serverUpdates,
-  };
+  return serverUpdates;
 }
 
 /**
@@ -37,7 +26,6 @@ export function updateTask(
  * @param newStatus The new status of the task.
  */
 export function changeTaskStatus(
-  baseObject: IChecklistGroup,
   checklistId: string,
   taskKey: string,
   newStatus: boolean
@@ -53,13 +41,8 @@ export function changeTaskStatus(
       },
     },
   };
-  const localUpdates = baseObject;
-  merge(localUpdates, serverUpdates);
 
-  return {
-    localUpdates,
-    serverUpdates,
-  };
+  return serverUpdates;
 }
 
 /**
@@ -104,13 +87,7 @@ export function addChecklistTask(
     },
   };
 
-  const localUpdate = baseObject;
-  merge(localUpdate, serverUpdate);
-
-  return {
-    localUpdate,
-    serverUpdate,
-  };
+  return serverUpdate;
 }
 
 /**
@@ -141,9 +118,6 @@ export function removeChecklistTask(
     },
   };
 
-  const localUpdates = baseObject;
-  unset(localUpdates, `checklists.${checklistId}.tasks.${taskKey}`);
-
   // Create a copy of the objects array
   const updatedOrder = getTasksArray(checklist);
 
@@ -160,17 +134,9 @@ export function removeChecklistTask(
       `checklists.${checklistId}.tasks.${task.id}.order`,
       index + 1
     );
-    set(
-      localUpdates,
-      `checklists.${checklistId}.tasks.${task.id}.order`,
-      index + 1
-    );
   });
 
-  return {
-    localUpdates,
-    serverUpdates,
-  };
+  return serverUpdates;
 }
 
 /**
@@ -193,8 +159,6 @@ export function reorderChecklistTask(
   }
   const serverUpdates: Partial<IChecklistGroup> = {};
 
-  const localUpdates = baseObject;
-
   // Create a copy of the objects array
   const updatedOrder = getTasksArray(checklist);
 
@@ -212,15 +176,7 @@ export function reorderChecklistTask(
       `checklists.${checklistId}.tasks.${task.id}.order`,
       index + 1
     );
-    set(
-      localUpdates,
-      `checklists.${checklistId}.tasks.${task.id}.order`,
-      index + 1
-    );
   });
 
-  return {
-    localUpdates,
-    serverUpdates,
-  };
+  return serverUpdates;
 }

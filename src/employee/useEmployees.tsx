@@ -1,11 +1,4 @@
 import { useCallback } from "react";
-import {
-  deleteEmployeeThunk,
-  employeesSelectors,
-  updateEmployeeThunk,
-} from "./employees.slice";
-import { selectLocation } from "../cuttinboardLocation/locationSelectors";
-import { useAppSelector, useAppThunkDispatch } from "../reduxStore/utils";
 import { groupBy, orderBy } from "lodash";
 import { matchSorter } from "match-sorter";
 import {
@@ -14,27 +7,75 @@ import {
   IEmployee,
   RoleAccessLevels,
 } from "@cuttinboard-solutions/types-helpers";
+import { useCuttinboardLocation } from "../cuttinboardLocation";
+import { useCuttinboard } from "../cuttinboard";
+import { deleteField, doc, setDoc } from "firebase/firestore";
+import { FIRESTORE } from "../utils";
+import { employeesDocumentConverter } from "./Employee";
 
 export function useEmployees() {
-  const activeLocation = useAppSelector(selectLocation);
-  if (!activeLocation) {
-    throw new Error("No active location");
-  }
-  const thunkDispatch = useAppThunkDispatch();
-  const employees = useAppSelector(employeesSelectors.selectAll);
+  const { onError } = useCuttinboard();
+  const { location, employees } = useCuttinboardLocation();
 
   const deleteEmployee = useCallback(
-    (employee: IEmployee) => {
-      thunkDispatch(deleteEmployeeThunk(employee));
+    async (employee: IEmployee) => {
+      const docRef = doc(
+        FIRESTORE,
+        "Locations",
+        location.id,
+        "employees",
+        "employeesDocument"
+      ).withConverter(employeesDocumentConverter);
+      try {
+        await setDoc(
+          docRef,
+          {
+            employees: {
+              [employee.id]: deleteField(),
+            },
+          },
+          { merge: true }
+        );
+      } catch (error) {
+        onError(error);
+      }
     },
-    [thunkDispatch]
+    [location.id, onError]
   );
 
   const updateEmployee = useCallback(
-    (employee: IEmployee, locationUpdates: Partial<EmployeeLocationInfo>) => {
-      thunkDispatch(updateEmployeeThunk(employee, locationUpdates));
+    async (
+      employee: IEmployee,
+      locationUpdates: Partial<EmployeeLocationInfo>
+    ) => {
+      // Update the employee on the server
+      const docRef = doc(
+        FIRESTORE,
+        "Locations",
+        location.id,
+        "employees",
+        "employeesDocument"
+      ).withConverter(employeesDocumentConverter);
+
+      const updatedEmployee = { ...employee, ...locationUpdates };
+
+      try {
+        await setDoc(
+          docRef,
+          {
+            employees: {
+              [employee.id]: updatedEmployee,
+            },
+          },
+          {
+            merge: true,
+          }
+        );
+      } catch (error) {
+        onError(error);
+      }
     },
-    [thunkDispatch]
+    [location.id, onError]
   );
 
   const getEmployeesByRole = useCallback(
@@ -76,10 +117,18 @@ export function useEmployees() {
     [employees]
   );
 
+  const getEmployeeById = useCallback(
+    (id: string) => {
+      return employees?.find((e) => e.id === id);
+    },
+    [employees]
+  );
+
   return {
     deleteEmployee,
     updateEmployee,
     getEmployeesByRole,
+    getEmployeeById,
     employees,
   };
 }

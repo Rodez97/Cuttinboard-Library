@@ -1,4 +1,4 @@
-import { RegisterProps } from "@cuttinboard-solutions/types-helpers/dist/account";
+import { RegisterProps } from "@cuttinboard-solutions/types-helpers";
 import {
   AuthError,
   sendEmailVerification,
@@ -6,58 +6,49 @@ import {
   User,
 } from "firebase/auth";
 import { httpsCallable } from "firebase/functions";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { AUTH, FUNCTIONS } from "../utils/firebase";
 
 /**
- * This is a custom Hook for registering a new user with email and password. If the user is successfully created, the user will be signed in.
+ * Custom Hook for registering a new user with email and password, and signing them in upon successful registration.
+ *
+ * @returns An object with a `registerUser` function for registering the user, a `isSubmitting` boolean indicating if the registration process is ongoing, and an `error` property containing any error details that occurred during the registration process.
  */
 export const useRegister = (): {
-  /**
-   * A function for registering a new user with the provided registerData. The function returns a promise that resolves with the user's credentials, if the registration is successful.
-   * @param {RegisterProps} registerData - The data to register the user with.
-   * @returns {Promise<User>} - The user credential of the newly created user.
-   */
   registerUser: (registerData: RegisterProps) => Promise<User>;
-  /**
-   * A boolean indicating whether the register operation is currently in progress.
-   */
   isSubmitting: boolean;
-  /**
-   * An error object containing details about any error that occurred during the register operation.
-   */
   error: Error | AuthError | undefined;
 } => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<Error | AuthError | undefined>();
 
-  const registerUser = async (registerData: RegisterProps): Promise<User> => {
-    try {
-      setIsSubmitting(true);
-      const registerCuttinboardUser = httpsCallable<RegisterProps, string>(
-        FUNCTIONS,
-        "auth-registerUser"
-      );
-      await registerCuttinboardUser(registerData);
-      const { user } = await signInWithEmailAndPassword(
-        AUTH,
-        registerData.email,
-        registerData.password
-      );
-      await sendEmailVerification(user);
+  const registerUser = useCallback(
+    async (registerData: RegisterProps): Promise<User> => {
+      try {
+        setIsSubmitting(true);
+        const registerUserFunction = httpsCallable<RegisterProps, string>(
+          FUNCTIONS,
+          "auth-registerUser"
+        );
+        await registerUserFunction(registerData);
 
-      return user;
-    } catch (error) {
-      setError(error);
-      throw error;
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+        const { user } = await signInWithEmailAndPassword(
+          AUTH,
+          registerData.email,
+          registerData.password
+        );
+        await sendEmailVerification(user);
 
-  return {
-    registerUser,
-    isSubmitting,
-    error,
-  };
+        return user;
+      } catch (error) {
+        setError(error);
+        throw error;
+      } finally {
+        setIsSubmitting(false);
+      }
+    },
+    []
+  );
+
+  return { registerUser, isSubmitting, error };
 };

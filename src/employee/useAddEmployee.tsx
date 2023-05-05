@@ -2,13 +2,12 @@ import { FIRESTORE, FUNCTIONS } from "../utils/firebase";
 import { useCallback } from "react";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
-import { employeesSelectors } from "./employees.slice";
-import { useAppSelector } from "../reduxStore";
-import { selectLocation } from "../cuttinboardLocation/locationSelectors";
 import {
   getLocationUsage,
+  ManagerPermissions,
   RoleAccessLevels,
 } from "@cuttinboard-solutions/types-helpers";
+import { useCuttinboardLocation } from "../cuttinboardLocation";
 
 /**
  * Type for employee data
@@ -17,29 +16,15 @@ type EmployeeData = {
   name: string;
   lastName: string;
   email: string;
-  /**
-   * Role access level for the employee
-   */
   role:
     | RoleAccessLevels.GENERAL_MANAGER
     | RoleAccessLevels.MANAGER
     | RoleAccessLevels.STAFF;
-  /**
-   * Array of positions held by the employee
-   */
   positions: string[];
-  /**
-   * Record mapping position names to their respective wage
-   */
   wagePerPosition: Record<string, number>;
-  /**
-   * The employee's main position
-   */
   mainPosition: string;
-  /**
-   * The ID of the location where the employee works
-   */
   locationId: string;
+  permissions?: ManagerPermissions;
 };
 
 /**
@@ -60,16 +45,12 @@ type EmployeeResponse = {
  * Hook for creating employees using an HTTPS callable function
  */
 export const useAddEmployee = () => {
-  const activeLocation = useAppSelector(selectLocation);
-  if (!activeLocation) {
-    throw new Error("No active location");
-  }
-  const activeEmployees = useAppSelector(employeesSelectors.selectAll);
+  const { location, employees } = useCuttinboardLocation();
 
   const addEmployee = useCallback(
     async (values: Omit<EmployeeData, "locationId">) => {
       // Check if the employee already exists
-      const employee = activeEmployees.find(
+      const employee = employees.find(
         (employee) => employee.email === values.email
       );
       // If the employee already exists, return an error
@@ -79,7 +60,7 @@ export const useAddEmployee = () => {
         );
       }
 
-      const usage = getLocationUsage(activeLocation);
+      const usage = getLocationUsage(location);
 
       // Check if we have reached the maximum number of employees
       if (usage.employeesCount >= usage.employeesLimit) {
@@ -91,16 +72,14 @@ export const useAddEmployee = () => {
           collection(
             FIRESTORE,
             "Organizations",
-            activeLocation.organizationId,
+            location.organizationId,
             "employees"
           ),
           where("email", "==", values.email)
         )
       );
       if (checkForSupervisor.size === 1) {
-        return Promise.reject(
-          new Error("Employee is already an organization level employee")
-        );
+        throw new Error("Employee is already an organization level employee");
       }
 
       const createEmployee = httpsCallable<EmployeeData, EmployeeResponse>(
@@ -111,7 +90,7 @@ export const useAddEmployee = () => {
       // Create the employee
       const result = await createEmployee({
         ...values,
-        locationId: activeLocation.id,
+        locationId: location.id,
       });
 
       if (!result || !result.data) {
@@ -148,7 +127,7 @@ export const useAddEmployee = () => {
           );
       }
     },
-    [activeEmployees, activeLocation]
+    [employees, location]
   );
 
   return addEmployee;
