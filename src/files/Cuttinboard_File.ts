@@ -5,7 +5,7 @@ import {
   SnapshotOptions,
 } from "firebase/firestore";
 import { getDownloadURL, ref } from "firebase/storage";
-import { STORAGE } from "../utils";
+import { STORAGE } from "../utils/firebase";
 
 export const cuttinboardFileConverter = {
   toFirestore(object: ICuttinboard_File): DocumentData {

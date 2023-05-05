@@ -1,7 +1,6 @@
-// @index('./*.{ts,tsx}', f => `export * from '${f.path}'`)
-export * from "./Board";
+// @index('./**/*.{ts,tsx}', f => `export * from '${f.path}'`)
+export * from "./boardHelpers";
 export * from "./BoardProvider";
-export * from "./createBoardSlice";
 export * from "./useBoard";
-export * from "./useMultipleQueryListener";
+export * from "./useBoardsData";
 // @endindex

@@ -1,5 +1,4 @@
-// @index('./*.{ts,tsx}', f => `export * from '${f.path}'`)
-export * from "./useUtensils";
+// @index('./**/*.{ts,tsx}', f => `export * from '${f.path}'`)
 export * from "./Utensil";
-export * from "./utensils.slice";
+export * from "./UtensilsProvider";
 // @endindex

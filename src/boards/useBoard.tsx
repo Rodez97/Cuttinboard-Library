@@ -1,11 +1,11 @@
 import { useContext } from "react";
-import { BoardContext } from "./BoardProvider";
+import { BoardContext, IBoardContext } from "./BoardProvider";
 
 /**
  * A hook that returns the board context
  * @returns The Board Context
  */
-export const useBoard = () => {
+export const useBoard = (): IBoardContext => {
   const context = useContext(BoardContext);
   if (context === undefined) {
     throw new Error(

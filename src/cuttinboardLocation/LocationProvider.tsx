@@ -1,45 +1,49 @@
 import React, { createContext, ReactNode, useCallback, useMemo } from "react";
 import { useLocationData } from "./useLocationData";
-import { useAppSelector, useAppThunkDispatch } from "../reduxStore/utils";
 import {
-  selectLocation,
-  selectLocationError,
-  selectLocationLoading,
-} from "./locationSelectors";
-import {
-  addPositionThunk,
-  removePositionThunk,
-  updateLocationThunk,
-  updateScheduleSettingsThunk,
-} from "./locationThunks";
-import { useCuttinboard } from "../cuttinboard";
-import {
+  DefaultScheduleSettings,
+  IEmployee,
   ILocation,
   IScheduleSettings,
   RoleAccessLevels,
 } from "@cuttinboard-solutions/types-helpers";
+import { useCuttinboard } from "../cuttinboard/useCuttinboard";
+import {
+  arrayRemove,
+  arrayUnion,
+  doc,
+  PartialWithFieldValue,
+  setDoc,
+} from "firebase/firestore";
+import { FIRESTORE, ListReducerAction } from "../utils";
+import { merge, set } from "lodash";
 
-export interface ILocationContext {
+export interface ILocationContextProps {
   positions: string[];
   role: RoleAccessLevels;
   location?: ILocation;
   loading: boolean;
-  error?: string | undefined;
-  addPosition: (position: string) => void;
-  removePosition: (position: string) => void;
-  updateLocation: (newData: Partial<ILocation>) => void;
-  updateScheduleSettings: (newData: Partial<IScheduleSettings>) => void;
+  error?: Error | undefined;
+  employees: IEmployee[];
+  scheduleSettings: IScheduleSettings;
+  employeesDispatch: React.Dispatch<ListReducerAction<IEmployee>>;
+  addPosition: (position: string) => Promise<void>;
+  removePosition: (position: string) => Promise<void>;
+  updateLocation: (newData: Partial<ILocation>) => Promise<void>;
+  updateScheduleSettings: (
+    newData: Partial<IScheduleSettings>
+  ) => Promise<void>;
 }
 
-export const LocationContext = createContext<ILocationContext>(
-  {} as ILocationContext
+export const LocationContext = createContext<ILocationContextProps>(
+  {} as ILocationContextProps
 );
 
 /**
  * Props del Provider principal de la App
  */
 export interface ILocationProvider {
-  children: ReactNode | ((context: ILocationContext) => JSX.Element);
+  children: ReactNode;
 }
 
 export const LocationProvider = ({ children }: ILocationProvider) => {
@@ -47,73 +51,146 @@ export const LocationProvider = ({ children }: ILocationProvider) => {
   if (!organizationKey) {
     throw new Error("No organization selected");
   }
-  const thunkDispatch = useAppThunkDispatch();
-  const locationDocument = useAppSelector(selectLocation);
-  const loading = useAppSelector(selectLocationLoading);
-  const error = useAppSelector(selectLocationError);
-
-  useLocationData(organizationKey);
+  const {
+    loading,
+    error,
+    location,
+    employees,
+    employeesDispatch,
+    setLocation,
+  } = useLocationData(organizationKey);
 
   const addPosition = useCallback(
-    (position: string) => {
-      if (!locationDocument) {
+    async (position: string) => {
+      if (!location) {
         return;
       }
-      thunkDispatch(addPositionThunk(position)).catch(onError);
+      const docRef = doc(FIRESTORE, location.refPath);
+      const serverUpdates: PartialWithFieldValue<ILocation> = {
+        settings: { positions: arrayUnion(position) },
+      };
+
+      const localUpdates = location;
+      set(
+        localUpdates,
+        "settings.positions",
+        localUpdates.settings?.positions
+          ? [...localUpdates.settings.positions, position]
+          : [position]
+      );
+
+      setLocation(localUpdates);
+      try {
+        await setDoc(docRef, serverUpdates, { merge: true });
+      } catch (error) {
+        setLocation(location);
+        onError(error);
+      }
     },
-    [thunkDispatch, locationDocument]
+    [location, setLocation, onError]
   );
 
   const removePosition = useCallback(
-    (position: string) => {
-      if (!locationDocument) {
+    async (position: string) => {
+      if (!location) {
         return;
       }
-      thunkDispatch(removePositionThunk(position)).catch(onError);
+      const docRef = doc(FIRESTORE, location.refPath);
+      const serverUpdates: PartialWithFieldValue<ILocation> = {
+        settings: { positions: arrayRemove(position) },
+      };
+
+      const localUpdates = location;
+      set(
+        localUpdates,
+        "settings.positions",
+        localUpdates.settings?.positions
+          ? localUpdates.settings.positions.filter((p) => p !== position)
+          : []
+      );
+
+      setLocation(localUpdates);
+      try {
+        await setDoc(docRef, serverUpdates, { merge: true });
+      } catch (error) {
+        setLocation(location);
+        onError(error);
+      }
     },
-    [thunkDispatch, locationDocument]
+    [location, setLocation, onError]
   );
 
   const updateLocation = useCallback(
-    (newData: Partial<ILocation>) => {
-      if (!locationDocument) {
+    async (newData: Partial<ILocation>) => {
+      if (!location) {
         return;
       }
-      thunkDispatch(updateLocationThunk(locationDocument, newData)).catch(
-        onError
-      );
+      const docRef = doc(FIRESTORE, location.refPath);
+
+      const localUpdates = location;
+      merge(localUpdates, newData);
+
+      setLocation(localUpdates);
+      try {
+        await setDoc(docRef, newData, { merge: true });
+      } catch (error) {
+        setLocation(location);
+        onError(error);
+      }
     },
-    [thunkDispatch, locationDocument]
+    [location, setLocation, onError]
   );
 
   const updateScheduleSettings = useCallback(
-    (newData: Partial<IScheduleSettings>) => {
-      if (!locationDocument) {
+    async (newData: Partial<IScheduleSettings>) => {
+      if (!location) {
         return;
       }
-      thunkDispatch(updateScheduleSettingsThunk(newData)).catch(onError);
+      const docRef = doc(FIRESTORE, location.refPath);
+
+      const localUpdates = location;
+      merge(localUpdates, { settings: { schedule: newData } });
+
+      setLocation(localUpdates);
+      try {
+        await setDoc(
+          docRef,
+          { settings: { schedule: newData } },
+          { merge: true }
+        );
+      } catch (error) {
+        setLocation(location);
+        onError(error);
+      }
     },
-    [thunkDispatch, locationDocument]
+    [location, setLocation, onError]
   );
 
-  const memoizedValue = useMemo(() => {
+  const memoizedValue = useMemo<ILocationContextProps>(() => {
     const { role, pos } = organizationKey;
     return {
-      location: locationDocument,
+      location: location,
       positions: pos || [],
-      role: role,
+      role,
       loading,
       error,
+      employees,
+      scheduleSettings: location?.settings?.schedule
+        ? location?.settings?.schedule
+        : DefaultScheduleSettings,
+      employeesDispatch,
       addPosition,
       removePosition,
       updateLocation,
       updateScheduleSettings,
     };
   }, [
-    locationDocument,
     organizationKey,
+    location,
     loading,
     error,
+    employees,
+    employeesDispatch,
     addPosition,
     removePosition,
     updateLocation,
@@ -122,7 +199,7 @@ export const LocationProvider = ({ children }: ILocationProvider) => {
 
   return (
     <LocationContext.Provider value={memoizedValue}>
-      {typeof children === "function" ? children(memoizedValue) : children}
+      {children}
     </LocationContext.Provider>
   );
 };

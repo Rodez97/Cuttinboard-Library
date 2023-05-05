@@ -18,5 +18,22 @@
         "weekId": "weekId"
       }
     }
+  },
+  "conversations": {
+    "[conversationId]": {
+      "locationId": "12345abcde",
+      "members": {
+        "[memberId]": true
+      }
+    }
+  },
+  "messages": {
+    "[chatId]": {
+      "[messageId]": {
+        "message": "message",
+        "sender": "userId",
+        "timestamp": "timestamp"
+      }
+    }
   }
 }

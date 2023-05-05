@@ -1,54 +1,34 @@
-import { collection, query, Timestamp, where } from "firebase/firestore";
+import {
+  deleteDoc,
+  doc,
+  PartialWithFieldValue,
+  setDoc,
+  Timestamp,
+} from "firebase/firestore";
 import React, {
   createContext,
   ReactNode,
   useCallback,
-  useEffect,
   useMemo,
+  useState,
 } from "react";
-import { FIRESTORE } from "../utils/firebase";
-import { useCuttinboardLocation } from "../cuttinboardLocation/useCuttinboardLocation";
-import { useCuttinboard } from "../cuttinboard/useCuttinboard";
 import {
   checkConversationMember,
-  checkIfUserIsHost,
-  conversationConverter,
+  removeConversationMembers,
+  toggleMuteConversation,
 } from "./conversationUtils";
-import { collectionData } from "rxfire/firestore";
-import { nanoid } from "@reduxjs/toolkit";
-import {
-  addConversationHostThunk,
-  addConversationMemberThunk,
-  conversationsSelector,
-  createConversationThunk,
-  deleteConversationThunk,
-  removeConversationHostThunk,
-  removeConversationMemberThunk,
-  selectConversationsError,
-  selectConversationsLoading,
-  selectConversationsLoadingStatus,
-  selectSelectedConversation,
-  setConversations,
-  setConversationsError,
-  setConversationsLoading,
-  setSelectedConversation,
-  toggleMuteConversationThunk,
-  updateConversationThunk,
-} from "./conversations.slice";
-import {
-  useAppDispatch,
-  useAppSelector,
-  useAppThunkDispatch,
-} from "../reduxStore/utils";
-import { defaultIfEmpty } from "rxjs";
 import {
   checkEmployeePositions,
   IConversation,
   IEmployee,
+  ILocation,
   PrivacyLevel,
   RoleAccessLevels,
 } from "@cuttinboard-solutions/types-helpers";
-import { employeesSelectors } from "../employee";
+import { useCuttinboard } from "../cuttinboard/useCuttinboard";
+import { FIRESTORE } from "../utils/firebase";
+import { useConversationsData } from "./useConversationsData";
+import { nanoid } from "nanoid";
 
 /**
  * The `ConversationsContextProps` interface defines the shape of the
@@ -63,7 +43,7 @@ export interface IConversationsContextProps {
   /**
    * The current active conversation.
    */
-  activeConversation: IConversation | null | undefined;
+  activeConversation: IConversation | undefined;
   /**
    * A boolean value indicating whether the current user
    * has permission to manage conversations.
@@ -79,41 +59,36 @@ export interface IConversationsContextProps {
    * @param newConvData The data for the new conversation.
    */
   addConversation: (
-    newConvData: Omit<
-      IConversation,
-      | "locationId"
-      | "organizationId"
-      | "id"
-      | "refPath"
-      | "createdAt"
-      | "updatedAt"
-    >
-  ) => string;
-  toggleMuteConversation: (conversation: IConversation) => void;
-  addConversationHost: (conversation: IConversation, host: IEmployee) => void;
-  removeConversationHost: (
-    conversation: IConversation,
-    host: IEmployee
-  ) => void;
-  addConversationMembers: (
+    newConvData: {
+      name: string;
+      description?: string;
+      privacyLevel: PrivacyLevel;
+      position?: string;
+    },
+    location: ILocation,
+    employees: IEmployee[],
+    privateInitialMembers?: IEmployee[]
+  ) => Promise<void>;
+  toggleConversationMuted: (conversation: IConversation) => Promise<void>;
+  addMembers: (
     conversation: IConversation,
     newMembers: IEmployee[]
-  ) => void;
-  removeConversationMember: (
+  ) => Promise<void>;
+  removeMembers: (
     conversation: IConversation,
     membersToRemove: IEmployee[]
-  ) => void;
+  ) => Promise<void>;
   updateConversation: (
     conversation: IConversation,
     conversationUpdates: {
       name?: string;
       description?: string;
     }
-  ) => void;
-  deleteConversation: (conversation: IConversation) => void;
-  selectConversation: (conversationId: string) => void;
+  ) => Promise<void>;
+  deleteConversation: (conversation: IConversation) => Promise<void>;
+  selectConversationId: (conversationId: string) => void;
   loading: boolean;
-  error: string | undefined;
+  error: Error | undefined;
 }
 
 export const ConversationsContext = createContext<IConversationsContextProps>(
@@ -131,6 +106,7 @@ interface ConversationsProviderProps {
    * error information, and conversations data as its arguments.
    */
   children: ReactNode;
+  locationId?: string;
 }
 
 /**
@@ -140,64 +116,30 @@ interface ConversationsProviderProps {
  */
 export function ConversationsProvider({
   children,
+  locationId,
 }: ConversationsProviderProps) {
-  const { user, onError } = useCuttinboard();
-  const { location, role } = useCuttinboardLocation();
-  const dispatch = useAppDispatch();
-  const thunkDispatch = useAppThunkDispatch();
-  const employees = useAppSelector(employeesSelectors.selectAll);
-  const conversations = useAppSelector(conversationsSelector.selectAll);
-  const activeConversation = useAppSelector(selectSelectedConversation);
-  const loading = useAppSelector(selectConversationsLoading);
-  const loadingStatus = useAppSelector(selectConversationsLoadingStatus);
-  const error = useAppSelector(selectConversationsError);
+  const { onError, organizationKey } = useCuttinboard();
+  const [selectedConversationId, selectConversationId] = useState<string>();
+  const { loading, error, conversations } = useConversationsData(locationId);
 
-  useEffect(() => {
-    if (loadingStatus !== "succeeded") {
-      dispatch(setConversationsLoading("pending"));
-    }
-
-    const queryRef = (
-      role <= RoleAccessLevels.GENERAL_MANAGER
-        ? collection(FIRESTORE, "Locations", location.id, "conversations")
-        : query(
-            collection(FIRESTORE, "Locations", location.id, "conversations"),
-            where(`members`, "array-contains", user.uid)
-          )
-    ).withConverter(conversationConverter);
-
-    const subscription = collectionData(queryRef)
-      .pipe(defaultIfEmpty<IConversation[], IConversation[]>([]))
-      .subscribe({
-        next: (conversations) => {
-          dispatch(setConversations(conversations));
-        },
-        error: (error) => {
-          dispatch(setConversationsError(error.message));
-          onError(error);
-        },
-      });
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [role, user.uid, location.id]);
+  const activeConversation = useMemo(() => {
+    return selectedConversationId
+      ? conversations.find((conv) => conv.id === selectedConversationId)
+      : undefined;
+  }, [conversations, selectedConversationId]);
 
   /**
    * {@inheritDoc IConversationsContextProps.canManage}
    */
   const canManage = useMemo(() => {
-    if (role <= RoleAccessLevels.GENERAL_MANAGER) {
-      // General managers can manage all conversations
-      return true;
-    }
-    if (!activeConversation) {
-      // If there is no selected conversation, then the user can't manage it
+    if (!organizationKey || !activeConversation) {
       return false;
     }
-    // If the user is a manager and hosts the conversation, can manage it.
-    return checkIfUserIsHost(activeConversation);
-  }, [activeConversation, role]);
+    return (
+      organizationKey.role <= RoleAccessLevels.GENERAL_MANAGER &&
+      activeConversation.locationId === organizationKey.locId
+    );
+  }, [activeConversation, organizationKey]);
 
   /**
    * {@inheritDoc IConversationsContextProps.canUse}
@@ -209,33 +151,34 @@ export function ConversationsProvider({
     return checkConversationMember(activeConversation);
   }, [activeConversation]);
 
-  /**
-   * {@inheritDoc IConversationsContextProps.addConversation}
-   */
   const addConversation = useCallback(
-    (
-      newConvData: Omit<
-        IConversation,
-        | "locationId"
-        | "organizationId"
-        | "id"
-        | "refPath"
-        | "createdAt"
-        | "updatedAt"
-      >
+    async (
+      newConvData: {
+        name: string;
+        description?: string;
+        privacyLevel: PrivacyLevel;
+        position?: string;
+      },
+      location: ILocation,
+      employees: IEmployee[],
+      privateInitialMembers?: IEmployee[]
     ) => {
       const newConvId = nanoid();
       const newConversationToAdd: IConversation = {
         ...newConvData,
         createdAt: Timestamp.now().toMillis(),
         locationId: location.id,
+        locationName: location.name,
         organizationId: location.organizationId,
+        members: {},
         id: newConvId,
-        refPath: `Locations/${location.id}/conversations/${newConvId}`,
       };
 
       if (newConvData.privacyLevel === PrivacyLevel.PUBLIC) {
-        newConversationToAdd.members = employees.map(({ id }) => id);
+        newConversationToAdd.members = employees.reduce(
+          (acc, employee) => ({ ...acc, [employee.id]: false }),
+          {}
+        );
       }
 
       if (newConvData.privacyLevel === PrivacyLevel.POSITIONS) {
@@ -247,89 +190,178 @@ export function ConversationsProvider({
         } else {
           newConversationToAdd.members = employees
             .filter((employee) => checkEmployeePositions(employee, [position]))
-            .map(({ id }) => id);
+            .reduce((acc, employee) => ({ ...acc, [employee.id]: false }), {});
         }
       }
 
-      thunkDispatch(createConversationThunk(newConversationToAdd)).catch(
-        onError
-      );
+      if (
+        newConvData.privacyLevel === PrivacyLevel.PRIVATE &&
+        privateInitialMembers
+      ) {
+        newConversationToAdd.members = privateInitialMembers?.reduce(
+          (acc, employee) => ({ ...acc, [employee.id]: false }),
+          {}
+        );
+      }
 
-      return newConvId;
+      try {
+        await setDoc(
+          doc(FIRESTORE, "conversations", newConversationToAdd.id),
+          newConversationToAdd
+        );
+      } catch (error) {
+        onError(error);
+      }
     },
-    [location, employees]
+    [onError]
   );
 
-  const toggleMuteConversation = useCallback(
-    (conversation: IConversation) => {
-      thunkDispatch(toggleMuteConversationThunk(conversation)).catch(onError);
+  const toggleConversationMuted = useCallback(
+    async (conversation: IConversation) => {
+      const updates = toggleMuteConversation(conversation);
+      if (!updates) {
+        return;
+      }
+      try {
+        await setDoc(
+          doc(FIRESTORE, "conversations", conversation.id),
+          updates,
+          { merge: true }
+        );
+      } catch (error) {
+        onError(error);
+      }
     },
-    [thunkDispatch]
+    [onError]
   );
 
-  const addConversationHost = useCallback(
-    (conversation: IConversation, host: IEmployee) => {
-      thunkDispatch(addConversationHostThunk(conversation, host)).catch(
-        onError
-      );
+  const addMembers = useCallback(
+    async (conversation: IConversation, newMembers: IEmployee[]) => {
+      if (conversation.privacyLevel === PrivacyLevel.PUBLIC) {
+        throw new Error(
+          "Cannot add members to a public conversation. Add them to the location instead."
+        );
+      }
+
+      let guestsList: string[] = [];
+
+      // If the conversations is by positions, split th new members into those that are eligible and those that are not.
+      if (conversation.privacyLevel === PrivacyLevel.POSITIONS) {
+        const position = conversation.position;
+        if (!position) {
+          throw new Error(
+            "Cannot add members to a conversation with privacy level 'positions' without a position."
+          );
+        } else {
+          const eligibleMembers = newMembers.filter((employee) =>
+            checkEmployeePositions(employee, [position])
+          );
+          const guests = newMembers.filter(
+            (employee) => !eligibleMembers.includes(employee)
+          );
+          if (guests.length > 0) {
+            guestsList = guests.map((guest) => guest.id);
+          }
+        }
+      }
+
+      const membersIds = newMembers.map((member) => member.id);
+
+      const firestoreUpdates: PartialWithFieldValue<IConversation> = {
+        members: {},
+        guests: guestsList,
+      };
+
+      membersIds.forEach((id) => {
+        firestoreUpdates.members = {
+          ...firestoreUpdates.members,
+          [id]: false,
+        };
+      });
+
+      try {
+        await setDoc(
+          doc(FIRESTORE, "conversations", conversation.id),
+          firestoreUpdates,
+          { merge: true }
+        );
+      } catch (error) {
+        onError(error);
+      }
     },
-    [thunkDispatch]
+    [onError]
   );
 
-  const removeConversationHost = useCallback(
-    (conversation: IConversation, host: IEmployee) => {
-      thunkDispatch(removeConversationHostThunk(conversation, host)).catch(
-        onError
-      );
-    },
-    [thunkDispatch]
-  );
+  const removeMembers = useCallback(
+    async (conversation: IConversation, membersToRemove: IEmployee[]) => {
+      if (conversation.privacyLevel === PrivacyLevel.PUBLIC) {
+        throw new Error(
+          "Cannot remove members from a public conversation. Remove them from the location instead."
+        );
+      }
 
-  const addConversationMembers = useCallback(
-    (conversation: IConversation, newMembers: IEmployee[]) => {
-      thunkDispatch(addConversationMemberThunk(conversation, newMembers)).catch(
-        onError
-      );
-    },
-    [thunkDispatch]
-  );
+      if (conversation.privacyLevel === PrivacyLevel.POSITIONS) {
+        const position = conversation.position;
+        if (!position) {
+          throw new Error(
+            "Cannot remove members from a conversation with privacy level 'positions' without a position."
+          );
+        } else if (
+          membersToRemove.some((member) =>
+            checkEmployeePositions(member, [position])
+          )
+        ) {
+          throw new Error(
+            "Cannot remove members from a conversation with privacy level 'positions' that have the same position."
+          );
+        }
+      }
 
-  const removeConversationMember = useCallback(
-    (conversation: IConversation, membersToRemove: IEmployee[]) => {
-      thunkDispatch(
-        removeConversationMemberThunk(conversation, membersToRemove)
-      ).catch(onError);
+      const firestoreUpdates = removeConversationMembers(membersToRemove);
+
+      try {
+        await setDoc(
+          doc(FIRESTORE, "conversations", conversation.id),
+          firestoreUpdates,
+          { merge: true }
+        );
+      } catch (error) {
+        onError(error);
+      }
     },
-    [thunkDispatch]
+    [onError]
   );
 
   const updateConversation = useCallback(
-    (
+    async (
       conversation: IConversation,
       conversationUpdates: {
         name?: string;
         description?: string;
       }
     ) => {
-      thunkDispatch(
-        updateConversationThunk(conversation, conversationUpdates)
-      ).catch(onError);
+      try {
+        await setDoc(
+          doc(FIRESTORE, "conversations", conversation.id),
+          conversationUpdates,
+          { merge: true }
+        );
+      } catch (error) {
+        onError(error);
+      }
     },
-    [thunkDispatch]
+    [onError]
   );
 
   const deleteConversation = useCallback(
-    (conversation: IConversation) => {
-      thunkDispatch(deleteConversationThunk(conversation)).catch(onError);
+    async (conversation: IConversation) => {
+      try {
+        await deleteDoc(doc(FIRESTORE, "conversations", conversation.id));
+      } catch (error) {
+        onError(error);
+      }
     },
-    [thunkDispatch]
-  );
-
-  const selectConversation = useCallback(
-    (conversationId: string) => {
-      dispatch(setSelectedConversation(conversationId));
-    },
-    [thunkDispatch]
+    [onError]
   );
 
   return (
@@ -340,14 +372,12 @@ export function ConversationsProvider({
         canUse,
         addConversation,
         conversations,
-        toggleMuteConversation,
-        addConversationHost,
-        removeConversationHost,
-        addConversationMembers,
-        removeConversationMember,
+        toggleConversationMuted,
+        addMembers,
+        removeMembers,
         updateConversation,
         deleteConversation,
-        selectConversation,
+        selectConversationId,
         loading,
         error,
       }}

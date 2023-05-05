@@ -1,11 +1,11 @@
 import { useContext } from "react";
-import { GBoardContext } from "./GBoardProvider";
+import { GBoardContext, IGBoardContext } from "./GBoardProvider";
 
 /**
  * A hook that returns the board context
  * @returns The Board Context
  */
-export const useGBoard = () => {
+export const useGBoard = (): IGBoardContext => {
   const context = useContext(GBoardContext);
   if (context === undefined) {
     throw new Error(

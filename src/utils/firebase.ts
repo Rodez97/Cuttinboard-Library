@@ -3,23 +3,28 @@ import { getDatabase } from "firebase/database";
 import { getFirestore } from "firebase/firestore";
 import { getFunctions } from "firebase/functions";
 import { getStorage } from "firebase/storage";
-import { getAnalytics } from "firebase/analytics";
 
-// Initialize Firestore
+/* `export const FIRESTORE = getFirestore();` is exporting a constant named `FIRESTORE` that is
+initialized with the `getFirestore()` function from the Firebase library. This constant can be
+imported and used in other parts of the code to interact with the Firestore database. */
 export const FIRESTORE = getFirestore();
 
-// Initialize Firebase Auth
+/* `export const AUTH = getAuth();` is exporting a constant named `AUTH` that is initialized with the
+`getAuth()` function from the Firebase library. This constant can be imported and used in other
+parts of the code to interact with the Firebase Authentication service. */
 export const AUTH = getAuth();
 
-// Initialize Cloud Storage
+/* `export const STORAGE = getStorage();` is initializing a constant named `STORAGE` with the
+`getStorage()` function from the Firebase library. This constant can be imported and used in other
+parts of the code to interact with the Firebase Storage service. */
 export const STORAGE = getStorage();
 
-// Initialize Cloud Functions
+/* `export const FUNCTIONS = getFunctions();` is initializing a constant named `FUNCTIONS` with the
+`getFunctions()` function from the Firebase library. This constant can be imported and used in other
+parts of the code to interact with the Firebase Cloud Functions service. */
 export const FUNCTIONS = getFunctions();
 
-// Initialize Realtime Database
+/* `export const DATABASE = getDatabase();` is initializing a constant named `DATABASE` with the
+`getDatabase()` function from the Firebase library. This constant can be imported and used in other
+parts of the code to interact with the Firebase Realtime Database service. */
 export const DATABASE = getDatabase();
-
-// Initialize Firebase Analytics if the platform is browser react js, otherwise return null
-export const ANALYTICS =
-  typeof window?.document !== "undefined" ? getAnalytics() : null;

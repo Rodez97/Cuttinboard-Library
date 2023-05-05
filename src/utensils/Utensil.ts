@@ -8,8 +8,11 @@ import {
   arrayUnion,
 } from "firebase/firestore";
 import { set } from "lodash";
-import { AUTH } from "../utils";
+import { AUTH } from "../utils/firebase";
 
+/* This code exports an object called `utensilConverter` that contains two functions: `toFirestore` and
+`fromFirestore`. These functions are used to convert data between the format used by Firestore and
+the format used by the application. */
 export const utensilConverter = {
   toFirestore(object: IUtensil): DocumentData {
     const { refPath, id, ...objectToSave } = object;
@@ -29,6 +32,17 @@ export const utensilConverter = {
   },
 };
 
+/**
+ * This function updates the quantity and percent of a utensil, adds a new change to its history, and
+ * returns the local and server updates.
+ * @param {IUtensil} utensil - an object representing a utensil, with properties such as
+ * currentQuantity, optimalQuantity, and changes (an array of past changes made to the utensil)
+ * @param {number} quantity - The quantity of the utensil being added or removed.
+ * @param {string} [reason] - An optional string parameter that represents the reason for the utensil
+ * change. It is used to provide additional context or explanation for the change. If not provided, it
+ * will be undefined.
+ * @returns An object with two properties: "localUpdates" and "serverUpdates".
+ */
 export function getNewUtensilChangeUpdates(
   utensil: IUtensil,
   quantity: number,
@@ -61,23 +75,15 @@ export function getNewUtensilChangeUpdates(
     percent: newPercent,
     updatedAt,
   };
-  const localUpdates: IUtensil = {
-    ...utensil,
-    currentQuantity: newCurrentQuantity,
-    percent: newPercent,
-    updatedAt,
-  };
 
   if (utensil.changes && utensil.changes.length >= 50) {
     // Delete the oldest change
     const newList = utensil.changes.sort((a, b) => b.date - a.date);
     newList.pop();
-    set(localUpdates, "changes", [...newList, newChange]);
     set(serverUpdates, "changes", [...newList, newChange]);
   } else {
-    set(localUpdates, "changes", [...(utensil.changes || []), newChange]);
     set(serverUpdates, "changes", arrayUnion(newChange));
   }
 
-  return { localUpdates, serverUpdates };
+  return serverUpdates;
 }

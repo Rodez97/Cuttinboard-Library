@@ -1,0 +1,31 @@
+{
+  "conversations": {
+    "[conversationId]": {}
+  },
+  "directMessages": {
+    "[conversationId]": {}
+  },
+  "locations": {
+    "[locationId]": {
+      "employees": {
+        "[employeeId]": {}
+      },
+      "files": {
+        "[drawerId]": {}
+      }
+    }
+  },
+  "organizations": {
+    "[organizationId]": {
+      "employees": {
+        "[employeeId]": {}
+      },
+      "files": {
+        "[drawerId]": {}
+      }
+    }
+  },
+  "users": {
+    "[userId]": {}
+  }
+}
