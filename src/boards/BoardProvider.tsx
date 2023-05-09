@@ -79,7 +79,7 @@ export function BoardProvider({ children, boardCollection }: IBoardProvider) {
     if (!selectedBoard) {
       return false;
     }
-    return Boolean(selectedBoard.hosts?.includes(user.uid));
+    return Boolean(selectedBoard.details.admins?.includes(user.uid));
   }, [user.uid, selectedBoard, role]);
 
   const addNewBoard = useCallback(
@@ -101,22 +101,24 @@ export function BoardProvider({ children, boardCollection }: IBoardProvider) {
         location.id,
         boardCollection,
         id
-      );
+      ).withConverter(boardConverter);
       const elementToAdd: IBoard = {
+        id,
+        refPath: firestoreRef.path,
         name,
         description,
-        privacyLevel,
         createdAt: Timestamp.now().toMillis(),
-        parentId: location.id,
-        refPath: firestoreRef.path,
-        id,
+        details: {
+          privacyLevel,
+          parentId: location.id,
+        },
       };
-      if (privacyLevel === PrivacyLevel.PUBLIC) {
-        elementToAdd.accessTags = ["pl_public"];
-      }
       if (privacyLevel === PrivacyLevel.POSITIONS) {
         if (position) {
-          elementToAdd.accessTags = [position];
+          elementToAdd.details = {
+            ...elementToAdd.details,
+            position,
+          };
         } else {
           throw new Error(
             "You must provide a position when creating a board with a privacy level of positions."
@@ -176,7 +178,7 @@ export function BoardProvider({ children, boardCollection }: IBoardProvider) {
       const docRef = doc(FIRESTORE, board.refPath).withConverter(
         boardConverter
       );
-      const serverUpdate = addBoardHost(board, newHost);
+      const serverUpdate = addBoardHost(newHost);
       try {
         await setDoc(docRef, serverUpdate, {
           merge: true,
@@ -193,7 +195,7 @@ export function BoardProvider({ children, boardCollection }: IBoardProvider) {
       const docRef = doc(FIRESTORE, board.refPath).withConverter(
         boardConverter
       );
-      const serverUpdate = removeBoardHost(board, hostId);
+      const serverUpdate = removeBoardHost(hostId);
       try {
         await setDoc(docRef, serverUpdate, {
           merge: true,

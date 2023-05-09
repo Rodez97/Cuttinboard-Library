@@ -4,9 +4,11 @@ import { listReducer } from "../utils/listReducer";
 import {
   BoardCollection,
   IBoard,
+  PrivacyLevel,
   RoleAccessLevels,
 } from "@cuttinboard-solutions/types-helpers";
 import {
+  QueryFilterConstraint,
   and,
   collectionGroup,
   onSnapshot,
@@ -35,22 +37,32 @@ export function useBoardsData(boardCollection: BoardCollection) {
 
     const singleQuery = query(
       collectionGroup(FIRESTORE, boardCollection),
-      where(`parentId`, "in", [locId, orgId])
+      where(`details.parentId`, "in", [locId, orgId])
     ).withConverter(boardConverter);
+
+    const multiQueryConstraints: QueryFilterConstraint[] = [
+      where(`details.admins`, "array-contains", user.uid),
+      where("details.privacyLevel", "==", PrivacyLevel.PUBLIC),
+      and(
+        where("details.privacyLevel", "==", PrivacyLevel.PRIVATE),
+        where(`details.members`, "array-contains", user.uid)
+      ),
+    ];
+
+    if (pos && pos.length > 0) {
+      multiQueryConstraints.push(
+        and(
+          where("details.privacyLevel", "==", PrivacyLevel.POSITIONS),
+          where(`details.position`, "in", pos)
+        )
+      );
+    }
 
     const multiQueryOr = query(
       collectionGroup(FIRESTORE, boardCollection),
-      or(
-        where(`parentId`, "==", orgId),
-        and(
-          where(`parentId`, "==", locId),
-          where(`accessTags`, "array-contains-any", [
-            user.uid,
-            `hostId_${user.uid}`,
-            "pl_public",
-            ...(pos ? pos : []),
-          ])
-        )
+      and(
+        where(`details.parentId`, "in", [orgId, locId]),
+        or(...multiQueryConstraints)
       )
     ).withConverter(boardConverter);
 

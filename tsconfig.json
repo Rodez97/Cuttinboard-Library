@@ -13,5 +13,17 @@
     "resolveJsonModule": true,
     "strictNullChecks": true
   },
-  "exclude": ["dist", "docs", "htw", "test", "__tests__"]
+  "exclude": ["dist", "docs", "htw", "test", "__tests__"],
+  "typedocOptions": {
+    "entryPoints": ["src"],
+    "out": "docs",
+    "excludeExternals": true,
+    // Use Markdown plugin
+    "plugin": [
+      "typedoc-plugin-markdown",
+      "typedoc-plugin-merge-modules",
+      "typedoc-plugin-missing-exports",
+      "typedoc-plugin-mark-react-functional-components"
+    ]
+  }
 }
