@@ -1,6 +1,6 @@
 {
   "name": "@cuttinboard-solutions/cuttinboard-library",
-  "version": "7.6.1",
+  "version": "7.7.0",
   "description": "Shared Code Library for Cuttinboard App",
   "source": "src/index.ts",
   "main": "dist/index.js",
@@ -36,7 +36,7 @@
   },
   "homepage": "hhttps://github.com/Cuttinboard-Solutions/Cuttinboard-Library",
   "peerDependencies": {
-    "@cuttinboard-solutions/types-helpers": "^1.4.0",
+    "@cuttinboard-solutions/types-helpers": "^1.4.1",
     "date-fns": ">=2.29.3",
     "dayjs": ">=1.11.6",
     "dayjs-recur": ">=1.0.1",

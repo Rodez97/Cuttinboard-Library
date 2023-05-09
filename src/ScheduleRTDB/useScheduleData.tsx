@@ -5,13 +5,10 @@ import { FIRESTORE } from "../utils/firebase";
 import { listReducer } from "../utils";
 import { defaultIfEmpty, map, merge } from "rxjs";
 import { collection, limit, query, where } from "firebase/firestore";
-import { IShift, shiftConverter } from "./Shift";
-import {
-  IScheduleDoc,
-  createDefaultScheduleDoc,
-  scheduleConverter,
-} from "./ScheduleDoc";
+import { shiftConverter } from "./Shift";
+import { createDefaultScheduleDoc, scheduleConverter } from "./ScheduleHelpers";
 import { collectionData } from "rxfire/firestore";
+import { IScheduleDoc, IShift } from "@cuttinboard-solutions/types-helpers";
 
 type BaseEvent =
   | { type: "shifts"; event: IShift[] }

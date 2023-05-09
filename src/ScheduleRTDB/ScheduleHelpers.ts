@@ -6,28 +6,11 @@ import {
 } from "firebase/firestore";
 import { nanoid } from "nanoid";
 import { generateOrderFactor } from "./Shift";
-import { WeekSummary } from "./WeekSummary";
 import { parseWeekId, weekToDate } from "./scheduleMathHelpers";
-import { WageDataByDay } from "./ShiftData";
-
-export interface PublishProps {
-  publishedAt: number;
-  notificationRecipients?: string[];
-}
-
-export interface IScheduleDoc {
-  id: string;
-  year: number;
-  weekNumber: number;
-  locationId: string;
-  weekId: string;
-  projectedSalesByDay?: Record<number, number>;
-  scheduleSummary: WeekSummary;
-  createdAt: number;
-  updatedAt?: number;
-  publishData?: PublishProps;
-  weekOrderFactor: number;
-}
+import {
+  IScheduleDoc,
+  WageDataByDay,
+} from "@cuttinboard-solutions/types-helpers";
 
 export const scheduleConverter = {
   toFirestore(object: PartialWithFieldValue<IScheduleDoc>): DocumentData {

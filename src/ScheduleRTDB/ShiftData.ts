@@ -3,67 +3,20 @@ import {
   getShiftDayjsDate,
   getShiftDuration,
   getShiftLatestData,
-  IShift,
-  WageOptions,
 } from "./Shift";
 import { isEmpty } from "lodash";
 import dayjs from "dayjs";
 import isoWeek from "dayjs/plugin/isoWeek.js";
 import duration from "dayjs/plugin/duration.js";
 import { areIntervalsOverlapping } from "date-fns";
-import { IScheduleSettings } from "./ScheduleSettings";
-import { IScheduleDoc } from "./ScheduleDoc";
+import {
+  IScheduleSettings,
+  IShift,
+  WageDataByDay,
+  WageOptions,
+} from "@cuttinboard-solutions/types-helpers";
 dayjs.extend(isoWeek);
 dayjs.extend(duration);
-
-export type WeekSchedule = {
-  shifts: IShift[];
-  summary: IScheduleDoc;
-};
-
-/**
- * Wage and hour data for an employee for a given ISO week day number.
- */
-export type WageDataByDay = {
-  /**
-   * ISO week day number
-   */
-  [weekday: number]: {
-    /**
-     * Number of hours worked without overtime
-     */
-    normalHours: number;
-    /**
-     * Number of overtime hours worked
-     */
-    overtimeHours: number;
-    /**
-     * The sum of the normal and overtime hours
-     */
-    totalHours: number;
-    /**
-     * The total wage for normal hours
-     */
-    normalWage: number;
-    /**
-     * The wage for overtime hours
-     */
-    overtimeWage: number;
-    /**
-     * The total wage for the day
-     * - normalWage + overtimeWage
-     */
-    totalWage: number;
-    /**
-     * Number of shifts for the day
-     */
-    totalShifts: number;
-    /**
-     * How many people were scheduled for the day
-     */
-    people: number;
-  };
-};
 
 /**
  * Calculate the overtime rate of pay

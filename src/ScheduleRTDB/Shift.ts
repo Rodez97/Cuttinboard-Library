@@ -9,65 +9,18 @@ import {
   QueryDocumentSnapshot,
   SnapshotOptions,
 } from "firebase/firestore";
-import { WageDataByDay, getOvertimeRateOfPay } from "./ShiftData";
-import { IEmployee, SHIFTFORMAT } from "@cuttinboard-solutions/types-helpers";
+import { getOvertimeRateOfPay } from "./ShiftData";
+import {
+  IEmployee,
+  IPrimaryShiftData,
+  IShift,
+  SHIFTFORMAT,
+  WageDataRecord,
+  WageOptions,
+} from "@cuttinboard-solutions/types-helpers";
 dayjs.extend(isoWeek);
 dayjs.extend(advancedFormat);
 dayjs.extend(customParseFormat);
-
-export type WeekInfo = {
-  year: number;
-  week: number;
-  start: dayjs.Dayjs;
-  end: dayjs.Dayjs;
-};
-
-export type WageOptions = {
-  mode: "weekly" | "daily";
-  hoursLimit: number;
-  multiplier: number;
-};
-
-export type WageDataRecord = {
-  summary: WageDataByDay;
-  shifts: Map<
-    string,
-    {
-      wageData: ShiftWage;
-      isoWeekDay: number;
-    }
-  >;
-};
-
-export type ShiftWage = {
-  normalHours: number;
-  overtimeHours: number;
-  totalHours: number;
-  normalWage: number;
-  overtimeWage: number;
-  totalWage: number;
-};
-
-export interface IPrimaryShiftData {
-  start: string;
-  end: string;
-  position?: string;
-  notes?: string;
-  hourlyWage?: number;
-}
-
-export interface IShift extends IPrimaryShiftData {
-  id: string;
-  status: "draft" | "published";
-  pendingUpdate?: Partial<IPrimaryShiftData>;
-  deleting?: boolean;
-  updatedAt: number;
-  locationName: string;
-  locationId: string;
-  weekId: string;
-  employeeId: string;
-  weekOrderFactor: number;
-}
 
 export const shiftConverter = {
   toFirestore(object: PartialWithFieldValue<IShift>): DocumentData {
@@ -85,29 +38,6 @@ export const shiftConverter = {
     };
   },
 };
-
-export interface ISwapShiftsRequest {
-  from: {
-    shiftId: IShift;
-    employeeId: string;
-  };
-  to: {
-    shift: IShift;
-    employeeId: string;
-  };
-  recipientOk: boolean;
-  managerOk: boolean;
-}
-
-export class Shift {
-  static toDate(date: string): Dayjs {
-    return dayjs(date, SHIFTFORMAT);
-  }
-
-  static toString(date: Date): string {
-    return dayjs(date).format(SHIFTFORMAT);
-  }
-}
 
 export function generateOrderFactor(weekId: string) {
   const [week, year] = weekId.split("-").slice(1).map(Number);

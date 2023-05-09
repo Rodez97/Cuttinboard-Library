@@ -11,7 +11,11 @@ import dayjs from "dayjs";
 import isoWeek from "dayjs/plugin/isoWeek.js";
 import duration from "dayjs/plugin/duration.js";
 import { FIRESTORE } from "../utils/firebase";
-import { IPrimaryShiftData, IShift, shiftConverter } from "./Shift";
+import { shiftConverter } from "./Shift";
+import {
+  IPrimaryShiftData,
+  IShift,
+} from "@cuttinboard-solutions/types-helpers";
 dayjs.extend(isoWeek);
 dayjs.extend(duration);
 

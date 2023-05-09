@@ -14,10 +14,21 @@ import { Dictionary, uniq } from "lodash";
 import { useScheduleData } from "./useScheduleData";
 import {
   getEmployeeShifts,
-  getUpdatesCount,
+  getUpdatesCountArray,
   getWageData,
 } from "./scheduleSelectors";
-import { IEmployee, WEEKFORMAT } from "@cuttinboard-solutions/types-helpers";
+import {
+  IEmployee,
+  IPrimaryShiftData,
+  IScheduleDoc,
+  IShift,
+  Shift,
+  ShiftWage,
+  WageDataByDay,
+  WEEKFORMAT,
+  WeekSchedule,
+  WeekSummary,
+} from "@cuttinboard-solutions/types-helpers";
 import { useCuttinboard } from "../cuttinboard/useCuttinboard";
 import { useCuttinboardLocation } from "../cuttinboardLocation";
 import {
@@ -41,25 +52,19 @@ import {
   writeBatch,
 } from "firebase/firestore";
 import { createShiftElement } from "./helpers";
-import { WageDataByDay, WeekSchedule } from "./ShiftData";
 import {
   checkIfShiftsHaveChanges,
   generateOrderFactor,
   getShiftDayjsDate,
-  IPrimaryShiftData,
-  IShift,
-  Shift,
   shiftConverter,
-  ShiftWage,
 } from "./Shift";
-import { WeekSummary } from "./WeekSummary";
 import {
   getWeekDays,
   getWeekSummary,
   parseWeekId,
 } from "./scheduleMathHelpers";
 import { nanoid } from "nanoid";
-import { IScheduleDoc, scheduleConverter } from "./ScheduleDoc";
+import { scheduleConverter } from "./ScheduleHelpers";
 dayjs.extend(isoWeek);
 dayjs.extend(advancedFormat);
 dayjs.extend(customParseFormat);
@@ -135,7 +140,7 @@ export function ScheduleProvider({ children }: IScheduleProvider) {
   const [employeeShifts, updatesCount, wageData] = useMemo(
     () => [
       getEmployeeShifts(employees, shifts),
-      getUpdatesCount(employees, shifts),
+      getUpdatesCountArray(employees, shifts),
       getWageData(employees, shifts, scheduleSettings),
     ],
     [employees, shifts, scheduleSettings]

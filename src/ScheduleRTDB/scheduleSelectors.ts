@@ -1,13 +1,13 @@
 import {
   IEmployee,
+  IScheduleSettings,
+  IShift,
   RoleAccessLevels,
 } from "@cuttinboard-solutions/types-helpers";
-import { IShift } from "./Shift";
 import {
   getEmployeeShiftsWageData,
   getUpdatesCountFromArray,
 } from "./scheduleMathHelpers";
-import { IScheduleSettings } from "./ScheduleSettings";
 
 export const getEmployeeShifts = (employees: IEmployee[], shifts: IShift[]) =>
   employees
@@ -21,7 +21,10 @@ export const getEmployeeShifts = (employees: IEmployee[], shifts: IShift[]) =>
 export const getSingleEmpShifts = (employees: IEmployee[], shifts: IShift[]) =>
   shifts.filter((shift) => employees.some((e) => e.id === shift.employeeId));
 
-export const getUpdatesCount = (employees: IEmployee[], shifts: IShift[]) => {
+export const getUpdatesCountArray = (
+  employees: IEmployee[],
+  shifts: IShift[]
+) => {
   const singleEmpShifts = getSingleEmpShifts(employees, shifts);
   return getUpdatesCountFromArray(singleEmpShifts);
 };

@@ -1,15 +1,18 @@
 import dayjs from "dayjs";
-import { calculateWageData, IShift, WageDataRecord, WeekInfo } from "./Shift";
+import { calculateWageData } from "./Shift";
 import isoWeek from "dayjs/plugin/isoWeek.js";
-import { getScheduleTotalProjectedSales, IScheduleDoc } from "./ScheduleDoc";
+import { getScheduleTotalProjectedSales } from "./ScheduleHelpers";
 import { groupBy } from "lodash";
 import { setISOWeek, setYear } from "date-fns";
-import { IScheduleSettings } from "./ScheduleSettings";
+import { getEmployeeShiftsSummary, getWageOptions } from "./ShiftData";
 import {
-  getEmployeeShiftsSummary,
-  getWageOptions,
+  IScheduleDoc,
+  IScheduleSettings,
+  IShift,
   WageDataByDay,
-} from "./ShiftData";
+  WageDataRecord,
+  WeekInfo,
+} from "@cuttinboard-solutions/types-helpers";
 dayjs.extend(isoWeek);
 
 export function weekToDate(year: number, isoWeekNo: number): dayjs.Dayjs {

@@ -2,8 +2,9 @@ import dayjs from "dayjs";
 import { Timestamp } from "firebase/firestore";
 import isoWeek from "dayjs/plugin/isoWeek.js";
 import { AUTH } from "../utils/firebase";
-import { IShift, Shift, generateOrderFactor } from "./Shift";
+import { generateOrderFactor } from "./Shift";
 import { nanoid } from "nanoid";
+import { IShift, Shift } from "@cuttinboard-solutions/types-helpers";
 dayjs.extend(isoWeek);
 
 export function createShiftElement(
@@ -21,7 +22,7 @@ export function createShiftElement(
   const baseStart = Shift.toDate(start);
   const baseEnd = Shift.toDate(end);
   for (const isoWeekDay of applyToWeekDays) {
-    const shiftId = `${nanoid()}-${shift.id}`;
+    const shiftId = nanoid();
     const column = dates.find((c) => c.isoWeekday() === isoWeekDay);
 
     if (!column) {
@@ -45,14 +46,4 @@ export function createShiftElement(
     });
   }
   return newShifts;
-}
-
-export function copyPropertiesWithPrefix<T extends Record<string, unknown>>(
-  source: T,
-  destination: Record<string, unknown>,
-  prefix: string
-): void {
-  for (const key in source) {
-    destination[`${prefix}/${key}`] = source[key];
-  }
 }
