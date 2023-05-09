@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { equalTo, orderByChild, query, ref } from "firebase/database";
-import { listVal } from "rxfire/database";
-import { getShiftBaseData, IShift } from "@cuttinboard-solutions/types-helpers";
+import { IShift } from "@cuttinboard-solutions/types-helpers";
 import { groupBy, upperFirst } from "lodash";
 import { useCuttinboard } from "../cuttinboard/useCuttinboard";
-import { DATABASE } from "../utils/firebase";
+import { FIRESTORE } from "../utils/firebase";
 import { MyShiftsContextProps } from "./MyShiftsProvider";
 import { useNotifications } from "../notifications";
+import { collection, query, where } from "firebase/firestore";
+import { getShiftBaseData, shiftConverter } from "../ScheduleRTDB";
+import { collectionData } from "rxfire/firestore";
+import { defaultIfEmpty } from "rxjs";
 
 export function useMyShiftsData(
   weekId: string,
@@ -45,18 +47,24 @@ export function useMyShiftsData(
     setLoading(true);
 
     const shiftsRef = query(
-      ref(DATABASE, "shifts"),
-      orderByChild("employeeQuery"),
-      equalTo(`${weekId}-${user.uid}`)
+      collection(FIRESTORE, "shifts"),
+      where("weekId", "==", weekId),
+      where("employeeId", "==", user.uid)
+    ).withConverter(shiftConverter);
+
+    const shifts$ = collectionData(shiftsRef).pipe(
+      defaultIfEmpty(new Array<IShift>())
     );
 
-    const shifts$ = listVal<IShift>(shiftsRef);
-
     const shiftsSubscription = shifts$.subscribe({
-      next: handleShiftsChange,
+      next: (shifts: IShift[]) => {
+        setMyShifts(shifts);
+        setLoading(false);
+      },
       error: (error) => {
         setError(error);
         onError(error);
+        setLoading(false);
       },
     });
 

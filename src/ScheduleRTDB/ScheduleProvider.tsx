@@ -14,49 +14,57 @@ import { Dictionary, uniq } from "lodash";
 import { useScheduleData } from "./useScheduleData";
 import {
   getEmployeeShifts,
-  getUpdatesCount,
+  getUpdatesCountArray,
   getWageData,
 } from "./scheduleSelectors";
 import {
-  getWeekDays,
   IEmployee,
   IPrimaryShiftData,
+  IScheduleDoc,
   IShift,
+  Shift,
   ShiftWage,
   WageDataByDay,
   WEEKFORMAT,
-  WeekSummary,
   WeekSchedule,
-  getWeekSummary,
-  parseWeekId,
-  checkIfShiftsHaveChanges,
-  getShiftDayjsDate,
-  Shift,
-  IScheduleDoc,
+  WeekSummary,
 } from "@cuttinboard-solutions/types-helpers";
 import { useCuttinboard } from "../cuttinboard/useCuttinboard";
 import { useCuttinboardLocation } from "../cuttinboardLocation";
 import {
   batchPublish,
-  EmployeeShiftsDocumentUpdates,
   getCancelShiftUpdateData,
   getDeleteShiftData,
-  getEmployeeShiftsRefPath,
-  getNewShiftsData,
+  getNewShiftsDataBatch,
   getRestoreShiftData,
   getUpdateShiftData,
 } from "./EmployeeShifts";
+import { FIRESTORE } from "../utils";
 import {
-  equalTo,
-  get,
-  orderByChild,
+  collection,
+  doc,
+  getDocs,
+  PartialWithFieldValue,
   query,
-  ref,
-  update,
-} from "firebase/database";
-import { DATABASE } from "../utils";
-import { Timestamp } from "firebase/firestore";
-import { copyPropertiesWithPrefix, createShiftElement } from "./helpers";
+  setDoc,
+  Timestamp,
+  where,
+  writeBatch,
+} from "firebase/firestore";
+import { createShiftElement } from "./helpers";
+import {
+  checkIfShiftsHaveChanges,
+  generateOrderFactor,
+  getShiftDayjsDate,
+  shiftConverter,
+} from "./Shift";
+import {
+  getWeekDays,
+  getWeekSummary,
+  parseWeekId,
+} from "./scheduleMathHelpers";
+import { nanoid } from "nanoid";
+import { scheduleConverter } from "./ScheduleHelpers";
 dayjs.extend(isoWeek);
 dayjs.extend(advancedFormat);
 dayjs.extend(customParseFormat);
@@ -132,7 +140,7 @@ export function ScheduleProvider({ children }: IScheduleProvider) {
   const [employeeShifts, updatesCount, wageData] = useMemo(
     () => [
       getEmployeeShifts(employees, shifts),
-      getUpdatesCount(employees, shifts),
+      getUpdatesCountArray(employees, shifts),
       getWageData(employees, shifts, scheduleSettings),
     ],
     [employees, shifts, scheduleSettings]
@@ -144,15 +152,8 @@ export function ScheduleProvider({ children }: IScheduleProvider) {
 
   const updateShift = useCallback(
     async (shift: IShift, extra: Partial<IPrimaryShiftData>) => {
-      const updates = getUpdateShiftData(shift, extra);
-
-      if (!updates) {
-        console.log("No updates to make");
-        return;
-      }
-
       try {
-        await update(ref(DATABASE), updates);
+        await getUpdateShiftData(shift, extra);
       } catch (error) {
         onError(error);
       }
@@ -162,15 +163,8 @@ export function ScheduleProvider({ children }: IScheduleProvider) {
 
   const cancelShiftUpdate = useCallback(
     async (shift: IShift) => {
-      const updates = getCancelShiftUpdateData(shift);
-
-      if (!updates) {
-        console.log("No updates to make");
-        return;
-      }
-
       try {
-        await update(ref(DATABASE), updates);
+        await getCancelShiftUpdateData(shift);
       } catch (error) {
         onError(error);
       }
@@ -180,15 +174,8 @@ export function ScheduleProvider({ children }: IScheduleProvider) {
 
   const deleteShift = useCallback(
     async (shift: IShift) => {
-      const updates = getDeleteShiftData(shift);
-
-      if (!updates) {
-        console.log("No updates to make");
-        return;
-      }
-
       try {
-        await update(ref(DATABASE), updates);
+        await getDeleteShiftData(shift);
       } catch (error) {
         onError(error);
       }
@@ -198,15 +185,8 @@ export function ScheduleProvider({ children }: IScheduleProvider) {
 
   const restoreShift = useCallback(
     async (shift: IShift) => {
-      const updates = getRestoreShiftData(shift);
-
-      if (!updates) {
-        console.log("No updates to make");
-        return;
-      }
-
       try {
-        await update(ref(DATABASE), updates);
+        await getRestoreShiftData(shift);
       } catch (error) {
         onError(error);
       }
@@ -222,10 +202,10 @@ export function ScheduleProvider({ children }: IScheduleProvider) {
         applyToWeekDays
       );
 
-      const serverUpdates = getNewShiftsData(newShifts);
+      const updateBatch = getNewShiftsDataBatch(newShifts);
 
       try {
-        await update(ref(DATABASE), serverUpdates);
+        await updateBatch.commit();
       } catch (error) {
         onError(error);
       }
@@ -257,14 +237,14 @@ export function ScheduleProvider({ children }: IScheduleProvider) {
 
       // Get the shifts for the target week for the given employees
       const allQueries = query(
-        ref(DATABASE, `shifts/${targetWeekId}`),
-        orderByChild("locationId"),
-        equalTo(location.id)
-      );
+        collection(FIRESTORE, "shifts"),
+        where("weekId", "==", targetWeekId),
+        where("locationId", "==", location.id)
+      ).withConverter(shiftConverter);
 
-      const exeQueries = await get(allQueries);
+      const exeQueries = await getDocs(allQueries);
 
-      if (!exeQueries.exists() || !exeQueries.size) {
+      if (exeQueries.empty || exeQueries.size === 0) {
         console.info(
           "%c No shifts available to clone ",
           "font-size: 1.5rem; font-weight: 600; color: purple;"
@@ -272,10 +252,10 @@ export function ScheduleProvider({ children }: IScheduleProvider) {
         return;
       }
 
-      const shiftsArray: IShift[] = Object.values(exeQueries.val());
+      const shiftsArray: IShift[] = exeQueries.docs.map((doc) => doc.data());
 
       // Create a record of shifts to update
-      const serverUpdates: EmployeeShiftsDocumentUpdates["serverUpdates"] = {};
+      const updateBatch = writeBatch(FIRESTORE);
 
       const updatedAt = Timestamp.now().toMillis();
 
@@ -288,8 +268,10 @@ export function ScheduleProvider({ children }: IScheduleProvider) {
             !checkIfShiftsHaveChanges(shift) // Only clone if the shift doesn't have pending updates
         )
         .forEach((shift) => {
-          const employeeShiftsRefPath = getEmployeeShiftsRefPath(shift.id);
-
+          const newId = nanoid();
+          const shiftRef = doc(FIRESTORE, "shifts", newId).withConverter(
+            shiftConverter
+          );
           // Adjust the shift to the current week
           const newStart = getShiftDayjsDate(shift, "start").add(
             weeksDiff,
@@ -301,19 +283,19 @@ export function ScheduleProvider({ children }: IScheduleProvider) {
           );
           const newShift: IShift = {
             ...shift,
+            id: newId,
             start: Shift.toString(newStart.toDate()),
             end: Shift.toString(newEnd.toDate()),
             updatedAt,
             status: "draft",
             weekId,
-            locationQuery: `${weekId}_${location.id}`,
-            employeeQuery: `${weekId}_${shift.employeeId}`,
+            weekOrderFactor: generateOrderFactor(weekId),
           };
-          serverUpdates[`${employeeShiftsRefPath}`] = newShift;
+          updateBatch.set(shiftRef, newShift);
         });
 
       try {
-        await update(ref(DATABASE), serverUpdates);
+        await updateBatch.commit();
       } catch (error) {
         onError(error);
       }
@@ -324,22 +306,24 @@ export function ScheduleProvider({ children }: IScheduleProvider) {
   const updateProjectedSales = useCallback(
     async (projectedSalesByDay: Record<number, number>) => {
       try {
-        const serverUpdates: EmployeeShiftsDocumentUpdates["serverUpdates"] =
-          {};
+        const update: PartialWithFieldValue<IScheduleDoc> = {
+          projectedSalesByDay,
+        };
 
-        for (const key in projectedSalesByDay) {
-          const projectedSales = projectedSalesByDay[key];
-          serverUpdates[
-            `schedule/${location.id}/${weekId}/projectedSalesByDay/${key}`
-          ] = projectedSales;
-        }
-
-        await update(ref(DATABASE), serverUpdates);
+        await setDoc(
+          doc(FIRESTORE, "schedule", summaryDoc.id).withConverter(
+            scheduleConverter
+          ),
+          update,
+          {
+            merge: true,
+          }
+        );
       } catch (error) {
         onError(error);
       }
     },
-    [location.id, onError, weekId]
+    [onError, summaryDoc.id]
   );
 
   const publish = useCallback(
@@ -386,7 +370,7 @@ export function ScheduleProvider({ children }: IScheduleProvider) {
       }
 
       try {
-        const summaryObjectUpdate: Omit<IScheduleDoc, "createdAt"> = {
+        const summaryObjectUpdate: PartialWithFieldValue<IScheduleDoc> = {
           updatedAt: Timestamp.now().toMillis(),
           year: weekDays[0].year(),
           weekNumber: weekDays[0].isoWeek(),
@@ -397,27 +381,30 @@ export function ScheduleProvider({ children }: IScheduleProvider) {
           },
           locationId: location.id,
           weekId,
-          weekStart: weekDays[0].format("YYYY-MM-DD"),
-          weekEnd: weekDays[6].format("YYYY-MM-DD"),
         };
 
-        const batchUpdateObject: EmployeeShiftsDocumentUpdates["serverUpdates"] =
-          {
-            ...updates,
-          };
-
-        copyPropertiesWithPrefix(
-          summaryObjectUpdate,
-          batchUpdateObject,
-          `schedule/${location.id}/${weekId}`
+        updates.set(
+          doc(FIRESTORE, "schedule", summaryDoc.id).withConverter(
+            scheduleConverter
+          ),
+          summaryObjectUpdate
         );
 
-        await update(ref(DATABASE), batchUpdateObject);
+        await updates.commit();
       } catch (error) {
         onError(error);
       }
     },
-    [employees, location.id, onError, shifts, weekDays, weekId, weekSummary]
+    [
+      employees,
+      location.id,
+      onError,
+      shifts,
+      summaryDoc.id,
+      weekDays,
+      weekId,
+      weekSummary,
+    ]
   );
 
   return (

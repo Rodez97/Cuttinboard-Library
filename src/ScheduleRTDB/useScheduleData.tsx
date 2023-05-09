@@ -1,32 +1,18 @@
 import { useEffect, useReducer, useState } from "react";
-import {
-  createDefaultScheduleDoc,
-  IScheduleDoc,
-  IShift,
-} from "@cuttinboard-solutions/types-helpers";
-import { equalTo, orderByChild, query, ref } from "firebase/database";
-import {
-  ListenEvent,
-  QueryChange,
-  objectVal,
-  stateChanges,
-} from "rxfire/database";
 import { useCuttinboard } from "../cuttinboard/useCuttinboard";
 import { useCuttinboardLocation } from "../cuttinboardLocation/useCuttinboardLocation";
-import { DATABASE } from "../utils/firebase";
+import { FIRESTORE } from "../utils/firebase";
 import { listReducer } from "../utils";
 import { defaultIfEmpty, map, merge } from "rxjs";
-
-interface IShiftEvent {
-  _key: string;
-  event: ListenEvent;
-  shift: IShift;
-}
+import { collection, limit, query, where } from "firebase/firestore";
+import { shiftConverter } from "./Shift";
+import { createDefaultScheduleDoc, scheduleConverter } from "./ScheduleHelpers";
+import { collectionData } from "rxfire/firestore";
+import { IScheduleDoc, IShift } from "@cuttinboard-solutions/types-helpers";
 
 type BaseEvent =
-  | { type: "shifts"; event: IShiftEvent | null }
-  | { type: "schedule"; event: IScheduleDoc | null }
-  | null;
+  | { type: "shifts"; event: IShift[] }
+  | { type: "schedule"; event: IScheduleDoc };
 
 export function useScheduleData(weekId: string) {
   const { onError } = useCuttinboard();
@@ -42,86 +28,72 @@ export function useScheduleData(weekId: string) {
     setLoading(true);
 
     const shiftsRef = query(
-      ref(DATABASE, "shifts"),
-      orderByChild("locationQuery"),
-      equalTo(`${weekId}-${location.id}`)
-    );
+      collection(FIRESTORE, "shifts"),
+      where("weekId", "==", weekId),
+      where("locationId", "==", location.id)
+    ).withConverter(shiftConverter);
 
-    const scheduleRef = ref(DATABASE, `schedule/${location.id}/${weekId}`);
+    const scheduleRef = query(
+      collection(FIRESTORE, "schedule"),
+      where("weekId", "==", weekId),
+      where("locationId", "==", location.id),
+      limit(1)
+    ).withConverter(scheduleConverter);
 
-    const shifts$ = stateChanges(shiftsRef).pipe(
-      map<QueryChange, BaseEvent>((change) => {
-        if (!change.snapshot.exists() || !change.snapshot.key) {
-          return null;
+    const shifts$ = collectionData(shiftsRef).pipe(
+      defaultIfEmpty(new Array<IShift>()),
+      map<IShift[], BaseEvent>((change) => {
+        if (!change || change.length === 0) {
+          return {
+            type: "shifts",
+            event: [],
+          };
         }
-
         return {
           type: "shifts",
-          event: {
-            _key: change.snapshot.key,
-            event: change.event,
-            shift: change.snapshot.val(),
-          },
-        };
-      }),
-      defaultIfEmpty(null)
-    );
-
-    const processShifts = (shifts: IShiftEvent | null) => {
-      if (!shifts) {
-        return;
-      }
-
-      if (shifts.event === "child_added") {
-        dispatch({ type: "ADD_ELEMENT", payload: shifts.shift });
-      }
-      if (shifts.event === "child_changed") {
-        dispatch({ type: "SET_ELEMENT", payload: shifts.shift });
-      }
-      if (shifts.event === "child_removed") {
-        dispatch({ type: "DELETE_BY_ID", payload: shifts._key });
-      }
-    };
-
-    const schedule$ = objectVal<IScheduleDoc>(scheduleRef).pipe(
-      map<IScheduleDoc | null, BaseEvent>((schedule) => {
-        if (!schedule) {
-          return null;
-        }
-
-        return {
-          type: "schedule",
-          event: schedule,
+          event: change,
         };
       })
     );
 
-    const processSchedule = (schedule: IScheduleDoc | null) => {
-      if (!schedule) {
-        setSummary(createDefaultScheduleDoc(weekId, location.id));
-      } else {
-        setSummary(schedule);
-      }
+    const processShifts = (shifts: IShift[]) => {
+      dispatch({ type: "SET_ELEMENTS", payload: shifts });
+    };
+
+    const schedule$ = collectionData(scheduleRef).pipe(
+      defaultIfEmpty(new Array<IScheduleDoc>()),
+      map<IScheduleDoc[], BaseEvent>((schedule) => {
+        if (schedule.length === 0) {
+          return {
+            type: "schedule",
+            event: createDefaultScheduleDoc(weekId, location.id),
+          };
+        }
+
+        return {
+          type: "schedule",
+          event: schedule[0],
+        };
+      })
+    );
+
+    const processSchedule = (schedule: IScheduleDoc) => {
+      setSummary(schedule);
     };
 
     const scheduleSubscription = merge(schedule$, shifts$).subscribe({
       next: (data) => {
-        setLoading(false);
-        if (!data) {
-          return;
-        }
-
         const { type, event } = data;
 
         if (type === "shifts") {
           processShifts(event);
-          return;
         }
 
         if (type === "schedule") {
           processSchedule(event);
-          return;
         }
+
+        setLoading(false);
       },
       error: (error: Error) => {
         setLoading(false);
