@@ -73,16 +73,17 @@ export function GBoardProvider({
         user.uid,
         boardCollection,
         id
-      );
+      ).withConverter(boardConverter);
       const elementToAdd: IBoard = {
         ...newBoardData,
-        parentId: user.uid,
-        privacyLevel: PrivacyLevel.PUBLIC,
-        accessTags: ["pl_public"],
         global: true,
         id,
         refPath: firestoreRef.path,
         createdAt: Timestamp.now().toMillis(),
+        details: {
+          parentId: user.uid,
+          privacyLevel: PrivacyLevel.PUBLIC,
+        },
       };
 
       try {

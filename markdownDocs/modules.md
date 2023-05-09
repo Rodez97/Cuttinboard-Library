@@ -4,19 +4,6 @@
 
 ## Table of contents
 
-### Modules
-
-- [&lt;internal\&gt;](modules/internal_.md)
-- [&lt;internal\&gt;](modules/internal_-1.md)
-- [&lt;internal\&gt;](modules/internal_-2.md)
-- [&lt;internal\&gt;](modules/internal_-3.md)
-- [&lt;internal\&gt;](modules/internal_-4.md)
-- [&lt;internal\&gt;](modules/internal_-5.md)
-- [&lt;internal\&gt;](modules/internal_-6.md)
-- [&lt;internal\&gt;](modules/internal_-7.md)
-- [&lt;internal\&gt;](modules/internal_-8.md)
-- [&lt;internal\&gt;](modules/internal_-9.md)
-
 ### Interfaces
 
 - [DirectMessagesContext](interfaces/DirectMessagesContext.md)
@@ -160,7 +147,6 @@
 - [joinLocation](modules.md#joinlocation)
 - [leaveLocation](modules.md#leavelocation)
 - [listReducer](modules.md#listreducer)
-- [messageReducer](modules.md#messagereducer)
 - [minutesToTextDuration](modules.md#minutestotextduration)
 - [ownOpenShift](modules.md#ownopenshift)
 - [parseWeekId](modules.md#parseweekid)
@@ -205,7 +191,6 @@
 - [useLocationData](modules.md#uselocationdata)
 - [useLocationPermissions](modules.md#uselocationpermissions)
 - [useMessages](modules.md#usemessages)
-- [useMessagesData](modules.md#usemessagesdata)
 - [useMyShifts](modules.md#usemyshifts)
 - [useMyShiftsData](modules.md#usemyshiftsdata)
 - [useNotes](modules.md#usenotes)
@@ -496,7 +481,7 @@ ___
 
 ### RecurringTasksContext
 
-• `Const` **RecurringTasksContext**: `Context`<[`RecurringTasksContextProps`](interfaces/internal_-6.RecurringTasksContextProps.md)\>
+• `Const` **RecurringTasksContext**: `Context`<`RecurringTasksContextProps`\>
 
 #### Defined in
 
@@ -831,7 +816,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `«destructured»` | [`ChecklistProviderProps`](interfaces/internal_-1.ChecklistProviderProps.md) |
+| `«destructured»` | `ChecklistProviderProps` |
 
 #### Returns
 
@@ -855,7 +840,7 @@ and the `useLocation` hook to get information about the current location.
 
 | Name | Type |
 | :------ | :------ |
-| `«destructured»` | [`ConversationsProviderProps`](interfaces/internal_-2.ConversationsProviderProps.md) |
+| `«destructured»` | `ConversationsProviderProps` |
 
 #### Returns
 
@@ -895,7 +880,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `«destructured»` | [`DirectMessagesProviderProps`](interfaces/internal_-3.DirectMessagesProviderProps.md) |
+| `«destructured»` | `DirectMessagesProviderProps` |
 
 #### Returns
 
@@ -1045,7 +1030,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `«destructured»` | [`RecurringTasksProviderProps`](interfaces/internal_-6.RecurringTasksProviderProps.md) |
+| `«destructured»` | `RecurringTasksProviderProps` |
 
 #### Returns
 
@@ -1065,7 +1050,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `«destructured»` | [`IScheduleProvider`](interfaces/internal_-7.IScheduleProvider.md) |
+| `«destructured»` | `IScheduleProvider` |
 
 #### Returns
 
@@ -1085,7 +1070,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `«destructured»` | [`IUtensilsProvider`](interfaces/internal_-8.IUtensilsProvider.md) |
+| `«destructured»` | `IUtensilsProvider` |
 
 #### Returns
 
@@ -1110,6 +1095,17 @@ ___
 #### Returns
 
 `Object`
+
+| Name | Type |
+| :------ | :------ |
+| `createdAt?` | `number` \| `FieldValue` |
+| `description?` | `FieldValue` \| `PartialWithFieldValue`<`undefined` \| `string`\> |
+| `details?` | `FieldValue` \| `PartialWithFieldValue`<{ `admins?`: `string`[] ; `members?`: `string`[] ; `parentId`: `string` ; `position?`: `string` ; `privacyLevel`: `PrivacyLevel`  }\> |
+| `global?` | `FieldValue` \| `PartialWithFieldValue`<`undefined` \| `boolean`\> |
+| `id?` | `string` \| `FieldValue` |
+| `name?` | `string` \| `FieldValue` |
+| `refPath?` | `string` \| `FieldValue` |
+| `updatedAt?` | `FieldValue` \| `PartialWithFieldValue`<`undefined` \| `number`\> |
 
 #### Defined in
 
@@ -1590,7 +1586,7 @@ ___
 
 ### getAddMembersData
 
-▸ **getAddMembersData**(`board`, `addedEmployees`): `undefined` \| {}
+▸ **getAddMembersData**(`board`, `addedEmployees`): `undefined` \| { `createdAt?`: `number` \| `FieldValue` ; `description?`: `FieldValue` \| `PartialWithFieldValue`<`undefined` \| `string`\> ; `details?`: `FieldValue` \| `PartialWithFieldValue`<{ `admins?`: `string`[] ; `members?`: `string`[] ; `parentId`: `string` ; `position?`: `string` ; `privacyLevel`: `PrivacyLevel`  }\> ; `global?`: `FieldValue` \| `PartialWithFieldValue`<`undefined` \| `boolean`\> ; `id?`: `string` \| `FieldValue` ; `name?`: `string` \| `FieldValue` ; `refPath?`: `string` \| `FieldValue` ; `updatedAt?`: `FieldValue` \| `PartialWithFieldValue`<`undefined` \| `number`\>  }
 
 Add new members to the board.
 
@@ -1603,7 +1599,7 @@ Add new members to the board.
 
 #### Returns
 
-`undefined` \| {}
+`undefined` \| { `createdAt?`: `number` \| `FieldValue` ; `description?`: `FieldValue` \| `PartialWithFieldValue`<`undefined` \| `string`\> ; `details?`: `FieldValue` \| `PartialWithFieldValue`<{ `admins?`: `string`[] ; `members?`: `string`[] ; `parentId`: `string` ; `position?`: `string` ; `privacyLevel`: `PrivacyLevel`  }\> ; `global?`: `FieldValue` \| `PartialWithFieldValue`<`undefined` \| `boolean`\> ; `id?`: `string` \| `FieldValue` ; `name?`: `string` \| `FieldValue` ; `refPath?`: `string` \| `FieldValue` ; `updatedAt?`: `FieldValue` \| `PartialWithFieldValue`<`undefined` \| `number`\>  }
 
 #### Defined in
 
@@ -1890,7 +1886,7 @@ ___
 
 ### getRemoveMemberData
 
-▸ **getRemoveMemberData**(`board`, `memberId`): `undefined` \| {}
+▸ **getRemoveMemberData**(`board`, `memberId`): `undefined` \| { `createdAt?`: `number` \| `FieldValue` ; `description?`: `FieldValue` \| `PartialWithFieldValue`<`undefined` \| `string`\> ; `details?`: `FieldValue` \| `PartialWithFieldValue`<{ `admins?`: `string`[] ; `members?`: `string`[] ; `parentId`: `string` ; `position?`: `string` ; `privacyLevel`: `PrivacyLevel`  }\> ; `global?`: `FieldValue` \| `PartialWithFieldValue`<`undefined` \| `boolean`\> ; `id?`: `string` \| `FieldValue` ; `name?`: `string` \| `FieldValue` ; `refPath?`: `string` \| `FieldValue` ; `updatedAt?`: `FieldValue` \| `PartialWithFieldValue`<`undefined` \| `number`\>  }
 
 Remove a member from the board.
 
@@ -1903,7 +1899,7 @@ Remove a member from the board.
 
 #### Returns
 
-`undefined` \| {}
+`undefined` \| { `createdAt?`: `number` \| `FieldValue` ; `description?`: `FieldValue` \| `PartialWithFieldValue`<`undefined` \| `string`\> ; `details?`: `FieldValue` \| `PartialWithFieldValue`<{ `admins?`: `string`[] ; `members?`: `string`[] ; `parentId`: `string` ; `position?`: `string` ; `privacyLevel`: `PrivacyLevel`  }\> ; `global?`: `FieldValue` \| `PartialWithFieldValue`<`undefined` \| `boolean`\> ; `id?`: `string` \| `FieldValue` ; `name?`: `string` \| `FieldValue` ; `refPath?`: `string` \| `FieldValue` ; `updatedAt?`: `FieldValue` \| `PartialWithFieldValue`<`undefined` \| `number`\>  }
 
 #### Defined in
 
@@ -2522,27 +2518,6 @@ ___
 
 ___
 
-### messageReducer
-
-▸ **messageReducer**(`state?`, `action`): `IMessage`[]
-
-#### Parameters
-
-| Name | Type | Default value |
-| :------ | :------ | :------ |
-| `state` | `IMessage`[] | `[]` |
-| `action` | [`Action`](modules/internal_-5.md#action) | `undefined` |
-
-#### Returns
-
-`IMessage`[]
-
-#### Defined in
-
-[src/messages/messageReducer.ts:13](https://github.com/Cuttinboard-Solutions/Cuttinboard-Library/blob/97c340c/src/messages/messageReducer.ts#L13)
-
-___
-
 ### minutesToTextDuration
 
 ▸ **minutesToTextDuration**(`totalMinutes`): `string`
@@ -2578,11 +2553,23 @@ ___
 
 `Object`
 
-| Name | Type |
-| :------ | :------ |
-| `employeeId` | `string` |
-| `hourlyWage` | `number` |
-| `pendingUpdate` | ``null`` |
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `deleting?` | `boolean` | - |
+| `employeeId` | `string` | - |
+| `end` | `string` | The end time of the shift. |
+| `hourlyWage` | `number` | - |
+| `id` | `string` | - |
+| `locationId` | `string` | - |
+| `locationName` | `string` | - |
+| `notes?` | `string` | Additional notes about the shift. |
+| `pendingUpdate` | ``null`` | - |
+| `position?` | `string` | The position of the employee during the shift. |
+| `start` | `string` | The start time of the shift. |
+| `status` | ``"draft"`` \| ``"published"`` | - |
+| `updatedAt` | `number` | - |
+| `weekId` | `string` | - |
+| `weekOrderFactor` | `number` | - |
 
 #### Defined in
 
@@ -2625,6 +2612,17 @@ Remove a host from the board.
 #### Returns
 
 `Object`
+
+| Name | Type |
+| :------ | :------ |
+| `createdAt?` | `number` \| `FieldValue` |
+| `description?` | `FieldValue` \| `PartialWithFieldValue`<`undefined` \| `string`\> |
+| `details?` | `FieldValue` \| `PartialWithFieldValue`<{ `admins?`: `string`[] ; `members?`: `string`[] ; `parentId`: `string` ; `position?`: `string` ; `privacyLevel`: `PrivacyLevel`  }\> |
+| `global?` | `FieldValue` \| `PartialWithFieldValue`<`undefined` \| `boolean`\> |
+| `id?` | `string` \| `FieldValue` |
+| `name?` | `string` \| `FieldValue` |
+| `refPath?` | `string` \| `FieldValue` |
+| `updatedAt?` | `FieldValue` \| `PartialWithFieldValue`<`undefined` \| `number`\> |
 
 #### Defined in
 
@@ -2857,14 +2855,38 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `fromShift` | { `employeeId`: `string` = to.employee.id; `hourlyWage`: `number` = toHourlyWage; `pendingUpdate`: ``null`` = null } |
+| `fromShift` | { `deleting?`: `boolean` ; `employeeId`: `string` = to.employee.id; `end`: `string` ; `hourlyWage`: `number` = toHourlyWage; `id`: `string` ; `locationId`: `string` ; `locationName`: `string` ; `notes?`: `string` ; `pendingUpdate`: ``null`` = null; `position?`: `string` ; `start`: `string` ; `status`: ``"draft"`` \| ``"published"`` ; `updatedAt`: `number` ; `weekId`: `string` ; `weekOrderFactor`: `number`  } |
+| `fromShift.deleting?` | `boolean` |
 | `fromShift.employeeId` | `string` |
+| `fromShift.end` | `string` |
 | `fromShift.hourlyWage` | `number` |
+| `fromShift.id` | `string` |
+| `fromShift.locationId` | `string` |
+| `fromShift.locationName` | `string` |
+| `fromShift.notes?` | `string` |
 | `fromShift.pendingUpdate` | ``null`` |
-| `toShift` | { `employeeId`: `string` = from.employee.id; `hourlyWage`: `number` = fromHourlyWage; `pendingUpdate`: ``null`` = null } |
+| `fromShift.position?` | `string` |
+| `fromShift.start` | `string` |
+| `fromShift.status` | ``"draft"`` \| ``"published"`` |
+| `fromShift.updatedAt` | `number` |
+| `fromShift.weekId` | `string` |
+| `fromShift.weekOrderFactor` | `number` |
+| `toShift` | { `deleting?`: `boolean` ; `employeeId`: `string` = from.employee.id; `end`: `string` ; `hourlyWage`: `number` = fromHourlyWage; `id`: `string` ; `locationId`: `string` ; `locationName`: `string` ; `notes?`: `string` ; `pendingUpdate`: ``null`` = null; `position?`: `string` ; `start`: `string` ; `status`: ``"draft"`` \| ``"published"`` ; `updatedAt`: `number` ; `weekId`: `string` ; `weekOrderFactor`: `number`  } |
+| `toShift.deleting?` | `boolean` |
 | `toShift.employeeId` | `string` |
+| `toShift.end` | `string` |
 | `toShift.hourlyWage` | `number` |
+| `toShift.id` | `string` |
+| `toShift.locationId` | `string` |
+| `toShift.locationName` | `string` |
+| `toShift.notes?` | `string` |
 | `toShift.pendingUpdate` | ``null`` |
+| `toShift.position?` | `string` |
+| `toShift.start` | `string` |
+| `toShift.status` | ``"draft"`` \| ``"published"`` |
+| `toShift.updatedAt` | `number` |
+| `toShift.weekId` | `string` |
+| `toShift.weekOrderFactor` | `number` |
 
 #### Defined in
 
@@ -2907,7 +2929,7 @@ ___
 
 ### toggleMuteConversation
 
-▸ **toggleMuteConversation**(`conversation`): `undefined` \| {}
+▸ **toggleMuteConversation**(`conversation`): `undefined` \| { `createdAt?`: `number` \| `FieldValue` ; `description?`: `FieldValue` \| `PartialWithFieldValue`<`undefined` \| `string`\> ; `guests?`: `FieldValue` \| `PartialWithFieldValue`<`undefined` \| `string`[]\> ; `id?`: `string` \| `FieldValue` ; `locationId?`: `string` \| `FieldValue` ; `locationName?`: `string` \| `FieldValue` ; `members?`: `FieldValue` \| `PartialWithFieldValue`<`Record`<`string`, `boolean`\>\> ; `name?`: `string` \| `FieldValue` ; `organizationId?`: `string` \| `FieldValue` ; `position?`: `FieldValue` \| `PartialWithFieldValue`<`undefined` \| `string`\> ; `privacyLevel?`: `FieldValue` \| `PartialWithFieldValue`<`PrivacyLevel`\> ; `recentMessage?`: `FieldValue` \| `PartialWithFieldValue`<`undefined` \| `number`\> ; `updatedAt?`: `FieldValue` \| `PartialWithFieldValue`<`undefined` \| `number`\>  }
 
 #### Parameters
 
@@ -2917,7 +2939,7 @@ ___
 
 #### Returns
 
-`undefined` \| {}
+`undefined` \| { `createdAt?`: `number` \| `FieldValue` ; `description?`: `FieldValue` \| `PartialWithFieldValue`<`undefined` \| `string`\> ; `guests?`: `FieldValue` \| `PartialWithFieldValue`<`undefined` \| `string`[]\> ; `id?`: `string` \| `FieldValue` ; `locationId?`: `string` \| `FieldValue` ; `locationName?`: `string` \| `FieldValue` ; `members?`: `FieldValue` \| `PartialWithFieldValue`<`Record`<`string`, `boolean`\>\> ; `name?`: `string` \| `FieldValue` ; `organizationId?`: `string` \| `FieldValue` ; `position?`: `FieldValue` \| `PartialWithFieldValue`<`undefined` \| `string`\> ; `privacyLevel?`: `FieldValue` \| `PartialWithFieldValue`<`PrivacyLevel`\> ; `recentMessage?`: `FieldValue` \| `PartialWithFieldValue`<`undefined` \| `number`\> ; `updatedAt?`: `FieldValue` \| `PartialWithFieldValue`<`undefined` \| `number`\>  }
 
 #### Defined in
 
@@ -2927,7 +2949,7 @@ ___
 
 ### toggleMuteDM
 
-▸ **toggleMuteDM**(`dm`): `undefined` \| {}
+▸ **toggleMuteDM**(`dm`): `undefined` \| { `createdAt?`: `number` \| `FieldValue` ; `id?`: `string` \| `FieldValue` ; `members?`: `FieldValue` \| `PartialWithFieldValue`<`Record`<`string`, `Sender`\>\> ; `muted?`: `FieldValue` \| `PartialWithFieldValue`<`undefined` \| `string`[]\> ; `onlyOneMember?`: `FieldValue` \| `PartialWithFieldValue`<`undefined` \| `boolean`\> ; `recentMessage?`: `FieldValue` \| `PartialWithFieldValue`<`undefined` \| `number`\> ; `updatedAt?`: `FieldValue` \| `PartialWithFieldValue`<`undefined` \| `number`\>  }
 
 #### Parameters
 
@@ -2937,7 +2959,7 @@ ___
 
 #### Returns
 
-`undefined` \| {}
+`undefined` \| { `createdAt?`: `number` \| `FieldValue` ; `id?`: `string` \| `FieldValue` ; `members?`: `FieldValue` \| `PartialWithFieldValue`<`Record`<`string`, `Sender`\>\> ; `muted?`: `FieldValue` \| `PartialWithFieldValue`<`undefined` \| `string`[]\> ; `onlyOneMember?`: `FieldValue` \| `PartialWithFieldValue`<`undefined` \| `boolean`\> ; `recentMessage?`: `FieldValue` \| `PartialWithFieldValue`<`undefined` \| `number`\> ; `updatedAt?`: `FieldValue` \| `PartialWithFieldValue`<`undefined` \| `number`\>  }
 
 #### Defined in
 
@@ -3035,7 +3057,7 @@ ___
 
 ### useAddEmployee
 
-▸ **useAddEmployee**(): (`values`: `Omit`<[`EmployeeData`](modules/internal_-4.md#employeedata), ``"locationId"``\>) => `Promise`<`string`\>
+▸ **useAddEmployee**(): (`values`: `Omit`<`EmployeeData`, ``"locationId"``\>) => `Promise`<`string`\>
 
 Hook for creating employees using an HTTPS callable function
 
@@ -3049,7 +3071,7 @@ Hook for creating employees using an HTTPS callable function
 
 | Name | Type |
 | :------ | :------ |
-| `values` | `Omit`<[`EmployeeData`](modules/internal_-4.md#employeedata), ``"locationId"``\> |
+| `values` | `Omit`<`EmployeeData`, ``"locationId"``\> |
 
 ##### Returns
 
@@ -3130,11 +3152,11 @@ ___
 
 ### useChecklist
 
-▸ **useChecklist**(): [`ChecklistContextProps`](interfaces/internal_-1.ChecklistContextProps.md)
+▸ **useChecklist**(): `ChecklistContextProps`
 
 #### Returns
 
-[`ChecklistContextProps`](interfaces/internal_-1.ChecklistContextProps.md)
+`ChecklistContextProps`
 
 #### Defined in
 
@@ -3290,11 +3312,11 @@ ___
 
 ### useDeleteAccount
 
-▸ **useDeleteAccount**(): [`DeleteAccountHook`](interfaces/internal_.DeleteAccountHook.md)
+▸ **useDeleteAccount**(): `DeleteAccountHook`
 
 #### Returns
 
-[`DeleteAccountHook`](interfaces/internal_.DeleteAccountHook.md)
+`DeleteAccountHook`
 
 #### Defined in
 
@@ -3318,7 +3340,7 @@ ___
 
 ### useDisclose
 
-▸ **useDisclose**(`initialState?`): [`DiscloseHook`](modules/internal_-9.md#disclosehook)
+▸ **useDisclose**(`initialState?`): `DiscloseHook`
 
 Custom React hook for handling disclosure state.
 
@@ -3330,7 +3352,7 @@ Custom React hook for handling disclosure state.
 
 #### Returns
 
-[`DiscloseHook`](modules/internal_-9.md#disclosehook)
+`DiscloseHook`
 
 - Tuple containing the current state, open function, close function, and toggle function.
 
@@ -3559,36 +3581,6 @@ ___
 
 ___
 
-### useMessagesData
-
-▸ **useMessagesData**(`messagesPath`, `initialLoadSize`): `Object`
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `messagesPath` | `string` |
-| `initialLoadSize` | `number` |
-
-#### Returns
-
-`Object`
-
-| Name | Type |
-| :------ | :------ |
-| `dispatch` | `Dispatch`<[`Action`](modules/internal_-5.md#action)\> |
-| `error` | `undefined` \| `FirestoreError` |
-| `loading` | `boolean` |
-| `messages` | `IMessage`[] |
-| `noMoreMessages` | `boolean` |
-| `setNoMoreMessages` | `Dispatch`<`SetStateAction`<`boolean`\>\> |
-
-#### Defined in
-
-[src/messages/useMessagesData.tsx:15](https://github.com/Cuttinboard-Solutions/Cuttinboard-Library/blob/97c340c/src/messages/useMessagesData.tsx#L15)
-
-___
-
 ### useMyShifts
 
 ▸ **useMyShifts**(): [`MyShiftsContextProps`](interfaces/MyShiftsContextProps.md)
@@ -3693,11 +3685,11 @@ ___
 
 ### useRecurringTasks
 
-▸ **useRecurringTasks**(): [`RecurringTasksContextProps`](interfaces/internal_-6.RecurringTasksContextProps.md)
+▸ **useRecurringTasks**(): `RecurringTasksContextProps`
 
 #### Returns
 
-[`RecurringTasksContextProps`](interfaces/internal_-6.RecurringTasksContextProps.md)
+`RecurringTasksContextProps`
 
 #### Defined in
 
@@ -3792,11 +3784,11 @@ ___
 
 ### useUtensils
 
-▸ **useUtensils**(): [`UtensilsContextProps`](interfaces/internal_-8.UtensilsContextProps.md)
+▸ **useUtensils**(): `UtensilsContextProps`
 
 #### Returns
 
-[`UtensilsContextProps`](interfaces/internal_-8.UtensilsContextProps.md)
+`UtensilsContextProps`
 
 #### Defined in
 
