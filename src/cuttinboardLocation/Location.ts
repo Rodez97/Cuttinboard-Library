@@ -61,7 +61,7 @@ export function getEmployeesRef(location: ILocation) {
 export async function joinLocation(location: ILocation) {
   const JoinLocation = httpsCallable<string, void>(
     FUNCTIONS,
-    "http-employees-joinLocation"
+    "http-employees-joinlocation"
   );
 
   await JoinLocation(location.id);
