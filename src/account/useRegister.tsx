@@ -28,7 +28,7 @@ export const useRegister = (): {
         setIsSubmitting(true);
         const registerUserFunction = httpsCallable<RegisterProps, string>(
           FUNCTIONS,
-          "auth-registerUser"
+          "auth-registeruser"
         );
         await registerUserFunction(registerData);
 

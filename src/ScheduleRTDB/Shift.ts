@@ -291,8 +291,10 @@ export function calculateWageData(
     if (options) {
       const { mode, hoursLimit, multiplier } = options;
       // if there is options, calculate the overtime
-      const overtimeRateOfPay = getOvertimeRateOfPay(empShifts, multiplier);
+      let overtimeRateOfPay = 0;
+
       if (mode === "weekly") {
+        overtimeRateOfPay = getOvertimeRateOfPay(empShifts, multiplier);
         // if the mode is weekly, calculate the accumulated hours
         accumulatedHours = empShifts.reduce(
           (acc, s) =>
@@ -305,6 +307,13 @@ export function calculateWageData(
           0
         );
       } else {
+        const todayShifts = empShifts.filter((s) =>
+          getShiftDayjsDate(s, "start").isSame(
+            getShiftDayjsDate(shift, "start"),
+            "day"
+          )
+        );
+        overtimeRateOfPay = getOvertimeRateOfPay(todayShifts, multiplier);
         // if the mode is daily, calculate the accumulated hours
         accumulatedHours = empShifts.reduce(
           (acc, s) =>

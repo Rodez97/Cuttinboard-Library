@@ -4,7 +4,6 @@ import {
   QueryDocumentSnapshot,
   SnapshotOptions,
 } from "firebase/firestore";
-import { nanoid } from "nanoid";
 import { generateOrderFactor } from "./Shift";
 import { parseWeekId, weekToDate } from "./scheduleMathHelpers";
 import {
@@ -72,7 +71,7 @@ export function createDefaultScheduleDoc(
 ): IScheduleDoc {
   const { week, year } = parseWeekId(weekId);
   return {
-    id: nanoid(),
+    id: "",
     year,
     weekNumber: week,
     updatedAt: new Date().getTime(),

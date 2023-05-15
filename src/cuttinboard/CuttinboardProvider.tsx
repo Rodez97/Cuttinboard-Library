@@ -64,7 +64,7 @@ export const CuttinboardProvider = ({
           const selectOrganizationKey = httpsCallable<
             SelectKeyParams,
             SelectKeyResult | undefined
-          >(FUNCTIONS, "auth-selectKey");
+          >(FUNCTIONS, "auth-selectkey");
 
           const timestamp = new Date().getTime();
 

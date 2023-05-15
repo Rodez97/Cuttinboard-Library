@@ -44,7 +44,6 @@ import {
   collection,
   doc,
   getDocs,
-  PartialWithFieldValue,
   query,
   setDoc,
   Timestamp,
@@ -305,16 +304,36 @@ export function ScheduleProvider({ children }: IScheduleProvider) {
 
   const updateProjectedSales = useCallback(
     async (projectedSalesByDay: Record<number, number>) => {
+      const { week, year } = parseWeekId(weekId);
+      let updates: Partial<IScheduleDoc> & {
+        id: string;
+      };
       try {
-        const update: PartialWithFieldValue<IScheduleDoc> = {
-          projectedSalesByDay,
-        };
+        if (summaryDoc.id) {
+          updates = {
+            projectedSalesByDay,
+            updatedAt: Timestamp.now().toMillis(),
+            id: summaryDoc.id,
+          };
+        } else {
+          updates = {
+            projectedSalesByDay,
+            updatedAt: Timestamp.now().toMillis(),
+            createdAt: Timestamp.now().toMillis(),
+            id: nanoid(),
+            weekId,
+            locationId: location.id,
+            year,
+            weekNumber: week,
+            weekOrderFactor: generateOrderFactor(weekId),
+          };
+        }
 
         await setDoc(
-          doc(FIRESTORE, "schedule", summaryDoc.id).withConverter(
+          doc(FIRESTORE, "schedule", updates.id).withConverter(
             scheduleConverter
           ),
-          update,
+          updates,
           {
             merge: true,
           }
@@ -323,7 +342,7 @@ export function ScheduleProvider({ children }: IScheduleProvider) {
         onError(error);
       }
     },
-    [onError, summaryDoc.id]
+    [location.id, onError, summaryDoc.id, weekId]
   );
 
   const publish = useCallback(
@@ -369,25 +388,47 @@ export function ScheduleProvider({ children }: IScheduleProvider) {
         return;
       }
 
+      let summaryObjectUpdates: Partial<IScheduleDoc> & {
+        id: string;
+      };
+
       try {
-        const summaryObjectUpdate: PartialWithFieldValue<IScheduleDoc> = {
-          updatedAt: Timestamp.now().toMillis(),
-          year: weekDays[0].year(),
-          weekNumber: weekDays[0].isoWeek(),
-          scheduleSummary: weekSummary,
-          publishData: {
-            publishedAt: Timestamp.now().toMillis(),
-            notificationRecipients: uniq(notiRecipients),
-          },
-          locationId: location.id,
-          weekId,
-        };
+        if (summaryDoc.id) {
+          summaryObjectUpdates = {
+            id: summaryDoc.id,
+            updatedAt: Timestamp.now().toMillis(),
+            scheduleSummary: weekSummary,
+            publishData: {
+              publishedAt: Timestamp.now().toMillis(),
+              notificationRecipients: uniq(notiRecipients),
+            },
+          };
+        } else {
+          summaryObjectUpdates = {
+            id: nanoid(),
+            createdAt: Timestamp.now().toMillis(),
+            updatedAt: Timestamp.now().toMillis(),
+            scheduleSummary: weekSummary,
+            publishData: {
+              publishedAt: Timestamp.now().toMillis(),
+              notificationRecipients: uniq(notiRecipients),
+            },
+            weekId,
+            locationId: location.id,
+            year: weekDays[0].year(),
+            weekNumber: weekDays[0].isoWeek(),
+            weekOrderFactor: generateOrderFactor(weekId),
+          };
+        }
 
         updates.set(
-          doc(FIRESTORE, "schedule", summaryDoc.id).withConverter(
+          doc(FIRESTORE, "schedule", summaryObjectUpdates.id).withConverter(
             scheduleConverter
           ),
-          summaryObjectUpdate
+          summaryObjectUpdates,
+          {
+            merge: true,
+          }
         );
 
         await updates.commit();
