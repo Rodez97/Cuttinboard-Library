@@ -1,19 +1,15 @@
 import { useCallback } from "react";
-import { employeeConverter } from "../employee";
 import {
   collection,
-  collectionGroup,
-  getCountFromServer,
+  doc,
+  getDoc,
   getDocs,
-  or,
   query,
   where,
 } from "firebase/firestore";
 import { FIRESTORE } from "../utils";
 import { useCuttinboard } from "../cuttinboard";
-import { chunk } from "lodash";
 import { IEmployee } from "@cuttinboard-solutions/types-helpers";
-import { locationConverter } from "../cuttinboardLocation";
 import { cuttinboardUserConverter } from "../account";
 
 /**
@@ -44,9 +40,29 @@ export function useFindDMRecipient(employees?: IEmployee[]) {
         }
       }
 
+      // Get current user's document
+      const myDocument = doc(FIRESTORE, "Users", user.uid).withConverter(
+        cuttinboardUserConverter
+      );
+
+      const myDocumentSnapshot = await getDoc(myDocument);
+
+      if (!myDocumentSnapshot.exists()) {
+        throw new Error("You are not a user in our database.");
+      }
+
+      const myData = myDocumentSnapshot.data();
+
+      const { organizations } = myData;
+
+      if (!organizations) {
+        throw new Error("You are not an employee of any organization.");
+      }
+
       const recipientDocRef = query(
         collection(FIRESTORE, "Users"),
-        where("email", "==", email)
+        where("email", "==", email),
+        where("organizations", "array-contains-any", organizations)
       ).withConverter(cuttinboardUserConverter);
       const getRecipientDocument = await getDocs(recipientDocRef);
 
@@ -56,71 +72,10 @@ export function useFindDMRecipient(employees?: IEmployee[]) {
         );
       }
 
-      const recipient = getRecipientDocument.docs[0].data();
+      const recipientData = getRecipientDocument.docs[0].data();
 
-      // Get all the Locations of the current user
-      const myEmployeeLocationsQuery = query(
-        collection(FIRESTORE, "Locations"),
-        or(
-          where("organizationId", "==", user.uid),
-          where("members", "array-contains", user.uid)
-        )
-      ).withConverter(locationConverter);
-
-      const myResolvedEmployeeLocations = await getDocs(
-        myEmployeeLocationsQuery
-      );
-
-      if (myResolvedEmployeeLocations.size > 0) {
-        const isCoworker = myResolvedEmployeeLocations.docs.some((doc) => {
-          const locationData = doc.data();
-          return (
-            locationData.members?.includes(recipient.id) ||
-            locationData.supervisors?.includes(recipient.id) ||
-            locationData.organizationId === recipient.id
-          );
-        });
-
-        if (isCoworker) {
-          return recipient;
-        }
-      }
-
-      const myEmployeeProfilesQuery = query(
-        collectionGroup(FIRESTORE, "employees"),
-        where("id", "==", user.uid)
-      ).withConverter(employeeConverter);
-
-      const myResolvedEmployeeProfiles = await getDocs(myEmployeeProfilesQuery);
-
-      if (myResolvedEmployeeProfiles.size === 0) {
-        throw new Error("You are not an employee of any organization.");
-      }
-
-      // Get unique organization ids
-      const organizationsIds = myResolvedEmployeeProfiles.docs.map(
-        (doc) => doc.data().organizationId
-      );
-
-      const chunksQueries = chunk(organizationsIds, 10).map(async (chunk) => {
-        const q = query(
-          collectionGroup(FIRESTORE, "employees"),
-          where("id", "==", recipient.id),
-          where("organizationId", "in", chunk)
-        ).withConverter(employeeConverter);
-        const result = await getCountFromServer(q);
-        return result.data().count;
-      });
-
-      const resolvedQueries = await Promise.all(chunksQueries);
-
-      const flattenedCount = resolvedQueries.reduce(
-        (accCount, count) => accCount + count,
-        0
-      );
-
-      if (flattenedCount > 0) {
-        return recipient;
+      if (recipientData) {
+        return recipientData;
       }
 
       throw new Error("There is no eligible user associated with this email.");
