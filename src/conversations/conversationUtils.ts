@@ -27,7 +27,7 @@ export function checkConversationMuted(conversation: IConversation): boolean {
   if (!AUTH.currentUser || !conversation.members) {
     return false;
   }
-  return conversation.members[AUTH.currentUser.uid];
+  return Boolean(conversation.members[AUTH.currentUser.uid]?.muted);
 }
 
 /**
@@ -48,11 +48,15 @@ export function toggleMuteConversation(conversation: IConversation) {
   const firestoreUpdates: PartialWithFieldValue<IConversation> = {};
   if (checkConversationMuted(conversation)) {
     firestoreUpdates.members = {
-      [userId]: false,
+      [userId]: {
+        muted: false,
+      },
     };
   } else {
     firestoreUpdates.members = {
-      [userId]: true,
+      [userId]: {
+        muted: true,
+      },
     };
   }
 
@@ -73,4 +77,11 @@ export function removeConversationMembers(membersToRemove: IEmployee[]) {
   });
 
   return firestoreUpdates;
+}
+
+export function getConversationMember(
+  memberId: string,
+  conversation: IConversation
+): IConversation["members"][string] | undefined {
+  return conversation.members[memberId];
 }

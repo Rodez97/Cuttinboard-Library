@@ -19,6 +19,7 @@ import {
 } from "./conversationUtils";
 import {
   checkEmployeePositions,
+  getEmployeeFullName,
   IConversation,
   IEmployee,
   ILocation,
@@ -175,8 +176,17 @@ export function ConversationsProvider({
       };
 
       if (newConvData.privacyLevel === PrivacyLevel.PUBLIC) {
-        newConversationToAdd.members = employees.reduce(
-          (acc, employee) => ({ ...acc, [employee.id]: false }),
+        newConversationToAdd.members = employees.reduce<
+          IConversation["members"]
+        >(
+          (acc, employee) => ({
+            ...acc,
+            [employee.id]: {
+              name: getEmployeeFullName(employee),
+              avatar: employee.avatar,
+              muted: false,
+            },
+          }),
           {}
         );
       }
@@ -190,7 +200,17 @@ export function ConversationsProvider({
         } else {
           newConversationToAdd.members = employees
             .filter((employee) => checkEmployeePositions(employee, [position]))
-            .reduce((acc, employee) => ({ ...acc, [employee.id]: false }), {});
+            .reduce<IConversation["members"]>(
+              (acc, employee) => ({
+                ...acc,
+                [employee.id]: {
+                  name: getEmployeeFullName(employee),
+                  avatar: employee.avatar,
+                  muted: false,
+                },
+              }),
+              {}
+            );
         }
       }
 
@@ -198,8 +218,17 @@ export function ConversationsProvider({
         newConvData.privacyLevel === PrivacyLevel.PRIVATE &&
         privateInitialMembers
       ) {
-        newConversationToAdd.members = privateInitialMembers?.reduce(
-          (acc, employee) => ({ ...acc, [employee.id]: false }),
+        newConversationToAdd.members = privateInitialMembers?.reduce<
+          IConversation["members"]
+        >(
+          (acc, employee) => ({
+            ...acc,
+            [employee.id]: {
+              name: getEmployeeFullName(employee),
+              avatar: employee.avatar,
+              muted: false,
+            },
+          }),
           {}
         );
       }
@@ -265,17 +294,19 @@ export function ConversationsProvider({
         }
       }
 
-      const membersIds = newMembers.map((member) => member.id);
-
       const firestoreUpdates: PartialWithFieldValue<IConversation> = {
         members: {},
         guests: guestsList,
       };
 
-      membersIds.forEach((id) => {
+      newMembers.forEach((member) => {
         firestoreUpdates.members = {
           ...firestoreUpdates.members,
-          [id]: false,
+          [member.id]: {
+            name: getEmployeeFullName(member),
+            avatar: member.avatar,
+            muted: false,
+          },
         };
       });
 

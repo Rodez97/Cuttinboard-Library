@@ -32,7 +32,7 @@ export function useConversationsData(locationId?: string | undefined) {
           )
         : query(
             collection(FIRESTORE, "conversations"),
-            where(`members.${user.uid}`, "in", [true, false])
+            where(`members.${user.uid}.muted`, "in", [true, false])
           );
 
     const unsubscribe = onSnapshot(
