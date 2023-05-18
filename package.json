@@ -1,6 +1,6 @@
 {
   "name": "@cuttinboard-solutions/cuttinboard-library",
-  "version": "8.6.0",
+  "version": "8.6.1",
   "description": "Shared Code Library for Cuttinboard App",
   "source": "src/index.ts",
   "main": "dist/index.js",
