@@ -1,4 +1,7 @@
-import { IUtensil, UtensilChange } from "@cuttinboard-solutions/types-helpers";
+import type {
+  IUtensil,
+  UtensilChange,
+} from "@cuttinboard-solutions/types-helpers";
 import {
   DocumentData,
   QueryDocumentSnapshot,
@@ -7,8 +10,8 @@ import {
   PartialWithFieldValue,
   arrayUnion,
 } from "firebase/firestore";
-import { set } from "lodash";
 import { AUTH } from "../utils/firebase";
+import { set } from "lodash-es";
 
 /* This code exports an object called `utensilConverter` that contains two functions: `toFirestore` and
 `fromFirestore`. These functions are used to convert data between the format used by Firestore and

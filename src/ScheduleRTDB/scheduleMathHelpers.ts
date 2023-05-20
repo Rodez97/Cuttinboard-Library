@@ -1,11 +1,8 @@
 import dayjs from "dayjs";
 import { calculateWageData } from "./Shift";
 import isoWeek from "dayjs/plugin/isoWeek.js";
-import { getScheduleTotalProjectedSales } from "./ScheduleHelpers";
-import { groupBy } from "lodash";
-import { setISOWeek, setYear } from "date-fns";
 import { getEmployeeShiftsSummary, getWageOptions } from "./ShiftData";
-import {
+import type {
   IScheduleDoc,
   IScheduleSettings,
   IShift,
@@ -13,6 +10,8 @@ import {
   WageDataRecord,
   WeekInfo,
 } from "@cuttinboard-solutions/types-helpers";
+import { groupBy } from "lodash-es";
+import { setISOWeek, setYear } from "date-fns";
 dayjs.extend(isoWeek);
 
 export function weekToDate(year: number, isoWeekNo: number): dayjs.Dayjs {
@@ -29,6 +28,12 @@ export function weekToDate(year: number, isoWeekNo: number): dayjs.Dayjs {
   const fixedWeek = setISOWeek(fixedYear, isoWeekNo);
 
   return dayjs(fixedWeek).startOf("isoWeek");
+}
+
+export function getScheduleTotalProjectedSales(sd: IScheduleDoc): number {
+  return sd.projectedSalesByDay
+    ? Object.values(sd.projectedSalesByDay).reduce((acc, curr) => acc + curr, 0)
+    : 0;
 }
 
 export function parseWeekId(weekId: string): WeekInfo {

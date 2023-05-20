@@ -16,7 +16,7 @@ import {
   setDoc,
 } from "firebase/firestore";
 import { FIRESTORE, ListReducerAction } from "../utils";
-import { merge, set } from "lodash";
+import { merge, set } from "lodash-es";
 
 export interface ILocationContextProps {
   positions: string[];

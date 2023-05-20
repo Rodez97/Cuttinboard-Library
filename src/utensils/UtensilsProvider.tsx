@@ -18,12 +18,12 @@ import {
   setDoc,
   Timestamp,
 } from "firebase/firestore";
-import { IUtensil } from "@cuttinboard-solutions/types-helpers";
-import { orderBy } from "lodash";
+import type { IUtensil } from "@cuttinboard-solutions/types-helpers";
 import { useCuttinboardLocation } from "../cuttinboardLocation/useCuttinboardLocation";
 import { useCuttinboard } from "../cuttinboard/useCuttinboard";
 import { FIRESTORE } from "../utils/firebase";
 import { listReducer } from "../utils/listReducer";
+import { orderBy } from "lodash-es";
 
 interface UtensilsContextProps {
   utensils: IUtensil[];

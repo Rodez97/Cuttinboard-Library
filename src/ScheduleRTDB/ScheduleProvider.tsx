@@ -10,7 +10,7 @@ import isoWeek from "dayjs/plugin/isoWeek.js";
 import advancedFormat from "dayjs/plugin/advancedFormat.js";
 import customParseFormat from "dayjs/plugin/customParseFormat.js";
 import duration from "dayjs/plugin/duration.js";
-import { Dictionary, uniq } from "lodash";
+import { uniq } from "lodash-es";
 import { useScheduleData } from "./useScheduleData";
 import {
   getEmployeeShifts,
@@ -23,8 +23,7 @@ import {
   IScheduleDoc,
   IShift,
   Shift,
-  ShiftWage,
-  WageDataByDay,
+  WageDataRecord,
   WEEKFORMAT,
   WeekSchedule,
   WeekSummary,
@@ -90,16 +89,7 @@ export interface IScheduleContext {
     applyToWeekDays: number[]
   ) => Promise<void>;
   cloneWeek: (targetWeekId: string, employees: string[]) => Promise<void>;
-  wageData: Dictionary<{
-    summary: WageDataByDay;
-    shifts: Map<
-      string,
-      {
-        wageData: ShiftWage;
-        isoWeekDay: number;
-      }
-    >;
-  }>;
+  wageData: Record<string, WageDataRecord>;
   updateShift: (
     shift: IShift,
     extra: Partial<IPrimaryShiftData>

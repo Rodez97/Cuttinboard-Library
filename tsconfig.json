@@ -3,7 +3,7 @@
     "outDir": "dist",
     "moduleResolution": "node",
     "noImplicitAny": true,
-    "module": "CommonJS",
+    "module": "ESNext",
     "target": "ES2020",
     "jsx": "react",
     "lib": ["ES2020", "dom"],
@@ -11,9 +11,10 @@
     "allowJs": true,
     "baseUrl": "src",
     "resolveJsonModule": true,
-    "strictNullChecks": true
+    "strictNullChecks": true,
+    "declaration": true
   },
-  "exclude": ["dist", "docs", "htw", "test", "__tests__"],
+  "include": ["src"],
   "typedocOptions": {
     "entryPoints": ["src"],
     "out": "docs",

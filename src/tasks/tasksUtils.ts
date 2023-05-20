@@ -4,7 +4,7 @@ import {
   ITask,
 } from "@cuttinboard-solutions/types-helpers";
 import { deleteField, Timestamp } from "firebase/firestore";
-import { set } from "lodash";
+import { set } from "lodash-es";
 
 export function updateTask(checklistId: string, taskKey: string, name: string) {
   const serverUpdates = {

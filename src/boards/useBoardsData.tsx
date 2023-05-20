@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useReducer, useState } from "react";
-import { useCuttinboard } from "../cuttinboard";
 import { listReducer } from "../utils/listReducer";
 import {
   BoardCollection,
@@ -16,8 +15,9 @@ import {
   query,
   where,
 } from "firebase/firestore";
-import { FIRESTORE } from "../utils";
 import { boardConverter } from "./boardHelpers";
+import { useCuttinboard } from "../cuttinboard";
+import { FIRESTORE } from "../utils";
 
 export function useBoardsData(boardCollection: BoardCollection) {
   const { onError, user, organizationKey } = useCuttinboard();

@@ -1,49 +1,17 @@
-import {
-  getShiftBaseWage,
-  getShiftDayjsDate,
-  getShiftDuration,
-  getShiftLatestData,
-} from "./Shift";
-import { isEmpty } from "lodash";
+import { getShiftDayjsDate, getShiftLatestData } from "./Shift";
 import dayjs from "dayjs";
 import isoWeek from "dayjs/plugin/isoWeek.js";
 import duration from "dayjs/plugin/duration.js";
-import { areIntervalsOverlapping } from "date-fns";
-import {
+import type {
   IScheduleSettings,
   IShift,
   WageDataByDay,
   WageOptions,
 } from "@cuttinboard-solutions/types-helpers";
+import { isEmpty } from "lodash-es";
+import { areIntervalsOverlapping } from "date-fns";
 dayjs.extend(isoWeek);
 dayjs.extend(duration);
-
-/**
- * Calculate the overtime rate of pay
- * @param multiplier Multiplier for the wage
- */
-export function getOvertimeRateOfPay(
-  shiftsArray: IShift[],
-  multiplier: number
-) {
-  // Check if there are any shifts
-  if (!shiftsArray.length) {
-    return 0;
-  }
-  // Get total hours from shifts array
-  const totalHours = shiftsArray.reduce(
-    (acc, shift) => acc + getShiftDuration(shift).totalHours,
-    0
-  );
-  // Get total wage from shifts array
-  const totalWage = shiftsArray.reduce(
-    (acc, shift) => acc + getShiftBaseWage(shift),
-    0
-  );
-  // Calculate the regular rate of pay
-  const regularRateOfPay = totalWage / totalHours;
-  return regularRateOfPay * (multiplier - 1);
-}
 
 /**
  * Check is the employee's schedule have any changes or is unpublished

@@ -1,10 +1,10 @@
-import {
+import type {
   ContactUpdate,
   ProfileUpdate,
 } from "@cuttinboard-solutions/types-helpers";
 import { updateProfile } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
-import { isEmpty } from "lodash";
+import { isEmpty } from "lodash-es";
 import { useState } from "react";
 import { AUTH, FIRESTORE } from "../utils/firebase";
 

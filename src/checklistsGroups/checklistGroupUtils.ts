@@ -10,8 +10,8 @@ import {
   deleteField,
   Timestamp,
 } from "firebase/firestore";
-import { isEmpty, set } from "lodash";
 import { AUTH } from "../utils/firebase";
+import { isEmpty, set } from "lodash-es";
 
 /* `checklistGroupConverter` is an object that contains two methods: `toFirestore` and `fromFirestore`.
 These methods are used to convert `IChecklistGroup` objects to and from Firestore documents. The

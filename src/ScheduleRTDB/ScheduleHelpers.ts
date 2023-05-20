@@ -6,7 +6,7 @@ import {
 } from "firebase/firestore";
 import { generateOrderFactor } from "./Shift";
 import { parseWeekId, weekToDate } from "./scheduleMathHelpers";
-import {
+import type {
   IScheduleDoc,
   WageDataByDay,
 } from "@cuttinboard-solutions/types-helpers";
@@ -31,12 +31,6 @@ export const scheduleConverter = {
 export function getScheduleWeekStart(year: number, weekNumber: number): Date {
   const firstDayWeek = weekToDate(year, weekNumber);
   return firstDayWeek.toDate();
-}
-
-export function getScheduleTotalProjectedSales(sd: IScheduleDoc): number {
-  return sd.projectedSalesByDay
-    ? Object.values(sd.projectedSalesByDay).reduce((acc, curr) => acc + curr, 0)
-    : 0;
 }
 
 export function getScheduleSummaryByDay(

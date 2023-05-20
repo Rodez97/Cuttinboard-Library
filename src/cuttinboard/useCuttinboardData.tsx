@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { User } from "firebase/auth";
-import {
+import type { User } from "firebase/auth";
+import type {
   INotifications,
   IOrganizationKey,
 } from "@cuttinboard-solutions/types-helpers";
@@ -9,7 +9,7 @@ import { ref } from "firebase/database";
 import { QueryChange, object } from "rxfire/database";
 import { user as listenUser } from "rxfire/auth";
 import { map, merge, of, switchMap } from "rxjs";
-import { isEqual } from "lodash";
+import { isEqual } from "lodash-es";
 
 type DataEvent =
   | (

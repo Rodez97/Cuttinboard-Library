@@ -13,7 +13,8 @@
     "src/**/*.test.ts",
     "dist/*",
     "node_modules/*",
-    "test/*"
+    "test/*",
+    "rollup.config.js"
   ],
   "rules": {
     //"@typescript-eslint/no-explicit-any": "off",

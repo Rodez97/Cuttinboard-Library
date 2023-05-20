@@ -1,9 +1,8 @@
 import { useCallback } from "react";
-import { groupBy, orderBy } from "lodash";
 import { matchSorter } from "match-sorter";
+import { getEmployeeFullName } from "@cuttinboard-solutions/types-helpers";
 import {
   EmployeeLocationInfo,
-  getEmployeeFullName,
   IEmployee,
   RoleAccessLevels,
 } from "@cuttinboard-solutions/types-helpers";
@@ -12,6 +11,7 @@ import { useCuttinboard } from "../cuttinboard";
 import { deleteField, doc, setDoc } from "firebase/firestore";
 import { FIRESTORE } from "../utils";
 import { employeesDocumentConverter } from "./Employee";
+import { groupBy, orderBy } from "lodash-es";
 
 export function useEmployees() {
   const { onError } = useCuttinboard();

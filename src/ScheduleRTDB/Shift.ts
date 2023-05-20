@@ -2,14 +2,12 @@ import dayjs, { Dayjs } from "dayjs";
 import isoWeek from "dayjs/plugin/isoWeek.js";
 import advancedFormat from "dayjs/plugin/advancedFormat.js";
 import customParseFormat from "dayjs/plugin/customParseFormat.js";
-import { isEmpty } from "lodash";
 import {
   DocumentData,
   PartialWithFieldValue,
   QueryDocumentSnapshot,
   SnapshotOptions,
 } from "firebase/firestore";
-import { getOvertimeRateOfPay } from "./ShiftData";
 import {
   IEmployee,
   IPrimaryShiftData,
@@ -18,6 +16,7 @@ import {
   WageDataRecord,
   WageOptions,
 } from "@cuttinboard-solutions/types-helpers";
+import { isEmpty } from "lodash-es";
 dayjs.extend(isoWeek);
 dayjs.extend(advancedFormat);
 dayjs.extend(customParseFormat);
@@ -38,6 +37,33 @@ export const shiftConverter = {
     };
   },
 };
+
+/**
+ * Calculate the overtime rate of pay
+ * @param multiplier Multiplier for the wage
+ */
+export function getOvertimeRateOfPay(
+  shiftsArray: IShift[],
+  multiplier: number
+) {
+  // Check if there are any shifts
+  if (!shiftsArray.length) {
+    return 0;
+  }
+  // Get total hours from shifts array
+  const totalHours = shiftsArray.reduce(
+    (acc, shift) => acc + getShiftDuration(shift).totalHours,
+    0
+  );
+  // Get total wage from shifts array
+  const totalWage = shiftsArray.reduce(
+    (acc, shift) => acc + getShiftBaseWage(shift),
+    0
+  );
+  // Calculate the regular rate of pay
+  const regularRateOfPay = totalWage / totalHours;
+  return regularRateOfPay * (multiplier - 1);
+}
 
 export function generateOrderFactor(weekId: string) {
   const [week, year] = weekId.split("-").slice(1).map(Number);
