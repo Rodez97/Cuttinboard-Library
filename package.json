@@ -1,6 +1,6 @@
 {
   "name": "@cuttinboard-solutions/cuttinboard-library",
-  "version": "8.7.8",
+  "version": "9.1.1",
   "description": "Shared Code Library for Cuttinboard App",
   "main": "dist/compiled/index.js",
   "types": "dist/compiled/index.d.ts",
@@ -40,7 +40,6 @@
   },
   "homepage": "hhttps://github.com/Cuttinboard-Solutions/Cuttinboard-Library",
   "peerDependencies": {
-    "@cuttinboard-solutions/types-helpers": ">=1.9.2",
     "date-fns": ">=2.29.3",
     "dayjs": ">=1.11.6",
     "dayjs-recur": ">=1.0.1",
@@ -51,7 +50,8 @@
     "react": ">=18.0.0",
     "react-dom": ">=18.0.0",
     "rxfire": ">=6.0.3",
-    "rxjs": ">=7.8.0"
+    "rxjs": ">=7.8.0",
+    "@cuttinboard-solutions/types-helpers": ">=2.1.0"
   },
   "publishConfig": {
     "registry": "https://npm.pkg.github.com/"

@@ -1,12 +1,11 @@
-import { getShiftDayjsDate, getShiftLatestData } from "./Shift";
 import dayjs from "dayjs";
 import isoWeek from "dayjs/plugin/isoWeek.js";
 import duration from "dayjs/plugin/duration.js";
-import type {
-  IScheduleSettings,
+import {
   IShift,
   WageDataByDay,
-  WageOptions,
+  getShiftDayjsDate,
+  getShiftLatestData,
 } from "@cuttinboard-solutions/types-helpers";
 import { isEmpty } from "lodash-es";
 import { areIntervalsOverlapping } from "date-fns";
@@ -146,30 +145,4 @@ export function getEmployeeShiftsSummary(
   });
 
   return result;
-}
-
-export function getWageOptions(
-  shiftSettings: IScheduleSettings | undefined
-): WageOptions | undefined {
-  if (!shiftSettings) {
-    return;
-  }
-
-  const { ot_week, ot_day } = shiftSettings;
-
-  if (ot_week?.enabled) {
-    return {
-      mode: "weekly",
-      hoursLimit: ot_week.hours,
-      multiplier: ot_week.multiplier,
-    };
-  }
-
-  if (ot_day?.enabled) {
-    return {
-      mode: "daily",
-      hoursLimit: ot_day.hours,
-      multiplier: ot_day.multiplier,
-    };
-  }
 }

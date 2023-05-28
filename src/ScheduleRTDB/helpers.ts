@@ -2,9 +2,12 @@ import dayjs from "dayjs";
 import { Timestamp } from "firebase/firestore";
 import isoWeek from "dayjs/plugin/isoWeek.js";
 import { AUTH } from "../utils/firebase";
-import { generateOrderFactor } from "./Shift";
 import { nanoid } from "nanoid";
-import { IShift, Shift } from "@cuttinboard-solutions/types-helpers";
+import {
+  IShift,
+  Shift,
+  generateOrderFactor,
+} from "@cuttinboard-solutions/types-helpers";
 dayjs.extend(isoWeek);
 
 export function createShiftElement(

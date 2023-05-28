@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { IShift } from "@cuttinboard-solutions/types-helpers";
+import { IShift, getShiftBaseData } from "@cuttinboard-solutions/types-helpers";
 import { useCuttinboard } from "../cuttinboard/useCuttinboard";
 import { FIRESTORE } from "../utils/firebase";
 import type { MyShiftsContextProps } from "./MyShiftsProvider";
 import { useNotifications } from "../notifications";
 import { collection, query, where } from "firebase/firestore";
-import { getShiftBaseData, shiftConverter } from "../ScheduleRTDB";
+import { shiftConverter } from "../ScheduleRTDB";
 import { collectionData } from "rxfire/firestore";
 import { defaultIfEmpty } from "rxjs";
 import { groupBy, upperFirst } from "lodash-es";

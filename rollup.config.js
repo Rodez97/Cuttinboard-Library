@@ -41,7 +41,7 @@ const config = [
       globals: {
         react: "React",
         "react-dom": "ReactDOM",
-        lodash: "lodash",
+        "lodash-es": "lodash-es",
         "date-fns": "dateFns",
         dayjs: "dayjs",
         firebase: "firebase",
