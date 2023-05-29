@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useCuttinboard } from "../cuttinboard/useCuttinboard";
 import { useCuttinboardLocation } from "../cuttinboardLocation/useCuttinboardLocation";
 import { FIRESTORE } from "../utils/firebase";
@@ -45,16 +45,19 @@ export function useScheduleData(weekId: string) {
     createDefaultScheduleDoc(weekId, location.id)
   );
 
-  const processShifts = (shifts: IShift[]) => {
-    setShifts(shifts);
-    setEmployeeShifts(getEmployeeShifts(employees, shifts));
-    setLoading(false);
-  };
+  const processShifts = useCallback(
+    (shifts: IShift[]) => {
+      setShifts(shifts);
+      setEmployeeShifts(getEmployeeShifts(employees, shifts));
+      setLoading(false);
+    },
+    [employees]
+  );
 
-  const processSchedule = (schedule: IScheduleDoc) => {
+  const processSchedule = useCallback((schedule: IScheduleDoc) => {
     setSummary(schedule);
     setLoadingDoc(false);
-  };
+  }, []);
 
   useEffect(() => {
     setLoading(true);
@@ -128,8 +131,7 @@ export function useScheduleData(weekId: string) {
       scheduleSubscription.unsubscribe();
       setShifts(null);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.id, onError, weekId]);
+  }, [location.id, onError, processSchedule, processShifts, weekId]);
 
   return useMemo(
     () => ({
