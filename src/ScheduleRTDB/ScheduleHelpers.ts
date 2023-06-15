@@ -4,11 +4,11 @@ import {
   QueryDocumentSnapshot,
   SnapshotOptions,
 } from "firebase/firestore";
-import { generateOrderFactor } from "./Shift";
 import { parseWeekId, weekToDate } from "./scheduleMathHelpers";
-import type {
+import {
   IScheduleDoc,
   WageDataByDay,
+  generateOrderFactor,
 } from "@cuttinboard-solutions/types-helpers";
 
 export const scheduleConverter = {

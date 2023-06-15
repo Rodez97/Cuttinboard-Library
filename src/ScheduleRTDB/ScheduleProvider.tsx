@@ -11,22 +11,18 @@ import advancedFormat from "dayjs/plugin/advancedFormat.js";
 import customParseFormat from "dayjs/plugin/customParseFormat.js";
 import duration from "dayjs/plugin/duration.js";
 import { uniq } from "lodash-es";
-import { useScheduleData } from "./useScheduleData";
+import { EmployeeShifts, useScheduleData } from "./useScheduleData";
 import {
-  getEmployeeShifts,
-  getUpdatesCountArray,
-  getWageData,
-} from "./scheduleSelectors";
-import {
-  IEmployee,
+  checkIfShiftsHaveChanges,
+  generateOrderFactor,
+  getShiftDayjsDate,
+  getTotalWageData,
   IPrimaryShiftData,
   IScheduleDoc,
   IShift,
   Shift,
-  WageDataRecord,
   WEEKFORMAT,
   WeekSchedule,
-  WeekSummary,
 } from "@cuttinboard-solutions/types-helpers";
 import { useCuttinboard } from "../cuttinboard/useCuttinboard";
 import { useCuttinboardLocation } from "../cuttinboardLocation";
@@ -50,12 +46,7 @@ import {
   writeBatch,
 } from "firebase/firestore";
 import { createShiftElement } from "./helpers";
-import {
-  checkIfShiftsHaveChanges,
-  generateOrderFactor,
-  getShiftDayjsDate,
-  shiftConverter,
-} from "./Shift";
+import { shiftConverter } from "./Shift";
 import {
   getWeekDays,
   getWeekSummary,
@@ -73,23 +64,17 @@ export interface IScheduleContext {
   setWeekId: React.Dispatch<React.SetStateAction<string>>;
   summaryDoc?: WeekSchedule["summary"];
   shifts: IShift[];
-  employeeShifts: { employee: IEmployee; shifts: IShift[]; key: string }[];
+  employeeShifts: EmployeeShifts[];
   weekDays: dayjs.Dayjs[];
-  weekSummary: WeekSummary;
   publish: (
     notificationRecipients: "all" | "all_scheduled" | "changed" | "none"
   ) => Promise<void>;
-  searchQuery: string;
-  setSearchQuery: React.Dispatch<React.SetStateAction<string>>;
-  position: string;
-  setPosition: React.Dispatch<React.SetStateAction<string>>;
   createShift: (
     shift: IShift,
     dates: dayjs.Dayjs[],
     applyToWeekDays: number[]
   ) => Promise<void>;
   cloneWeek: (targetWeekId: string, employees: string[]) => Promise<void>;
-  wageData: Record<string, WageDataRecord>;
   updateShift: (
     shift: IShift,
     extra: Partial<IPrimaryShiftData>
@@ -102,12 +87,6 @@ export interface IScheduleContext {
   ) => Promise<void>;
   loading: boolean;
   error?: Error | undefined;
-  updatesCount: {
-    newOrDraft: number;
-    deleted: number;
-    pendingUpdates: number;
-    total: number;
-  };
 }
 
 interface IScheduleProvider {
@@ -122,22 +101,9 @@ export function ScheduleProvider({ children }: IScheduleProvider) {
   const { onError } = useCuttinboard();
   const { location, scheduleSettings, employees } = useCuttinboardLocation();
   const [weekId, setWeekId] = useState(dayjs().format(WEEKFORMAT));
-  const [searchQuery, setSearchQuery] = useState("");
-  const [position, setPosition] = useState<string>("");
   const weekDays = useMemo(() => getWeekDays(weekId), [weekId]);
-  const { shifts, summaryDoc, loading, error } = useScheduleData(weekId);
-  const [employeeShifts, updatesCount, wageData] = useMemo(
-    () => [
-      getEmployeeShifts(employees, shifts),
-      getUpdatesCountArray(employees, shifts),
-      getWageData(employees, shifts, scheduleSettings),
-    ],
-    [employees, shifts, scheduleSettings]
-  );
-  const weekSummary = useMemo(
-    () => getWeekSummary(wageData, summaryDoc),
-    [summaryDoc, wageData]
-  );
+  const { shifts, summaryDoc, loading, error, employeeShifts } =
+    useScheduleData(weekId);
 
   const updateShift = useCallback(
     async (shift: IShift, extra: Partial<IPrimaryShiftData>) => {
@@ -378,9 +344,14 @@ export function ScheduleProvider({ children }: IScheduleProvider) {
         return;
       }
 
+      const { batchUpdates, finalShifts } = updates;
+
       let summaryObjectUpdates: Partial<IScheduleDoc> & {
         id: string;
       };
+
+      const wageData = getTotalWageData(finalShifts, scheduleSettings);
+      const weekSummary = getWeekSummary(wageData, summaryDoc);
 
       try {
         if (summaryDoc.id) {
@@ -411,7 +382,7 @@ export function ScheduleProvider({ children }: IScheduleProvider) {
           };
         }
 
-        updates.set(
+        batchUpdates.set(
           doc(FIRESTORE, "schedule", summaryObjectUpdates.id).withConverter(
             scheduleConverter
           ),
@@ -421,7 +392,7 @@ export function ScheduleProvider({ children }: IScheduleProvider) {
           }
         );
 
-        await updates.commit();
+        await batchUpdates.commit();
       } catch (error) {
         onError(error);
       }
@@ -430,11 +401,11 @@ export function ScheduleProvider({ children }: IScheduleProvider) {
       employees,
       location.id,
       onError,
+      scheduleSettings,
       shifts,
-      summaryDoc.id,
+      summaryDoc,
       weekDays,
       weekId,
-      weekSummary,
     ]
   );
 
@@ -444,18 +415,11 @@ export function ScheduleProvider({ children }: IScheduleProvider) {
         weekId,
         setWeekId,
         weekDays,
-        weekSummary,
         publish,
-        searchQuery,
-        setSearchQuery,
-        position,
-        setPosition,
         createShift,
-        updatesCount,
         cloneWeek,
         employeeShifts,
         summaryDoc,
-        wageData,
         deleteShift,
         updateShift,
         restoreShift,

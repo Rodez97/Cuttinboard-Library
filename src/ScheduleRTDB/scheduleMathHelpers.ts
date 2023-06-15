@@ -1,16 +1,16 @@
 import dayjs from "dayjs";
-import { calculateWageData } from "./Shift";
 import isoWeek from "dayjs/plugin/isoWeek.js";
-import { getEmployeeShiftsSummary, getWageOptions } from "./ShiftData";
-import type {
+import { getEmployeeShiftsSummary } from "./ShiftData";
+import {
   IScheduleDoc,
   IScheduleSettings,
   IShift,
   WageDataByDay,
   WageDataRecord,
   WeekInfo,
+  calculateWageData,
+  getWageOptions,
 } from "@cuttinboard-solutions/types-helpers";
-import { groupBy } from "lodash-es";
 import { setISOWeek, setYear } from "date-fns";
 dayjs.extend(isoWeek);
 
@@ -133,25 +133,19 @@ export const getUpdatesCountFromArray = (employeeShifts: IShift[]) => {
   };
 };
 
-export const getEmployeeShiftsWageData = (
-  employeeShifts: IShift[] | undefined,
+export const getEmployeeWageData = (
+  employeeId: string,
+  shifts: IShift[] | undefined,
   scheduleSettings?: IScheduleSettings
-): Record<string, WageDataRecord> => {
-  if (!employeeShifts || !employeeShifts.length) {
-    return {};
+): WageDataRecord | null => {
+  if (!shifts || !shifts.length) {
+    return null;
   }
-  const wageOptions = getWageOptions(scheduleSettings);
-  const groupedByEmployee = groupBy(employeeShifts, "employeeId");
-  const mapEmployeeShifts = Object.entries(groupedByEmployee).reduce(
-    (acc, [employeeId, shifts]) => {
-      return {
-        ...acc,
-        [employeeId]: calculateWageData(shifts, wageOptions),
-      };
-    },
-    {} as Record<string, WageDataRecord>
+  const employeeShifts = shifts.filter(
+    (shift) => shift.employeeId === employeeId
   );
-  return mapEmployeeShifts;
+  const wageOptions = getWageOptions(scheduleSettings);
+  return calculateWageData(employeeShifts, wageOptions);
 };
 
 export const getWeekSummary = (

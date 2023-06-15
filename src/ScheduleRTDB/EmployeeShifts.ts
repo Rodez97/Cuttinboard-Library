@@ -26,6 +26,8 @@ export function batchPublish(employeeShifts: IShift[] | undefined) {
 
   const batchUpdates = writeBatch(FIRESTORE);
 
+  const finalShifts: IShift[] = [];
+
   const updatedAt = Timestamp.now().toMillis();
 
   employeeShifts.forEach((shift) => {
@@ -42,17 +44,25 @@ export function batchPublish(employeeShifts: IShift[] | undefined) {
     ) {
       const { pendingUpdate, ...restShift } = shift;
 
-      batchUpdates.update(shiftRef, {
+      const updatedShift: IShift = {
         ...restShift,
         updatedAt,
         status: "published",
         ...pendingUpdate,
+      };
+
+      batchUpdates.update(shiftRef, {
+        ...updatedShift,
         pendingUpdate: deleteField(),
       });
+
+      finalShifts.push(updatedShift);
+    } else if (shift.status === "published" && !shift.pendingUpdate) {
+      finalShifts.push(shift);
     }
   });
 
-  return batchUpdates;
+  return { batchUpdates, finalShifts };
 }
 
 export function getUpdateShiftData(
