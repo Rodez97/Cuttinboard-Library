@@ -17,6 +17,7 @@ export * from "./notifications/index";
 export * from "./recurringTasks/index";
 export * from "./ScheduleRTDB/index";
 export * from "./tasks/index";
+export * from "./tiersManager/index";
 export * from "./utensils/index";
 export * from "./utils/index";
 // @endindex
