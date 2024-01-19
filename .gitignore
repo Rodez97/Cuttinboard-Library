@@ -6,3 +6,5 @@ __tests__/
 .parcel-cache/data.mdb
 .VSCodeCounter/
 .npmrc
+package-lock.json
+

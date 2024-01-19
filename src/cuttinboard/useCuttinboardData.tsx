@@ -30,8 +30,8 @@ export function useCuttinboardData() {
         setUser(null);
       } else {
         const tokenResult = await value.getIdTokenResult();
-        const newOrgKey: IOrganizationKey | undefined =
-          tokenResult?.claims?.organizationKey;
+        const newOrgKey: IOrganizationKey | undefined = tokenResult?.claims
+          ?.organizationKey as IOrganizationKey | undefined;
         if (!isEqual(newOrgKey, organizationKey)) {
           setOrganizationKey(newOrgKey);
         }
