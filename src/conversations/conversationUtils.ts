@@ -1,4 +1,4 @@
-import { IConversation, IEmployee } from "@cuttinboard-solutions/types-helpers";
+import { IConversation, IEmployee } from "@rodez97/types-helpers";
 import {
   deleteField,
   DocumentData,

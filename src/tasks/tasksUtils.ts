@@ -1,8 +1,4 @@
-import {
-  getTasksArray,
-  IChecklistGroup,
-  ITask,
-} from "@cuttinboard-solutions/types-helpers";
+import { getTasksArray, IChecklistGroup, ITask } from "@rodez97/types-helpers";
 import { deleteField, Timestamp } from "firebase/firestore";
 import { set } from "lodash-es";
 

@@ -1,10 +1,7 @@
 import React, { ReactNode, useCallback } from "react";
 import { useChatPaths } from "./useChatPaths";
 import { SubmitMessageParams, messagesConverter } from "./types";
-import {
-  IMessage,
-  MessageProviderMessagingType,
-} from "@cuttinboard-solutions/types-helpers";
+import { IMessage, MessageProviderMessagingType } from "@rodez97/types-helpers";
 import { useCuttinboard } from "../cuttinboard/useCuttinboard";
 import { FIRESTORE } from "../utils/firebase";
 import { useMessagesData } from "./useMessagesData";

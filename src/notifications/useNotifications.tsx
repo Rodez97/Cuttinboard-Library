@@ -4,7 +4,7 @@ import {
   getConversationBadges,
   getDMBadge,
   getScheduleBadges,
-} from "@cuttinboard-solutions/types-helpers";
+} from "@rodez97/types-helpers";
 import { useCuttinboard } from "../cuttinboard/useCuttinboard";
 import { useCallback, useMemo } from "react";
 import { ref, remove } from "firebase/database";

@@ -10,7 +10,7 @@ import {
   IRecurringTask,
   IRecurringTaskDoc,
   recurringTaskIsCompleted,
-} from "@cuttinboard-solutions/types-helpers";
+} from "@rodez97/types-helpers";
 dayjs.extend(utc);
 
 /* `recurringTaskDocConverter` is an object that contains two methods: `toFirestore` and

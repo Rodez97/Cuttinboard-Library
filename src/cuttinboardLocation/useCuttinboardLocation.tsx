@@ -1,6 +1,6 @@
 import { useContext } from "react";
 import { ILocationContextProps, LocationContext } from "./LocationProvider";
-import { ILocation } from "@cuttinboard-solutions/types-helpers";
+import { ILocation } from "@rodez97/types-helpers";
 
 export const useCuttinboardLocation = (): ILocationContextProps & {
   location: ILocation;

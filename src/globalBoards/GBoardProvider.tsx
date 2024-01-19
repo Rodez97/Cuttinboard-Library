@@ -1,8 +1,4 @@
-import {
-  BoardCollection,
-  IBoard,
-  PrivacyLevel,
-} from "@cuttinboard-solutions/types-helpers";
+import { BoardCollection, IBoard, PrivacyLevel } from "@rodez97/types-helpers";
 import { boardConverter } from "../boards/boardHelpers";
 import { useCuttinboard } from "../cuttinboard/useCuttinboard";
 import { deleteDoc, doc, setDoc, Timestamp } from "firebase/firestore";

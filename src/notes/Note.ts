@@ -1,4 +1,4 @@
-import { INote } from "@cuttinboard-solutions/types-helpers";
+import { INote } from "@rodez97/types-helpers";
 import {
   DocumentData,
   QueryDocumentSnapshot,

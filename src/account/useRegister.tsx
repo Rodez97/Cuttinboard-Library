@@ -1,4 +1,4 @@
-import { RegisterProps } from "@cuttinboard-solutions/types-helpers";
+import { RegisterProps } from "@rodez97/types-helpers";
 import {
   AuthError,
   sendEmailVerification,

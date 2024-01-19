@@ -1,7 +1,4 @@
-import type {
-  IUtensil,
-  UtensilChange,
-} from "@cuttinboard-solutions/types-helpers";
+import type { IUtensil, UtensilChange } from "@rodez97/types-helpers";
 import {
   DocumentData,
   QueryDocumentSnapshot,

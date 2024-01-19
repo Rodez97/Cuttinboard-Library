@@ -1,10 +1,7 @@
 import { useEffect, useReducer, useState } from "react";
 import { useCuttinboard } from "../cuttinboard";
 import { listReducer } from "../utils/listReducer";
-import {
-  IConversation,
-  RoleAccessLevels,
-} from "@cuttinboard-solutions/types-helpers";
+import { IConversation, RoleAccessLevels } from "@rodez97/types-helpers";
 import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { FIRESTORE } from "../utils";
 import { conversationsConverter } from "./conversationUtils";

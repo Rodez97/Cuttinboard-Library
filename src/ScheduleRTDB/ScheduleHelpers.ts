@@ -9,7 +9,7 @@ import {
   IScheduleDoc,
   WageDataByDay,
   generateOrderFactor,
-} from "@cuttinboard-solutions/types-helpers";
+} from "@rodez97/types-helpers";
 
 export const scheduleConverter = {
   toFirestore(object: PartialWithFieldValue<IScheduleDoc>): DocumentData {

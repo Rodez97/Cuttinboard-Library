@@ -2,7 +2,7 @@ import {
   getChecklistsArray,
   IChecklist,
   IChecklistGroup,
-} from "@cuttinboard-solutions/types-helpers";
+} from "@rodez97/types-helpers";
 import {
   DocumentData,
   QueryDocumentSnapshot,

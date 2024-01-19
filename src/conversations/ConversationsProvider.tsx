@@ -25,7 +25,7 @@ import {
   ILocation,
   PrivacyLevel,
   RoleAccessLevels,
-} from "@cuttinboard-solutions/types-helpers";
+} from "@rodez97/types-helpers";
 import { useCuttinboard } from "../cuttinboard/useCuttinboard";
 import { FIRESTORE } from "../utils/firebase";
 import { useConversationsData } from "./useConversationsData";

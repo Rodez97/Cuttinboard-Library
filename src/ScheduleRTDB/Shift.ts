@@ -4,7 +4,7 @@ import {
   QueryDocumentSnapshot,
   SnapshotOptions,
 } from "firebase/firestore";
-import { IShift } from "@cuttinboard-solutions/types-helpers";
+import { IShift } from "@rodez97/types-helpers";
 
 export const shiftConverter = {
   toFirestore(object: PartialWithFieldValue<IShift>): DocumentData {

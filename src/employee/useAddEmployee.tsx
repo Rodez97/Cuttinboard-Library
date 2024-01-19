@@ -6,7 +6,7 @@ import {
   getLocationUsage,
   ManagerPermissions,
   RoleAccessLevels,
-} from "@cuttinboard-solutions/types-helpers";
+} from "@rodez97/types-helpers";
 import { useCuttinboardLocation } from "../cuttinboardLocation";
 
 /**

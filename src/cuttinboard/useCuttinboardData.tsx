@@ -1,9 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { User } from "firebase/auth";
-import type {
-  INotifications,
-  IOrganizationKey,
-} from "@cuttinboard-solutions/types-helpers";
+import type { INotifications, IOrganizationKey } from "@rodez97/types-helpers";
 import { AUTH, DATABASE } from "../utils/firebase";
 import { ref } from "firebase/database";
 import { QueryChange, object } from "rxfire/database";

@@ -1,4 +1,4 @@
-import { IBoard, INote } from "@cuttinboard-solutions/types-helpers";
+import { IBoard, INote } from "@rodez97/types-helpers";
 import { useCuttinboard } from "../cuttinboard/useCuttinboard";
 import { collection, onSnapshot } from "firebase/firestore";
 import { useEffect, useReducer, useState } from "react";

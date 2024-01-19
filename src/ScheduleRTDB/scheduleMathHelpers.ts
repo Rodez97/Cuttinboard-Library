@@ -10,7 +10,7 @@ import {
   WeekInfo,
   calculateWageData,
   getWageOptions,
-} from "@cuttinboard-solutions/types-helpers";
+} from "@rodez97/types-helpers";
 import { setISOWeek, setYear } from "date-fns";
 dayjs.extend(isoWeek);
 

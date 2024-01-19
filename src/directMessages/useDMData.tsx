@@ -1,4 +1,4 @@
-import { IDirectMessage } from "@cuttinboard-solutions/types-helpers";
+import { IDirectMessage } from "@rodez97/types-helpers";
 import { useEffect, useReducer, useState } from "react";
 import { useCuttinboard } from "../cuttinboard";
 import { collection, onSnapshot, query, where } from "firebase/firestore";

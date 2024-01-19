@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { IShift, getShiftBaseData } from "@cuttinboard-solutions/types-helpers";
+import { IShift, getShiftBaseData } from "@rodez97/types-helpers";
 import { useCuttinboard } from "../cuttinboard/useCuttinboard";
 import { FIRESTORE } from "../utils/firebase";
 import type { MyShiftsContextProps } from "./MyShiftsProvider";

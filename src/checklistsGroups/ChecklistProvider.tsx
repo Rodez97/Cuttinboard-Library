@@ -2,7 +2,7 @@ import {
   IChecklist,
   IChecklistGroup,
   getChecklistsArray,
-} from "@cuttinboard-solutions/types-helpers";
+} from "@rodez97/types-helpers";
 import {
   FirestoreError,
   Timestamp,

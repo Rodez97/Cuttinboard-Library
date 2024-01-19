@@ -23,7 +23,7 @@ import {
   Shift,
   WEEKFORMAT,
   WeekSchedule,
-} from "@cuttinboard-solutions/types-helpers";
+} from "@rodez97/types-helpers";
 import { useCuttinboard } from "../cuttinboard/useCuttinboard";
 import { useCuttinboardLocation } from "../cuttinboardLocation";
 import {

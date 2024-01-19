@@ -6,7 +6,7 @@ import {
   WageDataByDay,
   getShiftDayjsDate,
   getShiftLatestData,
-} from "@cuttinboard-solutions/types-helpers";
+} from "@rodez97/types-helpers";
 import { isEmpty } from "lodash-es";
 import { areIntervalsOverlapping } from "date-fns";
 dayjs.extend(isoWeek);

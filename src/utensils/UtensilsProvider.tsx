@@ -18,7 +18,7 @@ import {
   setDoc,
   Timestamp,
 } from "firebase/firestore";
-import type { IUtensil } from "@cuttinboard-solutions/types-helpers";
+import type { IUtensil } from "@rodez97/types-helpers";
 import { useCuttinboardLocation } from "../cuttinboardLocation/useCuttinboardLocation";
 import { useCuttinboard } from "../cuttinboard/useCuttinboard";
 import { FIRESTORE } from "../utils/firebase";

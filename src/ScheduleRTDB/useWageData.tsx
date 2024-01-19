@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useSchedule } from "./useSchedule";
 import { useCuttinboardLocation } from "../cuttinboardLocation";
-import { getTotalWageData } from "@cuttinboard-solutions/types-helpers";
+import { getTotalWageData } from "@rodez97/types-helpers";
 
 export function useWageData() {
   const { scheduleSettings } = useCuttinboardLocation();

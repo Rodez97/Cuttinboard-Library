@@ -1,4 +1,4 @@
-import { IShift } from "@cuttinboard-solutions/types-helpers";
+import { IShift } from "@rodez97/types-helpers";
 import React, { ReactNode } from "react";
 import { useMyShiftsData } from "./useMyShiftsData";
 

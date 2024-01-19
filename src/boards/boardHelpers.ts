@@ -11,7 +11,7 @@ import {
   IBoard,
   IEmployee,
   PrivacyLevel,
-} from "@cuttinboard-solutions/types-helpers";
+} from "@rodez97/types-helpers";
 
 export const boardConverter = {
   toFirestore(object: IBoard): DocumentData {

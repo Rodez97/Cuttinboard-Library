@@ -1,10 +1,7 @@
 import React, { createContext, ReactElement, useCallback } from "react";
 import { User } from "firebase/auth";
 import { useCuttinboardData } from "./useCuttinboardData";
-import {
-  INotifications,
-  IOrganizationKey,
-} from "@cuttinboard-solutions/types-helpers";
+import { INotifications, IOrganizationKey } from "@rodez97/types-helpers";
 import { httpsCallable } from "firebase/functions";
 import { FUNCTIONS } from "../utils";
 

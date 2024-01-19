@@ -1,11 +1,11 @@
 import { useCallback } from "react";
 import { matchSorter } from "match-sorter";
-import { getEmployeeFullName } from "@cuttinboard-solutions/types-helpers";
+import { getEmployeeFullName } from "@rodez97/types-helpers";
 import {
   EmployeeLocationInfo,
   IEmployee,
   RoleAccessLevels,
-} from "@cuttinboard-solutions/types-helpers";
+} from "@rodez97/types-helpers";
 import { useCuttinboardLocation } from "../cuttinboardLocation";
 import { useCuttinboard } from "../cuttinboard";
 import { deleteField, doc, setDoc } from "firebase/firestore";

@@ -1,5 +1,5 @@
 {
-  "name": "@cuttinboard-solutions/cuttinboard-library",
+  "name": "@rodez97/cuttinboard-library",
   "version": "10.1.1",
   "description": "Shared Code Library for Cuttinboard App",
   "main": "dist/compiled/index.js",
@@ -33,14 +33,14 @@
   "license": "Unlicensed",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Cuttinboard-Solutions/Cuttinboard-Library.git"
+    "url": "https://github.com/Rodez97/Cuttinboard-Library.git"
   },
   "bugs": {
-    "url": "https://github.com/Cuttinboard-Solutions/Cuttinboard-Library/issues"
+    "url": "https://github.com/Rodez97/Cuttinboard-Library/issues"
   },
-  "homepage": "hhttps://github.com/Cuttinboard-Solutions/Cuttinboard-Library",
+  "homepage": "https://github.com/Rodez97/Cuttinboard-Library",
   "peerDependencies": {
-    "@cuttinboard-solutions/types-helpers": "^3.3.1",
+    "@rodez97/types-helpers": "^1.0.0",
     "date-fns": ">=2.29.3",
     "dayjs": ">=1.11.6",
     "dayjs-recur": ">=1.0.1",

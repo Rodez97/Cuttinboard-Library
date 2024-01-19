@@ -1,7 +1,4 @@
-import {
-  IBoard,
-  ICuttinboard_File,
-} from "@cuttinboard-solutions/types-helpers";
+import { IBoard, ICuttinboard_File } from "@rodez97/types-helpers";
 import React, { useCallback, useMemo } from "react";
 import { useCuttinboard } from "../cuttinboard";
 import { deleteDoc, doc, setDoc, updateDoc } from "firebase/firestore";

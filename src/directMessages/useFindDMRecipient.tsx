@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { FIRESTORE } from "../utils";
-import { IEmployee } from "@cuttinboard-solutions/types-helpers";
+import { IEmployee } from "@rodez97/types-helpers";
 import { cuttinboardUserConverter } from "../account";
 
 /**

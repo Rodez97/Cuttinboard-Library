@@ -1,4 +1,4 @@
-import { IMessage } from "@cuttinboard-solutions/types-helpers";
+import { IMessage } from "@rodez97/types-helpers";
 import {
   DocumentData,
   QueryDocumentSnapshot,

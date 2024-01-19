@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { useCuttinboard } from "../cuttinboard";
 import { useCuttinboardLocation } from "../cuttinboardLocation";
-import { RoleAccessLevels } from "@cuttinboard-solutions/types-helpers";
+import { RoleAccessLevels } from "@rodez97/types-helpers";
 import { useEmployees } from "./useEmployees";
 
 export function useLocationPermissions() {

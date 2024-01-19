@@ -1,7 +1,4 @@
-import {
-  IDirectMessage,
-  Recipient,
-} from "@cuttinboard-solutions/types-helpers";
+import { IDirectMessage, Recipient } from "@rodez97/types-helpers";
 import {
   arrayRemove,
   arrayUnion,

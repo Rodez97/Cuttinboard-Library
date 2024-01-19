@@ -7,11 +7,7 @@ import { collection, limit, query, where } from "firebase/firestore";
 import { shiftConverter } from "./Shift";
 import { createDefaultScheduleDoc, scheduleConverter } from "./ScheduleHelpers";
 import { collectionData } from "rxfire/firestore";
-import type {
-  IEmployee,
-  IScheduleDoc,
-  IShift,
-} from "@cuttinboard-solutions/types-helpers";
+import type { IEmployee, IScheduleDoc, IShift } from "@rodez97/types-helpers";
 
 export type EmployeeShifts = {
   employee: IEmployee;

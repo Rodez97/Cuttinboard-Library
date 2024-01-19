@@ -7,7 +7,7 @@ import {
   IEmployee,
   PrivacyLevel,
   RoleAccessLevels,
-} from "@cuttinboard-solutions/types-helpers";
+} from "@rodez97/types-helpers";
 import {
   addBoardHost,
   boardConverter,

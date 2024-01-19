@@ -6,7 +6,7 @@ import {
   ILocation,
   IOrganizationKey,
   getEmployeeFullName,
-} from "@cuttinboard-solutions/types-helpers";
+} from "@rodez97/types-helpers";
 import { locationConverter } from "./Location";
 import { useCuttinboard } from "../cuttinboard/useCuttinboard";
 import { FIRESTORE } from "../utils/firebase";

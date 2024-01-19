@@ -2,7 +2,7 @@ import {
   ChatPaths,
   generateChatPaths,
   MessageProviderMessagingType,
-} from "@cuttinboard-solutions/types-helpers";
+} from "@rodez97/types-helpers";
 import { useCuttinboard } from "../cuttinboard/useCuttinboard";
 import { useEffect, useRef, useState } from "react";
 

@@ -1,4 +1,4 @@
-import { ICuttinboardUser } from "@cuttinboard-solutions/types-helpers";
+import { ICuttinboardUser } from "@rodez97/types-helpers";
 import {
   DocumentData,
   QueryDocumentSnapshot,

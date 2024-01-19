@@ -11,7 +11,7 @@ import {
   IDirectMessage,
   IEmployee,
   Sender,
-} from "@cuttinboard-solutions/types-helpers";
+} from "@rodez97/types-helpers";
 import { useCuttinboard } from "../cuttinboard/useCuttinboard";
 import { FIRESTORE } from "../utils/firebase";
 import {

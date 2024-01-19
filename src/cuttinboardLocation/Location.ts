@@ -7,10 +7,7 @@ import {
   setDoc,
 } from "firebase/firestore";
 import { ref } from "firebase/storage";
-import {
-  getLocationStoragePath,
-  ILocation,
-} from "@cuttinboard-solutions/types-helpers";
+import { getLocationStoragePath, ILocation } from "@rodez97/types-helpers";
 import { httpsCallable } from "firebase/functions";
 import { AUTH, FIRESTORE, FUNCTIONS, STORAGE } from "../utils/firebase";
 import { employeesDocumentConverter } from "../employee/Employee";

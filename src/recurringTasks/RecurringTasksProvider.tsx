@@ -5,10 +5,7 @@ import React, {
   useEffect,
   useState,
 } from "react";
-import {
-  IRecurringTask,
-  IRecurringTaskDoc,
-} from "@cuttinboard-solutions/types-helpers";
+import { IRecurringTask, IRecurringTaskDoc } from "@rodez97/types-helpers";
 import { useCuttinboard } from "../cuttinboard/useCuttinboard";
 import { useCuttinboardLocation } from "../cuttinboardLocation/useCuttinboardLocation";
 import { doc, onSnapshot, setDoc, Timestamp } from "firebase/firestore";

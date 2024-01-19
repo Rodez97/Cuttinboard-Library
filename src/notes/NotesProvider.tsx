@@ -1,4 +1,4 @@
-import { IBoard, INote } from "@cuttinboard-solutions/types-helpers";
+import { IBoard, INote } from "@rodez97/types-helpers";
 import React, { useCallback, useMemo } from "react";
 import { useNotesData } from "./useNotesData";
 import { useCuttinboard } from "../cuttinboard";

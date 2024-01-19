@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useReducer, useState } from "react";
 import { useCuttinboard } from "../cuttinboard";
 import { listReducer } from "../utils/listReducer";
-import { BoardCollection, IBoard } from "@cuttinboard-solutions/types-helpers";
+import { BoardCollection, IBoard } from "@rodez97/types-helpers";
 import { collection, onSnapshot } from "firebase/firestore";
 import { FIRESTORE } from "../utils";
 import { boardConverter } from "../boards";
