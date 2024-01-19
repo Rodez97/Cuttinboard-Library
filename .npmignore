@@ -16,3 +16,4 @@ docs
 test
 __tests__
 .parcel-cache/
+.npmrc
