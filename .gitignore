@@ -5,3 +5,4 @@ test/
 __tests__/
 .parcel-cache/data.mdb
 .VSCodeCounter/
+.npmrc
